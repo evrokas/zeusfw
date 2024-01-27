@@ -3,6 +3,12 @@
         echo $s . ($nl?"\n":"");
     }
 
+
+    // $inline_options[] = array();
+    $inline_options['add-id'] = 'true';
+    // $inline_options['extend-class'] = null;
+
+
 class Database {
     private string $name;
     private $fields;
@@ -17,6 +23,12 @@ class Database {
                 
                 if(isset($table['fields'])) {
                     // mlog("Fields set");
+                    
+                    // $f = array();
+                    // $f['name'] = 'id';
+                    // $f['definition'] = 'integer not null auto_increment unique';
+                    // $this->fields[] = $f;
+
                     foreach($table['fields'] as $fieldname => $fielddef) {
                         foreach($fielddef as $fname => $fdef) {
                             // mlog(" - Field  [" . $fname . "] = " . $fdef);
@@ -50,15 +62,34 @@ class Database {
         
         return( ob_get_clean() );
     }
+
+    function emitClass() {
+      global $options;
+
+        ob_start();
+        mlog('// class ' . $this->name);
+        mlog('class ' . $this->name . (isset($options['extend-class'])?' extend ' . $options['extend-class']:"") . ' {');
+        
+            foreach($this->fields as $fld) {
+                mlog('  private ' . $fld['name'] . ';');
+            }
+
+            
+        mlog('};');
+    }
 }
 
 
 // execute various components of the framework
 
-    $getopt_options = "f:";
+    $getopt_options_short = "f:";
+    $getopt_options_long = ['add-id', 'extend-class:'];
     $i=0;
     $optparams = array();
-    $opts = getopt($getopt_options, [], $i);
+    
+    $cmdline_options = getopt($getopt_options_short, $getopt_options_long, $i);
+    $options = array_merge($inline_options, $cmdline_options);
+    print_r($options);
 
     while($i < $argc) {
         $optparams[] = $argv[$i++];
@@ -90,4 +121,20 @@ class Database {
             $s = $db->emitDescription();
             echo $s;
             break;
+
+        case 'class':
+            if(!$optparams[1]) {
+                mlog('Please specify a file to process.');
+                exit;
+            }
+            $file = $optparams[1];
+               
+            $dbinfo = yaml_parse_file( $file );
+         // print_r( $dbinfo );
+                
+            $db = new Database( $dbinfo );
+            $s = $db->emitClass();
+            echo $s;
+            break;
+
     }
