@@ -1,0 +1,3 @@
+<?php
+
+// database abstract layer
