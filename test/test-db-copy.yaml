@@ -1,0 +1,6 @@
+- table: test
+  fields:
+    - username: text
+    - password: text
+    - email: varchar(128)
+

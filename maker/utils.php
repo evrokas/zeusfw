@@ -70,7 +70,7 @@ class Database {
         mlog('// class ' . $this->name);
         mlog('class ' . $this->name . (isset($options['extend-class'])?' extend ' . $options['extend-class']:"") . ' {');
         
-            
+
             foreach($this->fields as $fld) {
                 mlog('  private ' . $fld['name'] . ';');
             }
@@ -143,8 +143,7 @@ class Database {
          // print_r( $dbinfo );
                 
             $db = new Database( $dbinfo );
-            $s = $db->emitClass();
-            echo $s;
+            $db->emitClass();
             break;
 
     }

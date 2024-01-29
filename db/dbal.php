@@ -44,12 +44,10 @@ abstract class dbAbstractEntityClass {
     // protected $_fields;
 
     // table fields
-    protected $id;
+    protected $id = null;
 
     function __construct($atable, $adata = array()) {
         $this->_table = $atable;
-        $this->id = null;
-
         $this->loadFields($adata);
     }
 
@@ -142,16 +140,12 @@ abstract class dbAbstractEntityClass {
 class entityTest extends dbAbstractEntityClass {
 
     // fields
-    protected $username;
-    protected $password;
-    protected $email;
+    protected $username = null;
+    protected $password = null;
+    protected $email = null;
 
     function __construct($adata = array()) {
         parent::__construct('test', $adata);
-
-        $this->username = null;
-        $this->password = null;
-        $this->email = null;
 
         $this->loadFields( $adata );
     }
@@ -181,7 +175,6 @@ class entityTest extends dbAbstractEntityClass {
         foreach($clvars as $n => $v)
             print_r($n ." = " .$v ."\n" );
     }
-
 
     function insert() {
         if($this->id != null) {
