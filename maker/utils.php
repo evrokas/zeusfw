@@ -70,11 +70,21 @@ class Database {
         mlog('// class ' . $this->name);
         mlog('class ' . $this->name . (isset($options['extend-class'])?' extend ' . $options['extend-class']:"") . ' {');
         
+            
             foreach($this->fields as $fld) {
                 mlog('  private ' . $fld['name'] . ';');
             }
 
             
+            mlog('  function __construct();');
+
+            // emit setters and getters
+            foreach($this->fields as $fld) {
+                mlog('  function set'.$fld['name'].'( $a'.$fld['name'].' ) { $this->'.$fld['name'].' = $a'.$fld['name'].'; };');
+                mlog('  function get'.$fld['name'].'() { return ( $this->'.$fld['name']. ') };');
+
+            }
+
         mlog('};');
     }
 }
