@@ -2,7 +2,7 @@
 
 
 
-require_once("../db/dbal.php");
+require_once("../bootstrap.php");
 
 
 $class = 'entityTest';
