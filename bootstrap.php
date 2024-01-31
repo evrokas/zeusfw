@@ -1,6 +1,6 @@
 <?php
 
-require_once("../config/db.php");       // load database parameters
+include_once("../config/db.php");       // load database parameters
 
 require_once("db/dbal.php");            // load database classes
 

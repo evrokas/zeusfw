@@ -56,7 +56,6 @@ abstract class dbAbstractEntityClass {
             $this->id = $adata['id'];
     }
 
-
     function getConnection() { return $GLOBALS['AppDBConnection']; }
 
     function getById(int $aid) {
@@ -119,21 +118,6 @@ abstract class dbAbstractEntityClass {
 
     function getid() { return ( $this->id ); }
     function setid($aid) { $this->id = $aid; }
-
-    // function get($afieldname) {
-    //     if($this->_fields[ $afieldname ])
-    //       return( $this->_fields[ $afieldname ]['data'] );
-    // }
-
-    // function set($afieldname, $adata) {
-    //     if($this->_fields[ $afieldname ])
-    //         $this->_fields[ $afieldname ] = $adata;
-    // }
-
-    function dumpType() {
-        echo get_debug_type( $this ) . "\n";
-    }
-
 };
 
 
@@ -167,14 +151,6 @@ class entityTest extends dbAbstractEntityClass {
     function setemail( $aemail ) { $this->email = $aemail; }
 
     // test functions
-    function dumpType1() {
-        echo get_debug_type( $this ) . "\n";
-        $clvars = get_class_vars( get_class( $this ) );
-        print_r( $clvars );
-
-        foreach($clvars as $n => $v)
-            print_r($n ." = " .$v ."\n" );
-    }
 
     function insert() {
         if($this->id != null) {
