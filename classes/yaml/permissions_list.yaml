@@ -1,0 +1,5 @@
+- table: permissions_list
+  class: permissonsListClass
+  fields:
+    - user: char(36) not null
+    - perm: char(36) not null

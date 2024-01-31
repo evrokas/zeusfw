@@ -10,7 +10,8 @@
 
 
 class Database {
-    private string $name;
+    private $name;
+    private $classname;
     private $fields;
 
     function __construct($ayaml) {
@@ -21,6 +22,8 @@ class Database {
                 $this->name = $table['table'];
                 // mlog("table name: " . $this->name);
                 
+                $this->classname = $table['class'];
+
                 if(isset($table['fields'])) {
                     // mlog("Fields set");
                     
@@ -75,10 +78,10 @@ class Database {
 
         ob_start();
         mlog('<?php');
-        mlog('// class ' . $this->name);
+        mlog('// class ' . $this->classname);
         mlog("require_once('../db/dbal.php');\n");
 
-        mlog('class ' . $this->name . (isset($options['extends-class'])?' extends ' . $options['extends-class']:"") . ' {');
+        mlog('class ' . $this->classname . (isset($options['extends-class'])?' extends ' . $options['extends-class']:"") . ' {');
         
 
             foreach($this->fields as $fld) {
@@ -210,10 +213,68 @@ class Database {
         }
     }
     ");
+
+        return( ob_get_clean() );
+
     }
 
 }
 
+function get_dir_files($dir) {
+    echo "# Listing of ".$dir . '/' . " folder.\n";
+    // list YAML files
+    $folder= scandir($dir . '/');
+    $files = array();
+    foreach($folder as $f)
+        if($f[0] != '.')$files[] = $f;
+    // foreach($files as $f)
+        // echo "$f\n";
+
+    return ($files);
+}
+
+function get_yaml_files($ydir) {
+    $yaml_files = get_dir_files( $ydir );
+    foreach($yaml_files as $f)
+        echo "$f\n";
+
+    return ($yaml_files);
+}
+
+function get_sql_files($sqdir) {
+    $sql_files = get_dir_files( $sqdir );
+    foreach($sql_files as $f)
+        echo "$f\n";
+
+    return ($sql_files);
+}
+
+
+function spill_sql($ymlfile, $sqldir) {
+    $dbinfo = yaml_parse_file( $ymlfile );
+        
+    // print_r( $dbinfo );
+
+    $db = new Database( $dbinfo );
+    $s = $db->emitDescription();
+    
+    // echo $s;
+    echo "emit SQL data in ". $sqldir . '/' . $dbinfo[0]['table']. ".sql\n";
+    file_put_contents($sqldir . '/' . $dbinfo[0]['table'].'.sql',$s);
+}
+
+
+function spill_class($sqlfile, $classdir) {
+    $dbinfo = yaml_parse_file( $sqlfile );
+    // print_r( $dbinfo );
+        
+    $db = new Database( $dbinfo );
+    $s = $db->emitClass();
+
+    echo "emit CLASS data in ". $classdir . '/' . $dbinfo[0]['table']. ".php\n";
+    file_put_contents($classdir . '/' . $dbinfo[0]['table'].'.php', $s);
+
+}
 
 // execute various components of the framework
 
@@ -243,36 +304,50 @@ class Database {
         exit;
     }
 
+    $yaml_dir = "yaml";
+    $sql_dir = "sql";
+    $class_dir = ".";
 
     switch($optparams[0]) {
-        case 'description':
+        case 'list:yaml':
+            get_yaml_files($yaml_dir);
+            break;
+
+        case 'spill:sql':
             if(!$optparams[1]) {
                 mlog('Please specify a file to process.');
                 exit;
             }
             $file = $optparams[1];
             
-            $dbinfo = yaml_parse_file( $file );
-        
-            // print_r( $dbinfo );
-        
-            $db = new Database( $dbinfo );
-            $s = $db->emitDescription();
-            echo $s;
+            spill_sql($yaml_dir . '/' . $file, $sql_dir );
             break;
 
-        case 'class':
+        case 'spill:sql:all':
+            $files = get_yaml_files( $yaml_dir );
+            foreach( $files as $yfile ) {
+                spill_sql( $yaml_dir . '/' . $yfile, $sql_dir );
+            }
+            break;
+
+
+        case 'list:sql':
+            get_sql_files( $sql_dir );
+            break;
+
+        case 'spill:class':
             if(!$optparams[1]) {
-                mlog('Please specify a file to process.');
+                mlog('Usage: ' . $argv[0] . ' db-schema.yaml  file-to-process');
                 exit;
             }
             $file = $optparams[1];
-               
-            $dbinfo = yaml_parse_file( $file );
-         // print_r( $dbinfo );
-                
-            $db = new Database( $dbinfo );
-            $db->emitClass();
+            
+            spill_class( $yaml_dir . '/' . $file, $class_dir);
             break;
-
+        case 'spill:class:all':
+            $files = get_yaml_files( $yaml_dir );
+            foreach($files as $yfile ) {
+                spill_class($yaml_dir . '/' . $yfile, $class_dir);
+            }
+            break;
     }

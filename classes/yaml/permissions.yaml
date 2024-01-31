@@ -1,0 +1,5 @@
+- table: permissions
+  class: permissionsClass
+  fields:
+    - guid: char(36) not null
+    - name: char(32) not null
