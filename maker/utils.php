@@ -249,6 +249,32 @@ function get_sql_files($sqdir) {
     return ($sql_files);
 }
 
+function get_class_files($classdir, $ydir) {
+    $class_files = get_dir_files( $classdir );
+    $yaml_files = get_yaml_files( $ydir );
+
+
+    array_walk($class_files, function(&$value, $key) {
+        $value = explode('.', $value)[0];
+    });
+    
+    array_walk($yaml_files, function(&$value, $key) {
+        $value = explode('.', $value)[0];
+    });
+
+    print_r( $class_files);
+    print_r( $yaml_files );
+
+    $files = array_intersect($class_files, $yaml_files );
+
+    array_walk($files, function(&$value, $key){
+        $value = $value . '.php';
+    });
+
+    // print_r( $files );
+
+    return( $files );
+}
 
 function spill_sql($ymlfile, $sqldir) {
     $dbinfo = yaml_parse_file( $ymlfile );
@@ -275,6 +301,17 @@ function spill_class($sqlfile, $classdir) {
     file_put_contents($classdir . '/' . $dbinfo[0]['table'].'.php', $s);
 
 }
+
+function spill_bootstrap($files) {
+    ob_start();
+    mlog("<?php");
+    mlog("");
+    foreach($files as $cl) {
+        mlog("require_once(\"".$cl."\");");
+    }
+    return ( ob_get_clean() );
+}
+
 
 // execute various components of the framework
 
@@ -307,8 +344,27 @@ function spill_class($sqlfile, $classdir) {
     $yaml_dir = "yaml";
     $sql_dir = "sql";
     $class_dir = ".";
+    $bootstrap_file = 'bootstrap_classes.php';
 
     switch($optparams[0]) {
+        case 'help':
+            $commands = [
+                'help' => 'This help message',
+                'list:yaml' => 'list YAML files in the yaml folder',
+                'list:sql' => 'list SQL files in the SQL folder',
+                'spill:sql' => 'spill SQL code for specific YAML file',
+                'spill:sql:all' => 'spill SQL code for all YAML files in yaml folder',
+                'spill:class' => 'spill PHP CLASS code for specific YAML file',
+                'spill:class:all' => 'spill PHP CLASS code for all YAML files in yaml folder',
+                'update:bootstrap' => 'update bootstrap for classes PHP file'
+            ];
+
+            foreach($commands as $key => $value) {
+                mlog(str_pad($key,20) . $value);
+            }
+            break;
+
+            
         case 'list:yaml':
             get_yaml_files($yaml_dir);
             break;
@@ -349,5 +405,15 @@ function spill_class($sqlfile, $classdir) {
             foreach($files as $yfile ) {
                 spill_class($yaml_dir . '/' . $yfile, $class_dir);
             }
+            break;
+        case 'update:bootstrap':
+            $files = get_class_files( $class_dir, $yaml_dir );
+            $s = spill_bootstrap( $files );
+
+            echo "Updating bootstrap file " . $bootstrap_file . "\n";
+            file_put_contents($bootstrap_file, $s);
+
+            // echo $s."\n";
+
             break;
     }
