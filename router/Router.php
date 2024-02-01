@@ -27,6 +27,7 @@ class RouterClass {
         $aparams = array();
         $match_count = 0;
         $req_token_count = 0;
+        $lit_token_count = 1;
         foreach($req as $req_token) {
             // echo 'Token: ' . print_r( $req_token,1 )." Token[".$req_token_count."]=".$req[$req_token_count]." ==> ";
             
@@ -38,8 +39,10 @@ class RouterClass {
                     $match_count++;
                     $aparams[ trim($path[$req_token_count], "{}") ] = $req_token;
                 }
-                if($req_token === $path[$req_token_count])
+                if($req_token === $path[$req_token_count]) {
                     $match_count++;
+                    $lit_token_count++;
+                }
                     // echo 'MATCH!' . "\n";
 
             }
@@ -47,14 +50,14 @@ class RouterClass {
             $req_token_count++;
         }
 
-        while( isset($path[$req_token_count]))
+        while(isset($path[$req_token_count]))
             $req_token_count++;
 
         // echo "\nFinal match count : " . $match_count . " [Total tests:" . $req_token_count . "]\n";
         if( $match_count === $req_token_count ) {
             // echo "Route is a match: " . print_r($req,1) . " === " . print_r($path,1) . "\n";
             $params = $aparams;
-            return (1);
+            return ( $lit_token_count );
         }
 
         unset($params);
@@ -68,6 +71,7 @@ class RouterClass {
         $req = trim($req, '/');
         $req = explode('/', $req);
         // print_r( $req );
+        $match_collection = array();
 
         foreach($this->route_table as $routename => $routedata) {
             
@@ -79,13 +83,28 @@ class RouterClass {
             $params = array();
             $match = $this->matchRoutePaths($req, $rpath, $params);
             if($match) {
-                // echo "Route match: " . $arequest . " === " . $routedata['title'] . " = " . $routedata['url'] . "\n";
+
+                //put all matching routes in $match_collection
+                //use _fit to distinguish between routes with same tokens and different parameters
+                $match_collection[] = ["_routename" => $routename, "_routedata" => $routedata, "_params" => $params, "_fit" => $match];
+                echo "Route match: " . $arequest . " === " . $routedata['title'] . " = " . $routedata['url'] . "\n";
                 // foreach($params as $key => $val) {
                     // echo " - param: " . $key . " = " . $val . "\n";
                 // }
-                return( ["_routename" => $routename, "_routedata" => $routedata, "_params" => $params ]);
+//                return( ["_routename" => $routename, "_routedata" => $routedata, "_params" => $params ]);
             }
         }
-      return (null);
+        print_r( $match_collection );
+        $rval = 0;
+        $rmatch = null;
+        foreach($match_collection as $r) {
+            if($r['_fit'] > $rval) {
+                $rval = $r['_fit'];
+                $rmatch = $r;
+            }
+        }
+        print_r( $rmatch );
+        return ($rmatch);
+    //   return (null);
     }
 }
