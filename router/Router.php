@@ -87,14 +87,14 @@ class RouterClass {
                 //put all matching routes in $match_collection
                 //use _fit to distinguish between routes with same tokens and different parameters
                 $match_collection[] = ["_routename" => $routename, "_routedata" => $routedata, "_params" => $params, "_fit" => $match];
-                echo "Route match: " . $arequest . " === " . $routedata['title'] . " = " . $routedata['url'] . "\n";
+                // echo "Route match: " . $arequest . " === " . $routedata['title'] . " = " . $routedata['url'] . "\n";
                 // foreach($params as $key => $val) {
                     // echo " - param: " . $key . " = " . $val . "\n";
                 // }
 //                return( ["_routename" => $routename, "_routedata" => $routedata, "_params" => $params ]);
             }
         }
-        print_r( $match_collection );
+        // print_r( $match_collection );
         $rval = 0;
         $rmatch = null;
         foreach($match_collection as $r) {
@@ -103,7 +103,7 @@ class RouterClass {
                 $rmatch = $r;
             }
         }
-        print_r( $rmatch );
+        // print_r( $rmatch );
         return ($rmatch);
     //   return (null);
     }
