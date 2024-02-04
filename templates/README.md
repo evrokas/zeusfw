@@ -1,3 +1,10 @@
+Zeus Template System
+Templates have the extension .zetem
+
+
+------------------------------------------------
+
+
 Hi David,
 
 thanks a lot for this nice template engine.
@@ -29,8 +36,6 @@ return $code;
 }
 
 I hope someone other can do something with it too
-
-
 
 
 ------------------------------------------------
