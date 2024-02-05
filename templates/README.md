@@ -1,6 +1,10 @@
 Zeus Template System
 Templates have the extension .zetem
 
+TOOD
+- Search templates folder recursively to find template name and read contents
+- implement filters with the | directive, possibly implement recursive filtering
+
 
 ------------------------------------------------
 
@@ -190,32 +194,6 @@ a bit long and requires to create lot of files.
 Secondly, no vscdoe extension ! I think I will have to make my own to have syntax color and some snippets !
 That's said, I found it Very simple and easy tu use but powerfull template engine ! Thanks again.
 
--------------------------------------
-Can you change this method:
-
-static function compileCode($code) {
-		$code = self::compileBlock($code);
-		$code = self::compileYield($code);
-		$code = self::compileEchos($code);
-		$code = self::compileEscapedEchos($code);
-		$code = self::compilePHP($code);
-		return $code;
-}
-
-
-To:
-
-static function compileCode($code) {
-		$code = self::compileBlock($code);
-		$code = self::compileYield($code);
-		$code = self::compileEscapedEchos($code);
-		$code = self::compileEchos($code);
-		$code = self::compilePHP($code);
-		return $code;
-}
-
-
-I believe the issue could be because the echos are compiled before the escaped echos. Let me know if this resolves the issue.
 
 -------------------------------------
 i,thanks for this code

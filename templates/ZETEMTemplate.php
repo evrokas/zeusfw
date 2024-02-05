@@ -10,12 +10,31 @@
 
 class ZETEMTemplate {
 	static $blocks = array();
+	static $template_path = '';
 	static $cache_path = 'cache/';
 	static $cache_enabled = FALSE;
 	// static $cache_enabled = true;   //FALSE;
 	static $enable_comments = TRUE;
 	// static $enable_comments = FALSE;
 
+
+	/* $template_path is the path for the template files
+	 * $cache_path can be FALSE (to disable cache), if it is a string then cache_path is set
+	 *             to that string, if it is TRUE then cache_path set to the default 'cache/'
+	 * $enable_comments can TRUE or FALSE */
+	function __construct($template_path, $cache_path = null, $enable_comments = null) {
+		if(isset($template_path))self::$template_path = $template_path;
+		if(isset($cache_path))
+			if(is_bool($cache_path)) {
+				if(!$cache_path)self::$cache_enabled = false; 
+			} else self::$cache_path = $cache_path;
+		if(isset($enable_comments))self::$enable_comments = $enable_comments;
+
+		echo self::emmitComment("Template path: ".self::$template_path . PHP_EOL .
+		"Cache path: " . self::$cache_path . PHP_EOL . 
+		"Comments : " . self::$enable_comments);
+
+	}
 	static function view($file, $data = array()) {
 		$cached_file = self::cache($file);
 	    extract($data, EXTR_SKIP);
@@ -62,7 +81,7 @@ class ZETEMTemplate {
 
 	static function includeFiles($file) {
 		$code = self::emmitComment("begin include file : $file");
-		$code .= file_get_contents($file);
+		$code .= file_get_contents(self::$template_path . $file);
 	
 		preg_match_all('/{% ?(extends|include) ?\'?(.*?)\'? ?%}/i', $code, $matches, PREG_SET_ORDER);
 		// echo "Process include files\n";
@@ -100,7 +119,7 @@ class ZETEMTemplate {
 				self::$blocks[$value[1]] .= $value[2];
 				self::$blocks[$value[1]] .= self::emmitComment("end block: $value[1]", null, false);
 			} else {
-				self::$blocks[$value[1]] = str_replace('@parent', self::$blocks[$value[1]], self::emmitComment("begin block2: $value[1]") . $value[2] . self::emmitComment("end block: $value[1]"));
+				self::$blocks[$value[1]] = str_replace('@parent', self::$blocks[$value[1]], self::emmitComment("begin block2: $value[1]") . $value[2] . self::emmitComment("end block: $value[1]", false));
 			}
             // $code .= "/* include block: $value[0]" . PHP_EOL;
 			$code = str_replace($value[0], '', $code);
@@ -110,7 +129,10 @@ class ZETEMTemplate {
 
 	static function compileYield($code) {
 		foreach(self::$blocks as $block => $value) {
-			$code = preg_replace('/{% ?yield ?' . $block . ' ?%}/', $value, $code);
+			$code = preg_replace('/{% ?yield ?' . $block . ' ?%}/', 
+			// self::emmitComment("begin yield", null, false) . $value . self::emmitComment("end yield", null, false),
+			$value, 
+			$code);
 		}
 		$code = preg_replace('/{% ?yield ?(.*?) ?%}/i', '', $code);
 		return $code;
