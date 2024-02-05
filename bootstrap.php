@@ -6,4 +6,4 @@ require_once(__DIR__ . "/db/dbal.php");            // load database classes
 
 require_once(__DIR__ . "/router/Router.php");      // load router classes
 
-require_once(__DIR__ . "/templates/Template.php");
+require_once(__DIR__ . "/templates/ZETEMTemplate.php");

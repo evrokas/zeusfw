@@ -42,9 +42,13 @@ class ZETEMTemplate {
 		}
 	}
 
-	static function emmitComment($acomment, $acode = null) {
-		if(self::$enable_comments)return ($acode . PHP_EOL . "<!-- " . $acomment . " --!>" . PHP_EOL );
-		else return ($acode);
+	/* $anl == true, emmit PHP_EOL, other wise no */
+	static function emmitComment($acomment, $acode = "", $anl = true) {
+		if(!self::$enable_comments)return $acode;
+
+		$acode = $acode . ($anl?PHP_EOL:'') . "<!-- " . $acomment . " --!>" . ($anl?PHP_EOL:'');
+
+	  return ($acode);
 	}
 
 	static function compileCode($code) {
@@ -86,14 +90,17 @@ class ZETEMTemplate {
 
 	static function compileBlock($code) {
 		preg_match_all('/{% ?block ?(.*?) ?%}(.*?){% ?endblock ?%}/is', $code, $matches, PREG_SET_ORDER);
-		$code = self::emmitComment("including blocks", $code);
+		// $code = self::emmitComment("including blocks", $code);
         foreach ($matches as $value) {
             // print_r( $value );
 			if (!array_key_exists($value[1], self::$blocks)) self::$blocks[$value[1]] = '';
 			if (strpos($value[2], '@parent') === false) {
-				self::$blocks[$value[1]] = self::emmitComment("block : $value[2]") . $value[2];
+
+				self::$blocks[$value[1]] = self::emmitComment("begin block1 $value[1]", null, false);
+				self::$blocks[$value[1]] .= $value[2];
+				self::$blocks[$value[1]] .= self::emmitComment("end block: $value[1]", null, false);
 			} else {
-				self::$blocks[$value[1]] = str_replace('@parent', self::$blocks[$value[1]], self::emmitComment("block: $value[2]").$value[2]);
+				self::$blocks[$value[1]] = str_replace('@parent', self::$blocks[$value[1]], self::emmitComment("begin block2: $value[1]") . $value[2] . self::emmitComment("end block: $value[1]"));
 			}
             // $code .= "/* include block: $value[0]" . PHP_EOL;
 			$code = str_replace($value[0], '', $code);
