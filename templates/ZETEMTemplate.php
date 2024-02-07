@@ -16,7 +16,7 @@ class ZETEMTemplate {
 	// static $cache_enabled = true;   //FALSE;
 	static $enable_comments = TRUE;
 	// static $enable_comments = FALSE;
-
+	static $template_files = array();
 
 	/* $template_path is the path for the template files
 	 * $cache_path can be FALSE (to disable cache), if it is a string then cache_path is set
@@ -30,10 +30,11 @@ class ZETEMTemplate {
 			} else self::$cache_path = $cache_path;
 		if(isset($enable_comments))self::$enable_comments = $enable_comments;
 
-		echo self::emmitComment("Template path: ".self::$template_path . PHP_EOL .
-		"Cache path: " . self::$cache_path . PHP_EOL . 
-		"Comments : " . self::$enable_comments);
+		// echo self::emmitComment("Template path: ".self::$template_path . PHP_EOL .
+		// "Cache path: " . self::$cache_path . PHP_EOL . 
+		// "Comments : " . self::$enable_comments;
 
+		self::$template_files = self::findTemplates(self::$template_path);
 	}
 	static function view($file, $data = array()) {
 		$cached_file = self::cache($file);
@@ -41,11 +42,49 @@ class ZETEMTemplate {
 	   	require $cached_file;
 	}
 
+	/* return recursively all templates in $apth */
+	static function findTemplates($apath) {
+		$files = glob($apath . '*.zetem');
+
+		
+
+		// $dir  = new RecursiveDirectoryIterator($apath, RecursiveDirectoryIterator::SKIP_DOTS);
+		// $files = new RecursiveIteratorIterator($dir, RecursiveIteratorIterator::SELF_FIRST);
+
+		$files = new RecursiveIteratorIterator(
+			new RecursiveDirectoryIterator($apath, RecursiveDirectoryIterator::SKIP_DOTS),
+			RecursiveIteratorIterator::LEAVES_ONLY);
+
+		// print_r( $files );
+		$farr = array();
+		echo "Template files in path: $apath\n";
+
+		$dupl=0;
+		foreach($files as $fnam) {
+			$f = explode('/', $fnam);
+			// $farr[  str_replace('.zetem', '', $f[ array_key_last($f) ]) ] = $fnam;
+			if(isset( $farr [ $f[ array_key_last($f)] ])) {
+				echo "Duplicate template name exists. (". $f[ array_key_last($f)]. " @ " . $fnam->getPathName() . ")\n";
+				$dupl++;
+				// exit;
+			}
+			$farr[ $f[ array_key_last($f) ] ] = $fnam->getPathName();
+		}
+		print_r( $farr );
+		if($dupl>0) {
+			echo "Please rename the above duplicates!\n";
+			exit;
+		}
+	  return ( $farr );
+	}
+
 	static function cache($file) {
 		if (!file_exists(self::$cache_path)) {
 		  	mkdir(self::$cache_path, 0744);
 		}
 	    $cached_file = self::$cache_path . str_replace(array('/', '.zetem'), array('_', ''), $file . '.php');
+		echo "Searching for cached file : $cached_file\n";
+		echo "Template: ". self::$template_files[ $file ] . "\n";
 	    if (!self::$cache_enabled || !file_exists($cached_file) || filemtime($cached_file) < filemtime($file)) {
 			$code = self::emmitComment("processing $file");
 			$code .= self::includeFiles($file);
@@ -80,8 +119,9 @@ class ZETEMTemplate {
 	}
 
 	static function includeFiles($file) {
-		$code = self::emmitComment("begin include file : $file");
-		$code .= file_get_contents(self::$template_path . $file);
+		$code = self::emmitComment("begin include file : $file from " . self::$template_files[ $file ] . "\n");
+		// $code .= file_get_contents(self::$template_path . $file);
+		$code .= file_get_contents(self::$template_files[ $file ]);
 	
 		preg_match_all('/{% ?(extends|include) ?\'?(.*?)\'? ?%}/i', $code, $matches, PREG_SET_ORDER);
 		// echo "Process include files\n";
