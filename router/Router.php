@@ -107,4 +107,17 @@ class RouterClass {
         return ($rmatch);
     //   return (null);
     }
+
+    static function routerCallFunction($match_route) {
+        if(!$match_route) {
+            error_404();
+            return null;
+        }
+        
+        
+        $fexe = $match_route['_routedata']['handler'];
+        $params = $match_route['_params'];
+
+        return ( call_user_func($fexe, $params) );
+    }
 }

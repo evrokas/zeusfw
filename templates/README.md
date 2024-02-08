@@ -1,4 +1,4 @@
-Zeus Template System
+Zeus Template System (ZeTem)
 Templates have the extension .zetem
 
 TOOD

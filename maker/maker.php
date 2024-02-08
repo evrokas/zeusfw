@@ -79,7 +79,7 @@ class Database {
         ob_start();
         mlog('<?php');
         mlog('// class ' . $this->classname);
-        mlog("require_once('../db/dbal.php');\n");
+        mlog("require_once(__DIR__ . \"/../db/dbal.php\");\n");
 
         mlog('class ' . $this->classname . (isset($options['extends-class'])?' extends ' . $options['extends-class']:"") . ' {');
         
@@ -307,7 +307,7 @@ function spill_bootstrap($files) {
     mlog("<?php");
     mlog("");
     foreach($files as $cl) {
-        mlog("require_once(\"".$cl."\");");
+        mlog("require_once(__DIR__ . \"/".$cl."\");");
     }
     return ( ob_get_clean() );
 }
@@ -416,4 +416,7 @@ function spill_bootstrap($files) {
             // echo $s."\n";
 
             break;
+        default:
+            echo "Unknown command\n";
+            exit;
     }
