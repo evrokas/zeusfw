@@ -180,6 +180,8 @@ Template::view('index.html',['render' => Template()]);
 and then in the view just :
 {{ $render::view('partial_view.html',['var'=>'some_arg']) }}
 
+-------------------------------------
+
 I just add one method to compile comment like in twig (i mean comment only visible for dev purpose)
 
 public function compileComments($code)

@@ -57,7 +57,7 @@ class ZETEMTemplate {
 
 		// print_r( $files );
 		$farr = array();
-		echo "Template files in path: $apath\n";
+		// echo "Template files in path: $apath\n";
 
 		$dupl=0;
 		foreach($files as $fnam) {
@@ -70,7 +70,7 @@ class ZETEMTemplate {
 			}
 			$farr[ $f[ array_key_last($f) ] ] = $fnam->getPathName();
 		}
-		print_r( $farr );
+		// print_r( $farr );
 		if($dupl>0) {
 			echo "Please rename the above duplicates!\n";
 			exit;
@@ -83,8 +83,8 @@ class ZETEMTemplate {
 		  	mkdir(self::$cache_path, 0744);
 		}
 	    $cached_file = self::$cache_path . str_replace(array('/', '.zetem'), array('_', ''), $file . '.php');
-		echo "Searching for cached file : $cached_file\n";
-		echo "Template: ". self::$template_files[ $file ] . "\n";
+		// echo "Searching for cached file : $cached_file\n";
+		// echo "Template: ". self::$template_files[ $file ] . "\n";
 	    if (!self::$cache_enabled || !file_exists($cached_file) || filemtime($cached_file) < filemtime($file)) {
 			$code = self::emmitComment("processing $file");
 			$code .= self::includeFiles($file);
@@ -104,12 +104,13 @@ class ZETEMTemplate {
 	static function emmitComment($acomment, $acode = "", $anl = true) {
 		if(!self::$enable_comments)return $acode;
 
-		$acode = $acode . ($anl?PHP_EOL:'') . "<!-- " . $acomment . " --!>" . ($anl?PHP_EOL:'');
+		$acode = $acode . ($anl?PHP_EOL:'') . "<!-- " . $acomment . " -->" . ($anl?PHP_EOL:'');
 
 	  return ($acode);
 	}
 
 	static function compileCode($code) {
+		$code = self::compileComments($code);
 		$code = self::compileBlock($code);
 		$code = self::compileYield($code);
 		$code = self::compileEscapedEchos($code);
@@ -119,7 +120,7 @@ class ZETEMTemplate {
 	}
 
 	static function includeFiles($file) {
-		$code = self::emmitComment("begin include file : $file from " . self::$template_files[ $file ] . "\n");
+		$code = self::emmitComment("begin include file : $file from " . self::$template_files[ $file ]);
 		// $code .= file_get_contents(self::$template_path . $file);
 		$code .= file_get_contents(self::$template_files[ $file ]);
 	
@@ -134,6 +135,10 @@ class ZETEMTemplate {
 
 		return $code;
 	}
+
+	static function compileComments($code) {
+	return preg_replace('~\{#\s*(.+?)\s*\#}~is', '', $code);
+}
 
 	static function compilePHP($code) {
 		return preg_replace('~\{%\s*(.+?)\s*\%}~is', '<?php $1 ?>', $code);
