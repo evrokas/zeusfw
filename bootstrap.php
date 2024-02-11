@@ -2,6 +2,8 @@
 
 include_once(__DIR__ . "/../config/db.php");       // load database parameters
 
+include_once(__DIR__ . "/kernel/Kernel.php");       // include Kernel class
+
 include_once(__DIR__ . "/classes/bootstrap_classes.php");
 
 require_once(__DIR__ . "/db/dbal.php");            // load database classes

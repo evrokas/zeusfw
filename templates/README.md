@@ -142,30 +142,6 @@ Do you have an idea how to solve this problem?
 Thx!!!!!!
 
 
--------------------------------------
-
-At some point I needed to have the compiled code returned as a string but there didn´t seem to be a way to do this. So I created an alternative to the view method that uses output buffering to achieve this.
-Is there a better way I am missing?
-
-
-static function render($file, $data = array()) {
-ob_start();
-$cached_file = self::cache($file);
-extract($data, EXTR_SKIP);
-require $cached_file;
-
-$buffer = ob_get_contents();
-ob_end_clean();
-
-return $buffer;
-}
-
-
-$code = Template::render('Card.html', ['title' => 'Happy birthday!']);
-echo $code;
-
-Apart from that: Thanks for this marvellous piece of tiny work saving code! This template class does awesome things for me!
-
 
 -------------------------------------
 Hi, Thanks for this simple but Great and lightweight template engine !
@@ -181,13 +157,6 @@ and then in the view just :
 {{ $render::view('partial_view.html',['var'=>'some_arg']) }}
 
 -------------------------------------
-
-I just add one method to compile comment like in twig (i mean comment only visible for dev purpose)
-
-public function compileComments($code)
-{
-return preg_replace('~\{#\s*(.+?)\s*\#}~is', '', $code);
-}
 
 Just 2 things I find a bit unfortunate :
 First, to use block inheritance(i.e @parent) from the layout.html, I have to use yield and then include the desired "yielded" block from another file and only after that, this block from the layout can be reused in other templates....
