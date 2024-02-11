@@ -42,6 +42,18 @@ class ZETEMTemplate {
 	   	require $cached_file;
 	}
 
+	static function render($file, $data = array()) {
+		ob_start();
+		$cached_file = self::cache($file);
+		extract($data, EXTR_SKIP);
+		require $cached_file;
+		
+		$buffer = ob_get_contents();
+		ob_end_clean();
+		
+		return $buffer;
+	}
+		
 	/* return recursively all templates in $apth */
 	static function findTemplates($apath) {
 		$files = glob($apath . '*.zetem');
