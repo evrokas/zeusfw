@@ -98,8 +98,9 @@ class ZETEMTemplate {
 		// echo "Searching for cached file : $cached_file\n";
 		// echo "Template: ". self::$template_files[ $file ] . "\n";
 	    if (!self::$cache_enabled || !file_exists($cached_file) || filemtime($cached_file) < filemtime($file)) {
-			$code = self::emmitComment("processing $file");
-			$code .= self::includeFiles($file);
+			
+			// $code = self::emmitComment("processing $file");
+			$code = self::includeFiles($file);
 			$code = self::compileCode($code);
 	        file_put_contents($cached_file, '<?php class_exists(\'' . __CLASS__ . '\') or exit; ?>' . PHP_EOL . $code);
 	    }
@@ -132,7 +133,7 @@ class ZETEMTemplate {
 	}
 
 	static function includeFiles($file) {
-		$code = self::emmitComment("begin include file : $file from " . self::$template_files[ $file ]);
+		$code = self::emmitComment("begin include file : $file from " . self::$template_files[ $file ], false);
 		// $code .= file_get_contents(self::$template_path . $file);
 		$code .= file_get_contents(self::$template_files[ $file ]);
 	
@@ -143,7 +144,7 @@ class ZETEMTemplate {
 			$code = str_replace($value[0], self::includeFiles($value[2]), $code);
 		}
 		$code = preg_replace('/{% ?(extends|include) ?\'?(.*?)\'? ?%}/i', '', $code);
-		$code = self::emmitComment("end include file : $file", $code);
+		$code = self::emmitComment("end include file : $file", $code, false);
 
 		return $code;
 	}
