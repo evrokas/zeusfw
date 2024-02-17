@@ -27,8 +27,13 @@ class Kernel {
       return ( self::$rootpath . $apath);
     }
 
-    static function getConfig() {
-        return (self::$config);
+    static function getConfig($section=null) {
+        if($section) {
+            if(isset(self::$config[$section]))
+              return (self::$config[$section]);
+            else return array();
+        } else
+            return (self::$config);
     }
 
     static function getRoutes() {
@@ -42,18 +47,18 @@ class Kernel {
     }
 
     static function registerModule($amod) {
-        echo "kernel: registering new module " . $amod->getName() . "<br/>";
+        // echo "kernel: registering new module " . $amod->getName() . "<br/>";
         self::$modules[$amod->getName()] = $amod;
     }
 
     static function getModule($amodulename) {
-        echo "requesting module with name " . $amodulename;
+        // echo "requesting module with name " . $amodulename;
         if(isset(self::$modules[ $amodulename ])) {
-            echo " Found!\n";
+            // echo " Found!\n";
             return( self::$modules[ $amodulename ] );
         }
         else {
-            echo " Not found!\n";
+            // echo " Not found!\n";
             return null;
         }
     }
