@@ -95,7 +95,7 @@ class RouterClass {
                     ((isset($routedata['method']) && $areq->matchMethod( $routedata['method'] )))
                 ) {
                     $match_collection[] = ["_routename" => $routename, "_routedata" => $routedata, "_params" => $params, "_fit" => $match];
-                    echo "Route match: " . $arequest . " === " . $routedata['title'] . " = " . $routedata['url'] . " method: " . $routedata['method'] . "\n";
+                    // echo "Route match: " . $arequest . " === " . $routedata['title'] . " = " . $routedata['url'] . " method: " . $routedata['method'] . "\n";
                 }
 
                 // foreach($params as $key => $val) {
