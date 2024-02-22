@@ -3,27 +3,33 @@
 // request class
 
 class RequestClass {
-    static private $method;
-    static private $query;
-    static private $tokens;
+    private $method;
+    private $query;
+    private $tokens;
 
     function __construct($asrvr) {
-        self::$query = $asrvr['QUERY_STRING'];
-        self::$tokens = explode('/', '/'.self::$query);
-        self::$tokens[0] = self::$query;
+        $this->tokens = explode('/', '/'.$this->query);
+        $this->tokens[0] = $this->query;
+        $this->query = $asrvr['QUERY_STRING'];
 
-        self::$method = $asrvr['REQUEST_METHOD'];
+        $this->method = strtolower( $asrvr['REQUEST_METHOD'] );
+
+        // print_r( $this );
     }
 
     function getQueryString() {
-        return self::$query;
+        return $this->query;
     }
 
     function getMethod() {
-        return self::$method;
+        return $this->method;
     }
 
     function getQueryRoute() {
-        return (self::$tokens);
+        return ($this->tokens);
+    }
+
+    function matchMethod($amethod) {
+        return (strtolower( $amethod ) == strtolower( $this->method) );   
     }
 }

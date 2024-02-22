@@ -7,59 +7,99 @@ function kernel_debug($dbg) {
 }
 
 class Kernel {
-    private static $rootpath = null;
-    private static $config = null;
+    protected $rootpath = null;
+    protected $config = null;
 
-    private static $modules = array();
+    protected $modules = array();
 
-    function __construct($asrv, $ainfo) {
-        self::$rootpath= substr($asrv['PHP_SELF'],0,strrpos($asrv['PHP_SELF'],'/')+1);
-        self::$config = $ainfo;
+    function __construct($asrv, $ainfofile) {
+        $this->rootpath= substr($asrv['PHP_SELF'],0,strrpos($asrv['PHP_SELF'],'/')+1);
+        $this->config = yaml_parse_file($ainfofile);
+        // echo "<pre>";
+        // print_r( $this->config );
+        // echo "</pre>";
     }
 
-    static function getrootpath() {
-        return (self::$rootpath);
+     function getrootpath() {
+        return ($this->rootpath);
     }
 
-    static function relative_url($apath) {
+     function rel_url($apath) {
         if($apath == '/')
             $apath = '';
-      return ( self::$rootpath . $apath);
+
+        $apath = str_replace('//', '/', $this->rootpath . $apath);
+
+      return ( $apath);
     }
 
-    static function getConfig($section=null) {
+    function getConfig($section=null) {
         if($section) {
-            if(isset(self::$config[$section]))
-              return (self::$config[$section]);
+            if(isset($this->config[$section]))
+              return ($this->config[$section]);
             else return array();
         } else
-            return (self::$config);
+            return ($this->config);
     }
 
-    static function getRoutes() {
-        return (self::$config['routes']);
+    function getRoutes() {
+        return ($this->config['routes']);
     }
 
-    static function getBlocksInRegion($aregion) {
-        $blks = self::$config['structure'];
+    function getBlocksInRegion($aregion) {
+        $blks = $this->config['structure'];
         // print_r( $blks[$aregion] );
       return ($blks[$aregion]);
     }
 
-    static function registerModule($amod) {
+    function registerModule($amod) {
         // echo "kernel: registering new module " . $amod->getName() . "<br/>";
-        self::$modules[$amod->getName()] = $amod;
+        $this->modules[$amod->getName()] = $amod;
     }
 
-    static function getModule($amodulename) {
+    function getModule($amodulename) {
         // echo "requesting module with name " . $amodulename;
-        if(isset(self::$modules[ $amodulename ])) {
+        if(isset($this->modules[ $amodulename ])) {
             // echo " Found!\n";
-            return( self::$modules[ $amodulename ] );
+            return( $this->modules[ $amodulename ] );
         }
         else {
             // echo " Not found!\n";
             return null;
         }
     }
+
+    function setStatus($statusName, $statusMessage) {
+        $_SESSION[ $statusName ] = $statusMessage;
+    }
+
+    function clearStatus($statusName) {
+        unset($_SESSION[ $statusName ]);
+    }
+
+    function getStatus($statusName) {
+        if(isset($_SESSION[ $statusName ]))
+            return $_SESSION[ $statusName ];
+        else return null;
+    }
+
+    function getclearStatus($statusName) {
+        $s = $this->getStatus($statusName);
+        $this->clearStatus($statusName);
+        return ($s);
+    }
+
+    function ifelseStatus($statusName, $iffalseStatus = null, $clear = false) {
+        $s = $this->getStatus($statusName);
+        if($clear)$this->clearStatus($statusName);
+        if($s)return $s;
+        else return $iffalseStatus;
+    }
+}
+
+
+function rel_url($p) {
+    global $kernel;
+
+    return $kernel->rel_url($p);
 }

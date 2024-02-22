@@ -64,9 +64,11 @@ class RouterClass {
         return (0);
     }
 
-    function matchRoute($arequest) {
+    function matchRoute(&$areq) {
         // $request is in the form /option1/options2/arg1/arg2/etc...
-        $req = $arequest;
+        $arequest = $areq->getQueryString();
+        // $arequest = $areq
+        // echo "Request string: >>" . print_r($areq->getQueryRoute(), 1) . "<<<br/>";
         $req = trim($arequest);
         $req = trim($req, '/');
         $req = explode('/', $req);
@@ -76,18 +78,26 @@ class RouterClass {
         foreach($this->route_table as $routename => $routedata) {
             
             $rpath = explode('/', trim($routedata['url'], '/'));
-            // print_r( $routename . " : " . $routedata['url'] . "\n" );
+            // print_r( $routename . " : " . $routedata['url'] . " method: " . (isset($routedata['method'])?$routedata['method']:"unknown") . "\n" );
             // print_r( $rpath );
 
 
             $params = array();
             $match = $this->matchRoutePaths($req, $rpath, $params);
             if($match) {
-
                 //put all matching routes in $match_collection
                 //use _fit to distinguish between routes with same tokens and different parameters
-                $match_collection[] = ["_routename" => $routename, "_routedata" => $routedata, "_params" => $params, "_fit" => $match];
-                // echo "Route match: " . $arequest . " === " . $routedata['title'] . " = " . $routedata['url'] . "\n";
+
+                // add in collection only if 
+                // - method is not specified in route
+                // - or if method is specifed, it is the same as in request
+                if( (!isset($routedata['method'])) || 
+                    ((isset($routedata['method']) && $areq->matchMethod( $routedata['method'] )))
+                ) {
+                    $match_collection[] = ["_routename" => $routename, "_routedata" => $routedata, "_params" => $params, "_fit" => $match];
+                    echo "Route match: " . $arequest . " === " . $routedata['title'] . " = " . $routedata['url'] . " method: " . $routedata['method'] . "\n";
+                }
+
                 // foreach($params as $key => $val) {
                     // echo " - param: " . $key . " = " . $val . "\n";
                 // }

@@ -15,3 +15,5 @@ require_once(__DIR__ . "/router/Request.php");      // load router classes
 require_once(__DIR__ . "/router/ErrorHandlers.php");      // load router classes
 
 require_once(__DIR__ . "/templates/ZETEMTemplate.php");
+
+require_once(__DIR__ . "/content/Content.php");

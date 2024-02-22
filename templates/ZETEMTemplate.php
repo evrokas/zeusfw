@@ -58,8 +58,6 @@ class ZETEMTemplate {
 	static function findTemplates($apath) {
 		$files = glob($apath . '*.zetem');
 
-		
-
 		// $dir  = new RecursiveDirectoryIterator($apath, RecursiveDirectoryIterator::SKIP_DOTS);
 		// $files = new RecursiveIteratorIterator($dir, RecursiveIteratorIterator::SELF_FIRST);
 
@@ -133,7 +131,7 @@ class ZETEMTemplate {
 	}
 
 	static function includeFiles($file) {
-		$code = self::emmitComment("begin include file : $file from " . self::$template_files[ $file ], false);
+		$code = self::emmitComment(" begin include file : $file from " . self::$template_files[ $file ] ." ", false);
 		// $code .= file_get_contents(self::$template_path . $file);
 		$code .= file_get_contents(self::$template_files[ $file ]);
 	
@@ -144,7 +142,7 @@ class ZETEMTemplate {
 			$code = str_replace($value[0], self::includeFiles($value[2]), $code);
 		}
 		$code = preg_replace('/{% ?(extends|include) ?\'?(.*?)\'? ?%}/i', '', $code);
-		$code = self::emmitComment("end include file : $file", $code, false);
+		$code = self::emmitComment(" end include file : $file ", $code, false);
 
 		return $code;
 	}
