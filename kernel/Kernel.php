@@ -69,36 +69,21 @@ class Kernel {
         }
     }
 
-    function setStatus($statusName, $statusMessage) {
-        $_SESSION[ $statusName ] = $statusMessage;
+    function addStatus($level, $statusMessage) {
+        if(!isset($_SESSION[ $level ]))
+            $_SESSION[ $level ] = array();
+        $_SESSION[ $level ][] = $statusMessage;
     }
 
-    function clearStatus($statusName) {
-        unset($_SESSION[ $statusName ]);
-    }
-
-    function getStatus($statusName) {
-
-        if(isset($_SESSION[ $statusName ])) {
-            // echo ($_SESSION[ $statusName ]);
-            return $_SESSION[ $statusName ];
+    function getStatus($level, $clear = null) {
+        if(isset($_SESSION[ $level ])) {
+            $st = $_SESSION[ $level ];
+            if($clear)
+                $_SESSION[ $level ] = array();
+            return $st;
         }
-        else return null;
-    }
-
-    function getclearStatus($statusName) {
-        $s = $this->getStatus($statusName);
-        $this->clearStatus($statusName);
-        return ($s);
-    }
-
-    function ifelseStatus($statusName, $iffalseStatus = null, $clear = false) {
-        $s = $this->getStatus($statusName);
-        // echo "Status: $s<br/>";
-        if($clear)$this->clearStatus($statusName);
-        
-        if($s)return $s;
-        else return $iffalseStatus;
+        else
+            return array();
     }
 }
 
