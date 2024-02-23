@@ -120,8 +120,7 @@ class RouterClass {
 
     static function routerCallFunction($match_route) {
         if(!$match_route) {
-            error_404();
-            return null;
+            return (error_404() );
         }
         
         

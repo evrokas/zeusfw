@@ -8,9 +8,9 @@ class RequestClass {
     private $tokens;
 
     function __construct($asrvr) {
+        $this->query = $asrvr['QUERY_STRING'];
         $this->tokens = explode('/', '/'.$this->query);
         $this->tokens[0] = $this->query;
-        $this->query = $asrvr['QUERY_STRING'];
 
         $this->method = strtolower( $asrvr['REQUEST_METHOD'] );
 
