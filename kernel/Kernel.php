@@ -78,8 +78,11 @@ class Kernel {
     }
 
     function getStatus($statusName) {
-        if(isset($_SESSION[ $statusName ]))
+
+        if(isset($_SESSION[ $statusName ])) {
+            // echo ($_SESSION[ $statusName ]);
             return $_SESSION[ $statusName ];
+        }
         else return null;
     }
 
@@ -91,7 +94,9 @@ class Kernel {
 
     function ifelseStatus($statusName, $iffalseStatus = null, $clear = false) {
         $s = $this->getStatus($statusName);
+        // echo "Status: $s<br/>";
         if($clear)$this->clearStatus($statusName);
+        
         if($s)return $s;
         else return $iffalseStatus;
     }
