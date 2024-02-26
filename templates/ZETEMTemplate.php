@@ -53,7 +53,7 @@ class ZETEMTemplate {
 		
 		return $buffer;
 	}
-		
+	
 	/* return recursively all templates in $apth */
 	static function findTemplates($apath) {
 		$files = glob($apath . '*.zetem');

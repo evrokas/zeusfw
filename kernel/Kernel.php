@@ -93,3 +93,12 @@ function rel_url($p) {
 
     return $kernel->rel_url($p);
 }
+
+function attributes($at) {
+    // $s = 'atrributes ' . print_r( $at, 1 ) . '<br>';
+    $s = '';
+    if(isset($at['attributes']))
+        return ($s . $at['attributes']->getAttributes());
+    else return $s;
+}
+
