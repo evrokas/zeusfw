@@ -94,6 +94,55 @@ class Database {
       \$this->loadFields( \$adata );
   }");
 
+            mlog("  static function sgetById(int \$aid) {
+                global \$AppDBConnection;
+
+                    if(!\$AppDBConnection->isConnected()) {
+                        if(!\$AppDBConnection->Connect()) {
+                            echo 'Could not connect to database';
+                            return (null);
+                        }
+                    }
+            
+                    \$sql = \"SELECT * FROM " . $this->name . " WHERE id=:id\";
+                    \$st = \$AppDBConnection->getConnection()->prepare( \$sql );
+                    \$st->bindValue(\":id\", \$aid, PDO::PARAM_INT);
+                    \$st->execute();
+                    \$row = \$st->fetch();
+            
+                    if(\$row) {
+                        \$rclass = new " . $this->classname . "( \"" . $this->name . "\");
+                        \$rclass->loadFields( \$row );
+                        return \$rclass;
+                    } else return (null);
+            }");
+
+            mlog("  static function sgetAll() {
+                global \$AppDBConnection;
+
+                if(!\$AppDBConnection->isConnected()) {
+                    if(!\$AppDBConnection->Connect()) {
+                        echo 'Could not connect to database';
+                        return (null);
+                    }
+                }
+        
+                \$sql = \"SELECT * FROM " . $this->name . ";\";
+                \$st = \$AppDBConnection->getConnection()->prepare( \$sql );
+                \$st->execute();
+        
+                \$list = array();
+        
+                while( \$row = \$st->fetch() ) {
+                    \$rclass = new " . $this->classname . "( \"" . $this->name . "\" );
+                    \$rclass->loadFields( \$row );
+                    \$list[] = \$rclass;
+                }
+        
+                return (\$list);
+        
+            }");
+
             mlog("  function loadFields(\$adata) {
       parent::loadFields(\$adata);");
 
