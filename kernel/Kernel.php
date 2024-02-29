@@ -102,3 +102,6 @@ function attributes($at) {
     else return $s;
 }
 
+function guid() {
+    return (file_get_contents('/proc/sys/kernel/random/uuid'));
+}

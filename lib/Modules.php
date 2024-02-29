@@ -204,7 +204,9 @@ class notificationsModule extends moduleClass {
 
             $prms = array();
             foreach(['notice', 'error', 'warning'] as $level) {
-                $s = $kernel->getStatus('notice', true);
+                $s = $kernel->getStatus($level, true);
+                // echo "$level " . print_r($s, 1) . "<br>";
+
                 if(count($s))$prms[ $level ] = implode('<br>', $s);
             }
 
