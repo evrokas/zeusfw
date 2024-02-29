@@ -1,5 +1,10 @@
 - table: permissions_list
   class: permissionsListClass
   fields:
-    - user: char(36) not null
-    - perm: char(36) not null
+    - alpha: char(36) not null
+    - beta: char(36) not null
+
+
+# this is the list that connects guid
+# used to connect alpha guid from users, roles, permissions entries
+# to beta guid from users, roles, permissions entries

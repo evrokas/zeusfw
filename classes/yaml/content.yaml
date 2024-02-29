@@ -1,3 +1,8 @@
+# This is the base class for all content classes and types 
+#
+# Please extend the current class to add various content types
+
+
 - table: content
   class: contentBaseClass
   fields:

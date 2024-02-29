@@ -8,5 +8,4 @@
     - cdate: timestamp default current_timestamp
     - active: boolean default false
     - expired: boolean default  true
-    - perms: char(36) not null
-    
+    - roles: char(36) not null
