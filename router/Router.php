@@ -88,6 +88,12 @@ class RouterClass {
                 //put all matching routes in $match_collection
                 //use _fit to distinguish between routes with same tokens and different parameters
 
+                // use permissions to drop unauthorized access
+                if((!isset($routedata['permissions'])) ||
+                    (isset($routedata['permissions']) && $this->validatePermissions($routedata['permissions']))) {
+                        //
+                    }
+
                 // add in collection only if 
                 // - method is not specified in route
                 // - or if method is specifed, it is the same as in request
