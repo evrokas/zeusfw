@@ -1,0 +1,19 @@
+- table: content
+  class: contentBaseClass
+  fields:
+    - guid: char(36) not null
+    - cdate: timestamp default current_timestamp
+    - cuser: char(32) not null
+    - title: text
+    - description: text
+    - published: boolean
+    - path: text
+
+
+# - guid is the GUID for the content record
+# - cdate is the creation date of the record
+# - cuser is the user that created the record
+# - title is the title of the content record
+# - description is the description of the record
+# - published specifies whether the content is published or not
+# - path is the path that corresponds to the record
