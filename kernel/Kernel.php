@@ -111,6 +111,7 @@ class Kernel {
     }
 
     function loginUser($uname, $uroles) {
+        session_start();
         session_regenerate_id();
         $_SESSION['user'] = $uname;
         $urolelist = SecurityClass::processRoles($uroles);
@@ -119,6 +120,12 @@ class Kernel {
             exit();
         }
         $_SESSION['user_roles'] = $urolelist;
+    }
+
+    function logoutUser() {
+        unset( $_SESSION['user'] );
+        unset( $_SESSION['user_roles']);
+        session_destroy();
     }
 }
 

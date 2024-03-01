@@ -24,3 +24,5 @@ require_once(__DIR__ . "/lib/Content.php");
 require_once(__DIR__ . "/lib/Menutrail.php");
 require_once(__DIR__ . "/lib/Routetrail.php");
 require_once(__DIR__ . "/lib/Security.php");
+
+require_once(__DIR__ . "/lib/UsersEx.php");

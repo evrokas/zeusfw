@@ -57,13 +57,15 @@ class SecurityClass {
             exit();
         }
 
-        // echo "<pre>Access: " . print_r( $permlist, 1 ) . "</pre>"; 
+        // echo "<pre>Page access: " . print_r( $permlist, 1 ) . "</pre>"; 
         $uroles = $kernel->getUserRoles();
-        // echo "<pre>User: " . print_r( $uroles, 1 ) . "</pre>";
+        // echo "<pre>User access: " . print_r( $uroles, 1 ) . "</pre>";
 
         $pass = 0;
-        foreach($uroles as $urole) {
-            if(in_array($urole, $permlist))$pass++;
+        if($uroles) {
+            foreach($uroles as $urole) {
+                if(in_array($urole, $permlist))$pass++;
+            }
         }
         // echo "<pre>User can pass $pass</pre>";
         return ($pass);
@@ -77,6 +79,11 @@ class SecurityClass {
         $pass = 0;
         foreach($uroles as $urole) {
             if(in_array($aperm, self::$roles[ $urole]))$pass++;
+        }
+
+        if(!$pass) {
+            echo error_401();
+            exit();
         }
         // echo "<pre>User can pass $pass</pre>";
     }

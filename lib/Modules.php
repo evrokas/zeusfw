@@ -213,6 +213,23 @@ class notificationsModule extends moduleClass {
         return $this->RenderTemplate($prms);
     }
 }
+
+
+class UserModule extends moduleClass {
+    function render($params = array()) {
+        global $kernel;
+        $loggedin = false;
+        $user = '';
+        $us = $kernel->getUserName();
+        // echo "<pre>Username: $us</pre>";
+
+        if(($us=$kernel->getUserName())) {
+            $user = $us;
+            $loggedin = true;
+        }
+        return $this->RenderTemplate(['loggedin' => $loggedin, 'name' => $user]);
+    }
+}
 function registerModules() {
     global $kernel;
 
@@ -225,4 +242,5 @@ function registerModules() {
     $kernel->registerModule( new htmltextModule('copyright', 'htmltext.zetem', '(c) by Evangelos M. Rokas'));
     $kernel->registerModule( new contentModule('content', 'content.zetem'));
     $kernel->registerModule( new notificationsModule('notifications', 'notifications.zetem'));
+    $kernel->registerModule( new UserModule('userblock', 'userblock.zetem'));
 }
