@@ -2,10 +2,23 @@
 
 class RouterClass {
     private $route_table;
+    static private $route_error = 0;
 
     function __construct($rt = null) {
         $this->route_table = array();
         $this->route_table = $rt;
+    }
+
+    static function setError($err) {
+        self::$route_error = $err;
+    }
+
+    static function clearError() {
+        self::$route_error = 0;
+    }
+
+    static function getError() {
+        return (self::$route_error);
     }
 
     function getAllRoutes() {
@@ -89,10 +102,21 @@ class RouterClass {
                 //use _fit to distinguish between routes with same tokens and different parameters
 
                 // use permissions to drop unauthorized access
-                if((!isset($routedata['permissions'])) ||
-                    (isset($routedata['permissions']) && $this->validatePermissions($routedata['permissions']))) {
-                        //
+                // if((!isset($routedata['permissions'])) ||
+                    // (isset($routedata['permissions']) && $this->validatePermissions($routedata['permissions']))) {
+                        // echo "<pre>Router permissions: " . $routedata['permissions']
+                        // }
+                if(isset($routedata['access'])) {
+                    // echo "<pre>Router permissions: " . $routedata['access'] . "</pre>";
+                    if(SecurityClass::userIsPermitted($routedata['access'])) {
+                        // echo "<pre>User permitted!</pre>";
+                    } else {
+                        // echo "<pre>User is not permitted!</pre>";
+                        self::setError(401);
+                        break;
                     }
+                }
+
 
                 // add in collection only if 
                 // - method is not specified in route
@@ -126,7 +150,15 @@ class RouterClass {
 
     static function routerCallFunction($match_route) {
         if(!$match_route) {
-            return (error_404() );
+            if(self::getError()) {
+                switch(self::getError()) {
+                    case 401: return (error_401());
+                }
+
+                self::clearError();
+            } else {
+                return (error_404() );
+            }
         }
         
         

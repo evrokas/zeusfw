@@ -30,3 +30,30 @@ When rendering a region, traverse all blocks and
 
 Render each block in a region with parameteres
 Render a region with all blocks as parameter {{block}}
+
+
+
+----
+* router
+
+routes:
+  homepage:
+    title: "Homepage"
+    name: homepage
+    url: "/"
+    handler: homepage
+  admin:
+    title: "Administration"
+    name : admin
+    url: "/admin"
+    handler: admin
+    permissions: authenticated
+
+permissions field might be
+ - blank: all users can access the route
+ - authorized: all authorized users can access the route (special case)
+ - [role]: users with the specified role can access the route,
+   these users should always be authenticated
+Access permissions and roles are initialized in a different section
+
+

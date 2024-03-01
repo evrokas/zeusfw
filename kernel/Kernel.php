@@ -85,6 +85,41 @@ class Kernel {
         else
             return array();
     }
+
+    function authenticateUser($auser, $apass) {
+        // checks to see if user exists in the database,
+        // if pass matches
+        // if ok, then sets up variables in session
+
+        $user = usersClassEx::getUser( $auser, $apass );
+        if($user) {
+            // user exists and password is a match
+            echo "User exists!";
+        }
+    }
+
+    function getUserName() {
+        if(isset($_SESSION) && isset($_SESSION['user'])) {
+            return ($_SESSION['user']);
+        } else return null;
+    }
+
+    function getUserRoles() {
+        if(isset($_SESSION) && isset($_SESSION['user']) && isset($_SESSION['user_roles'])) {
+            return($_SESSION['user_roles']);
+        } else return null;
+    }
+
+    function loginUser($uname, $uroles) {
+        session_regenerate_id();
+        $_SESSION['user'] = $uname;
+        $urolelist = SecurityClass::processRoles($uroles);
+        if(!$urolelist) {
+            echo "<pre>User roles are initialized falsely. Please check!";
+            exit();
+        }
+        $_SESSION['user_roles'] = $urolelist;
+    }
 }
 
 
