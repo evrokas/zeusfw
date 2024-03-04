@@ -147,3 +147,7 @@ function attributes($at) {
 function guid() {
     return (file_get_contents('/proc/sys/kernel/random/uuid'));
 }
+
+function getDBtime($atime) {
+    return (date ('Y-m-d H:i:s', $atime));  
+}

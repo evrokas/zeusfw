@@ -159,7 +159,7 @@ class mainnavigationModule extends moduleClass {
             // $amenu[ $mitem ]['attributes'] = $at;
             
             // echo "<pre>" . $amenu[$mitem]['text'] . ' <> ' . $this->trail[$alevel] . " {" . $alevel . "}<br/></pre>";
-            if( $alevel && ($amenu[$mitem]['text'] == $this->trail[$alevel]) )
+            if( isset($this->trail[$alevel])/*$alevel*/ && ($amenu[$mitem]['text'] == $this->trail[$alevel]) )
                 $amenu[$mitem]['attributes']->addClass('in-menu-trail');
 
 
