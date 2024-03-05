@@ -73,13 +73,15 @@ class Kernel {
         if(!isset($_SESSION[ $level ]))
             $_SESSION[ $level ] = array();
         $_SESSION[ $level ][] = $statusMessage;
+        // error_log("\nSet status: [$level]: $statusMessage\n");
     }
 
     function getStatus($level, $clear = null) {
         if(isset($_SESSION[ $level ])) {
             $st = $_SESSION[ $level ];
             if($clear)
-                $_SESSION[ $level ] = array();
+                unset($_SESSION[ $level ]);
+            //  = array();
             return $st;
         }
         else
@@ -148,6 +150,66 @@ function guid() {
     return (file_get_contents('/proc/sys/kernel/random/uuid'));
 }
 
-function getDBtime($atime) {
+function getDBtime($atime = null) {
+    if(!$atime)$atime=time();
     return (date ('Y-m-d H:i:s', $atime));  
+}
+
+function formatDate($str) {
+    return (date("d-m-Y H:i:s", strtotime($str)));
+}
+
+function randomChar($str) {
+    $len = strlen($str);
+    return ($str[ random_int(1, $len-1)]);
+}
+
+function randomAlpha($nchars, $nwords = 1) {
+    static $alpha = 'abcdefghhjklmnopqrstuvwxyz';
+    
+    $words = array();
+    while($nwords--) {
+        $n = random_int(1, $nchars);
+        $s = '';
+        while($n>0) {
+            $s .= randomChar($alpha);
+            $n--;
+        }
+        $words[] = $s;
+    }
+
+    return(implode(' ', $words));
+}
+
+function randomNumber($ndigits) {
+    static $numbers = '0123456789';
+
+    $s = '';
+    while($ndigits--) {
+        $s .= randomChar($numbers);
+    }
+
+    return ($s);
+}
+
+function randomAlnum($nchars, $nwords) {
+    static $alpha = 'abcdefghhjklmnopqrstuvwxyz0123456789ABCDEFGHJKLMNOPQRSTUVWXYZ';
+    
+    $words = array();
+    while($nwords--) {
+        $n = random_int(1, $nchars);
+        $s = '';
+        while($n--) {
+            $s .= randomChar($alpha);
+        }
+        $words[] = $s;
+    }
+
+    return(implode(' ', $words));
+}
+
+function randomEmail() {
+    $s = randomAlpha(1) . randomAlnum(10, 1) . '@' . randomAlnum(8, 1) . '.' . randomAlnum(2, 1);
+
+    return ($s);
 }
