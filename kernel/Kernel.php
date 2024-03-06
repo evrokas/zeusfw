@@ -88,6 +88,24 @@ class Kernel {
             return array();
     }
 
+    function pushRouteHistory($aroute) {
+        if(!isset($_SESSION['route_history']))
+            $_SESSION['route_history'] = array();
+        array_push($_SESSION['route_history'], $aroute);
+    }
+
+    function popRouteHistory() {
+        if(!isset($_SESSION['route_history']))
+            return null;
+        return ( array_pop($_SESSION['route_history']));
+    }
+
+    function hasRouteHistory() {
+        if(!isset($_SESSION['route_history']))
+            $_SESSION['route_history'] = array();
+        return(count($_SESSION['route_history']));
+    }
+
     function authenticateUser($auser, $apass) {
         // checks to see if user exists in the database,
         // if pass matches
