@@ -42,6 +42,25 @@ class Kernel {
             return ($this->config);
     }
 
+    function addConfig($section) {
+        $addsection = yaml_parse($section);
+
+        // echo "<pre>addConfig: " . print_r( $addsection, 1) . "</pre>";
+        // echo "<pre>addConfig: " . print_r( $this->config, 1) . "</pre>";
+
+        $this->config = array_merge_recursive($this->config, $addsection);
+
+        // foreach($addsection as $sectionkey => $sectionval) {
+        //     if(!isset($this->config[ $sectionkey ])) {
+        //         $this->config[ $sectionkey ] = array();
+        //     } 
+        //     foreach($sectionval as $valkey => $valval) {
+        //         $this->config[ $sectionkey ][ $valkey ] = $valval;
+        //     }
+        // }
+        // echo "<pre>addConfig: " . print_r( $this->config, 1) . "</pre>";        
+    }
+
     function getRoutes() {
         return ($this->config['routes']);
     }
@@ -230,4 +249,21 @@ function randomEmail() {
     $s = randomAlpha(1) . randomAlnum(10, 1) . '@' . randomAlnum(8, 1) . '.' . randomAlnum(2, 1);
 
     return ($s);
+}
+
+
+function echopre($str) {
+    echo "<pre>$str</pre>";
+}
+
+
+function module($astr, $params) {
+    global $kernel;
+
+    // echopre("Calling module: $astr");
+    $mod = $kernel->getModule( $astr );
+    // echopre(print_r($mod, 1));
+    return ( $mod->run( $params ) );
+
+    return("<h1><pre>Module: " . print_r($astr, 1) . "</pre></h1>");
 }

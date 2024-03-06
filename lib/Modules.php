@@ -230,6 +230,66 @@ class UserModule extends moduleClass {
         return $this->RenderTemplate(['loggedin' => $loggedin, 'name' => $user]);
     }
 }
+
+class UserProfileModule extends moduleClass {
+
+    function __construct($amodule, $atemplate) {
+        parent::__construct($amodule, $atemplate);
+
+        //add route definitions
+        $profile_yaml="
+        routes:
+            userprofile:
+                title: 'User profile'
+                name: userprofile
+                url: /profile
+                module: userprofile
+                # handler: module
+                method: get
+            userprofile_post:
+                title: 'User profile'
+                name: userprofile_post
+                url: /profile
+                module: userprofile
+                # handler: module
+                method: post          
+        ";
+
+        global $kernel;
+        $kernel->addConfig( $profile_yaml );
+
+
+        // $region_yaml="
+        //     structure:
+        //         notification:
+        //             - userprofile
+        //     ";
+
+        // $kernel->addConfig($region_yaml);
+        global $router;
+        $router->initRouteTable($kernel->getConfig('routes'));
+        // echo "<pre>Router routes: " . print_r( $router->getAllRoutes(), 1) . "</pre>";
+    }
+
+    function render($params = array()) {
+        global $kernel;
+
+        if(!($u=$kernel->getUserName())) {
+            return "";
+        }
+
+        $user = UsersClassEx::getUserAccount( $u );
+
+        return $this->RenderTemplate(['user' => $user,
+            $user->getactive()?'checked="checked"':'',
+            $user->getExpired()?'checked="checked"':'']);
+    }
+
+    function run($params) {
+        echopre("UserProfile module::run()");
+        return $this->render($params);
+    }
+}
 function registerModules() {
     global $kernel;
 
@@ -239,8 +299,10 @@ function registerModules() {
     $kernel->registerModule( new mainnavigationModule('mainnavigation', 'main_navigation.zetem', $kernel->getConfig('menu')['main']));
     // $kernel->registerModule( new moduleClass('topbar', 'topbar.zetem') );
     // $kernel->registerModule( new moduleClass('content', 'content.zetem') );
-    $kernel->registerModule( new htmltextModule('copyright', 'htmltext.zetem', '(c) by Evangelos M. Rokas'));
+    $kernel->registerModule( new htmltextModule('copyright', 'htmltext.zetem', '&copy 2023-24 by Evangelos M. Rokas, MD'));
     $kernel->registerModule( new contentModule('content', 'content.zetem'));
     $kernel->registerModule( new notificationsModule('notifications', 'notifications.zetem'));
     $kernel->registerModule( new UserModule('userblock', 'userblock.zetem'));
+
+    $kernel->registerModule( new UserProfileModule('userprofile', 'user_profile.zetem'));
 }

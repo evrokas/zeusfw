@@ -27,6 +27,30 @@ class usersClassEx extends usersClass {
             return $rclass;
         } else return (null);
     }
+
+    static function getUserAccount( $uname ) {
+        global $AppDBConnection;
+
+        if(!$AppDBConnection->isConnected()) {
+            if(!$AppDBConnection->Connect()) {
+                echo 'Could not connect to database';
+                return (null);
+            }
+        }
+
+        $sql = "SELECT * FROM users WHERE uname=:uname";
+        $st = $AppDBConnection->getConnection()->prepare( $sql );
+        $st->bindValue(":uname", $uname, PDO::PARAM_STR);
+        $st->execute();
+        $row = $st->fetch();
+
+        if($row) {
+            $rclass = new usersClass( "users");
+            $rclass->loadFields( $row );
+            return $rclass;
+        } else return (null);
+
+    }
 }
 
 // class patientsClassEx extends patientsClass {

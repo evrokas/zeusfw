@@ -4,11 +4,13 @@ class RouterClass {
     private $route_table;
     static private $route_error = 0;
 
-    function __construct($rt = null) {
-        $this->route_table = array();
-        $this->route_table = $rt;
+    function __construct($rt = array()) {
+        $this->initRouteTable( $rt );
     }
 
+    function initRouteTable($rt = array()) {
+        $this->route_table = $rt;
+    }
     static function setError($err) {
         self::$route_error = $err;
     }
@@ -91,8 +93,8 @@ class RouterClass {
         foreach($this->route_table as $routename => $routedata) {
             
             $rpath = explode('/', trim($routedata['url'], '/'));
-            // print_r( $routename . " : " . $routedata['url'] . " method: " . (isset($routedata['method'])?$routedata['method']:"unknown") . "\n" );
-            // print_r( $rpath );
+            // echo("<pre>Routename: ". print_r( $routename, 1) . " : " . $routedata['url'] . " method: " . (isset($routedata['method'])?$routedata['method']:"unknown") . "</pre>" );
+            // echo("<pre>rpath: ". print_r( $rpath, 1). "</pre>");
 
 
             $params = array();
@@ -161,10 +163,20 @@ class RouterClass {
             }
         }
         
-        
+        if(!isset($match_route['_routedata']['handler'])) {
+            $fexe = $match_route['_routedata']['module'];
+            if(!$fexe)return (error_404());
+            $params = $match_route['_params'];
+            return (self::call_module_func($fexe, $params) );
+
+        }
         $fexe = $match_route['_routedata']['handler'];
         $params = $match_route['_params'];
 
         return ( call_user_func($fexe, $params) );
+    }
+
+    static function call_module_func($amodule, $params) {
+        return (module( $amodule, $params ) );
     }
 }

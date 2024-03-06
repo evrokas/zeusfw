@@ -7,9 +7,11 @@ class Routetrail {
         global $router;
         global $Request;
         if(!$aroute)$aroute = $router->matchRoute( $Request );;
-        // echo "<pre>";
+        // echo "<pre>Routetrail::getTrail: ";
         // print_r( $aroute['_routedata'] );
         // echo "</pre>";
-        $routetrail = array($aroute['_routedata']['title']);
+        if($aroute)
+            $routetrail = array($aroute['_routedata']['title']);
+        else $routetrail = array();
     }
 }
