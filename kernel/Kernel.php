@@ -264,6 +264,4 @@ function module($astr, $params) {
     $mod = $kernel->getModule( $astr );
     // echopre(print_r($mod, 1));
     return ( $mod->run( $params ) );
-
-    return("<h1><pre>Module: " . print_r($astr, 1) . "</pre></h1>");
 }

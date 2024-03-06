@@ -16,7 +16,6 @@ class moduleClass {
         $params[] = ['module' => $this->template];
 
         // echo "render module " . $this->modulename;
-        global $Renderer;
         return $this->renderTemplate( $params );
 
         // return $Renderer->render( $this->template, $params ); 
@@ -34,7 +33,13 @@ class moduleClass {
         $this->template = $atemplate;
     }
 
+
+    function run($aparams = array()) {
+        // override here to add functionality beyond render()
+        return ($this->render($aparams));
+    }
     function renderTemplate($aparms = array()) {
+        // helper function to render a template
         global $Renderer;
 
         return (
@@ -285,8 +290,8 @@ class UserProfileModule extends moduleClass {
             $user->getExpired()?'checked="checked"':'']);
     }
 
-    function run($params) {
-        echopre("UserProfile module::run()");
+    function run($params = array()) {
+        // echopre("UserProfile module::run()");
         return $this->render($params);
     }
 }
