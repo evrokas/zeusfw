@@ -57,7 +57,7 @@ class usersClassEx extends usersClass {
 // }
 
 class appointmentsClassEx extends appointmentsClass {
-    static function getAppointmentsForPatient($pguid) {
+    static function getAppointmentsForPatient($pguid, $order = 'ASC') {
         global $AppDBConnection;
 
         if(!$AppDBConnection->isConnected()) {
@@ -67,9 +67,11 @@ class appointmentsClassEx extends appointmentsClass {
             }
         }
 
-        $sql = "SELECT * FROM appointments WHERE pguid=:pguid ORDER BY adate";
+        $sql = "SELECT * FROM appointments WHERE pguid=:pguid ORDER BY adate $order";
         $st = $AppDBConnection->getConnection()->prepare( $sql );
         $st->bindValue(":pguid", $pguid, PDO::PARAM_STR);
+        // $st->bindValue(":order", $order, PDO::PARAM_STR);
+
         $st->execute();
 
         $list = array();        
