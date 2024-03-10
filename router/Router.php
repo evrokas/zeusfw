@@ -114,6 +114,7 @@ class RouterClass {
                         // echo "<pre>User permitted!</pre>";
                     } else {
                         // echo "<pre>User is not permitted!</pre>";
+                        http_response_code(401);
                         self::setError(401);
                         break;
                     }
@@ -153,16 +154,21 @@ class RouterClass {
     static function routerCallFunction($match_route) {
         if(!$match_route) {
             if(self::getError()) {
+                http_response_code(self::getError());
+
                 switch(self::getError()) {
                     case 401: return (error_401());
                 }
 
                 self::clearError();
             } else {
+                http_response_code(404);
+
                 return (error_404() );
             }
         }
-        
+        http_response_code(200);
+
         if(!isset($match_route['_routedata']['handler'])) {
             $fexe = $match_route['_routedata']['module'];
             if(!$fexe)return (error_404());
