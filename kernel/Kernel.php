@@ -111,12 +111,14 @@ class Kernel {
         if(!isset($_SESSION['route_history']))
             $_SESSION['route_history'] = array();
         array_push($_SESSION['route_history'], $aroute);
+        error_log("\nroute_history: " . print_r($_SESSION['route_history'], 1));
     }
 
     function popRouteHistory() {
         if(!isset($_SESSION['route_history']))
             return null;
-        return ( array_pop($_SESSION['route_history']));
+        error_log("\nroute_history: " . print_r($_SESSION['route_history'], 1));
+            return ( array_pop($_SESSION['route_history']));
     }
 
     function hasRouteHistory() {
