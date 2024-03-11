@@ -11,3 +11,5 @@
     - paddr: varchar(256)
     - pemail: varchar(128)
     - firstapp: timestamp
+    - pnote: text
+  

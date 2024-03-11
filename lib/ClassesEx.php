@@ -74,12 +74,22 @@ class patientsClassEx extends patientsClass {
         // build string
         $srch = implode('% ', $terms);
         $srch .= '%';
-
         $srch2 = '% '.$srch;
 
-        // error_log("\nSearch string: ".iconv('utf-8', 'iso-8859-7',$srch) ."\n");
+        if(count($ascope) == 0)
+            $ascope = ['pname', 'pamka', 'ptel'];
 
-        $sql = "SELECT * FROM patients WHERE (pname LIKE :term) OR (pname LIKE :term2)";
+        // error_log("\nSearch string: ".iconv('utf-8', 'iso-8859-7',$srch) ."\n");
+        $req = array();
+        foreach($ascope as $scope) {
+            $req[] = "($scope LIKE :term) OR ($scope LIKE :term2)";
+        }
+
+        $reqs = implode(' OR ', $req);
+
+        $sql = "SELECT * FROM patients WHERE " . $reqs;
+        error_log("\nSQL request: " . $sql . "\n");
+        /* (pname LIKE :term) OR (pname LIKE :term2)"; */
         $st = $AppDBConnection->getConnection()->prepare( $sql );
         $st->bindValue(":term", $srch, PDO::PARAM_STR);
         $st->bindValue(":term2", $srch2, PDO::PARAM_STR);
