@@ -18,6 +18,13 @@ class Kernel {
         // echo "<pre>";
         // print_r( $this->config );
         // echo "</pre>";
+
+        date_default_timezone_set( $this->safeGetConfig('tz') );
+    }
+
+    function safeGetConfig($key) {
+        if(isset($this->config[ $key ]))return $this->config[ $key ];
+        else return '';
     }
 
      function getrootpath() {
@@ -194,8 +201,12 @@ function getDBtime($atime = null) {
     return (date ('Y-m-d H:i:s', $atime));  
 }
 
-function formatDate($str) {
+function formatDateTime($str) {
     return (date("d-m-Y H:i:s", strtotime($str)));
+}
+
+function formatDate($str) {
+    return (date("d-m-Y", strtotime($str)));
 }
 
 function randomChar($str) {
