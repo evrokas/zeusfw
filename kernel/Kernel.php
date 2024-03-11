@@ -181,6 +181,9 @@ class Kernel {
 function rel_url($p) {
     global $kernel;
 
+    if(str_starts_with($p, 'http'))
+        return ($p);
+
     return $kernel->rel_url($p);
 }
 
