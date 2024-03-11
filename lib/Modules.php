@@ -304,7 +304,8 @@ function registerModules() {
     $kernel->registerModule( new mainnavigationModule('mainnavigation', 'main_navigation.zetem', $kernel->getConfig('menu')['main']));
     // $kernel->registerModule( new moduleClass('topbar', 'topbar.zetem') );
     // $kernel->registerModule( new moduleClass('content', 'content.zetem') );
-    $kernel->registerModule( new htmltextModule('copyright', 'htmltext.zetem', '&copy 2023-24 by Evangelos M. Rokas, MD'));
+    $kernel->registerModule( new htmltextModule('copyright', 'htmltext.zetem', 
+        '&copy 2023-24 by Evangelos M. Rokas, MD' . ' | <a href="#"><i class="bx bx-cog"></i></a>'));
     $kernel->registerModule( new contentModule('content', 'content.zetem'));
     $kernel->registerModule( new notificationsModule('notifications', 'notifications.zetem'));
     $kernel->registerModule( new UserModule('userblock', 'userblock.zetem'));
