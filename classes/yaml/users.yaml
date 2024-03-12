@@ -5,7 +5,7 @@
     - email: varchar(128) not null
     - uname: varchar(32) not null
     - upass: varchar(65) not null
-    - cdate: timestamp default current_timestamp
+    - cdate: datetime default current_timestamp
     - active: boolean default false
     - expired: boolean default  true
     - roles: char(36) not null

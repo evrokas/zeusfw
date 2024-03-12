@@ -344,22 +344,21 @@ class Database {
 
         // print_r( $sqlkeys );
 
-
         $common = array();
         $alter = array();
         foreach($sqlkeys as $skey => $sval) {
             if(array_key_exists($skey, $tbfields)) {
-                if($sval[ 'definition'] == $tbfields[$skey]['def']) {
+                if(strtolower( $sval[ 'definition'] ) == strtolower( $tbfields[$skey]['def'] )) {
                     $common[ $skey ] = $sval;
                     unset( $sqlkeys[ $skey ]);
                     unset( $tbfields[ $skey ]);
                 } else {
                     $alter[ $skey ]['name'] = $skey;
-                    $alter[ $skey ]['definition'] = $tbfields[ $skey]['def'];
+                    $alter[ $skey ]['definition'] = $tbfields[ $skey ]['def'];
+                    $alter[ $skey ]['olddef'] = $sval['definition'];
                     unset( $sqlkeys[ $skey ]);
                     unset( $tbfields[ $skey ]);
                 }
-
             }
         }
 
@@ -385,10 +384,10 @@ class Database {
         }
 
         foreach($alter as $fld) {
+            echo "# old definition: " . $fld['name'] . " => " . $fld['olddef'] . "\n";
             echo "ALTER TABLE " . $this->name . " MODIFY " . $fld['name'] . ' ' . $fld['definition'] .";\n";
         }
     }
-
 }
 
 function get_dir_files($dir) {
@@ -406,16 +405,16 @@ function get_dir_files($dir) {
 
 function get_yaml_files($ydir) {
     $yaml_files = get_dir_files( $ydir );
-    foreach($yaml_files as $f)
-        echo "$f\n";
+    // foreach($yaml_files as $f)
+        // echo "$f\n";
 
     return ($yaml_files);
 }
 
 function get_sql_files($sqdir) {
     $sql_files = get_dir_files( $sqdir );
-    foreach($sql_files as $f)
-        echo "$f\n";
+    // foreach($sql_files as $f)
+        // echo "$f\n";
 
     return ($sql_files);
 }
@@ -536,7 +535,8 @@ function diff_sql($file) {
                 'spill:class' => 'spill PHP CLASS code for specific YAML file',
                 'spill:class:all' => 'spill PHP CLASS code for all YAML files in yaml folder',
                 'update:bootstrap' => 'update bootstrap for classes PHP file',
-                'diff:sql' => 'show differences between YAML files and MySQL tables'
+                'diff:sql' => 'show differences between YAML files and MySQL tables',
+                'diff:sql:all' => 'show differences for all YAML files'
             ];
 
             foreach($commands as $key => $value) {
@@ -546,7 +546,10 @@ function diff_sql($file) {
 
             
         case 'list:yaml':
-            get_yaml_files($yaml_dir);
+            $yf = get_yaml_files($yaml_dir);
+            foreach($yf as $f) {
+                echo "$f\n";
+            }
             break;
 
         case 'spill:sql':
@@ -568,7 +571,10 @@ function diff_sql($file) {
 
 
         case 'list:sql':
-            get_sql_files( $sql_dir );
+            $sqlf = get_sql_files( $sql_dir );
+            foreach($sqlf as $f) {
+                echo "$f\n";
+            }
             break;
 
         case 'spill:class':
@@ -598,6 +604,14 @@ function diff_sql($file) {
             $file = $optparams[1];
             // echo "Processing file: $file\n";
             diff_sql( $file );
+            break;
+
+        case 'diff:sql:all':
+            $files = get_yaml_files( $yaml_dir );
+            foreach($files as $yfile) {
+                // echo "yfile: $yfile\n";
+                diff_sql( $yaml_dir . '/' . $yfile );
+            }
             break;
         default:
             echo "Unknown command\n";
