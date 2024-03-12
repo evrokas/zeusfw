@@ -267,6 +267,128 @@ class Database {
 
     }
 
+
+    function emitSqlDiff() {
+        $temp = tempnam('/tmp', 'maker-');
+        // echo "Temporary file $temp\n";
+    
+        // print_r( $tableinfo );
+    
+        $tbfields = array();
+        // echo "Table: ".$this-> name;
+        foreach($this->fields as $fld) {
+            // print_r( $fld );
+            $tbfields[ $fld['name'] ] = [
+                'name' => $fld['name'],
+                'def' => $fld['definition']
+            ];
+            // mlog('Fields: ' . $fld['name'] . " ==> " . $fld['definition']);
+            // echo "Fields: " . $fld['name']. "\n";
+            // echo "Field: " .$field['name'] . "\n";
+        }
+
+        // print_r( $tbfields );
+
+        // [0] => Array
+        // (
+        //     [0] => Field
+        //     [1] => Type
+        //     [2] => Null
+        //     [3] => Key
+        //     [4] => Default
+        //     [5] => Extra
+        // )
+
+
+        $s = 'DESCRIBE ' . $this->name . ";";
+        file_put_contents($temp, $s);
+        $res = shell_exec('../../sql/msql.sh < ' . $temp);
+        // print_r( $res );
+
+        $res = str_replace("\t\t", "\t", $res);
+        $resl = explode("\n", $res);
+
+        $sqlfields = array();
+        foreach($resl as $r) {
+            // print_r( str_replace("\t", "|", $r));
+            $r = str_replace("\t", "|", $r);
+            $exp = explode('|', $r);
+            // print_r( $exp );
+            $sqlfields[] = $exp;
+        }
+
+        unset( $sqlfields[0] );
+        // print_r( $sqlfields );
+        // unlink($temp);
+        foreach($sqlfields as $fk => $fv) {
+            if(count($fv)< 4) {
+                unset( $sqlfields[ $fk ]);
+                continue;
+            }
+            if( $fv[0] == 'id') {
+                unset( $sqlfields[ $fk ] );
+                continue;
+            }
+            // print_r( $fv[0] );
+        }
+        // print_r( $sqlfields );
+
+        // so we have prepared the SQL fields
+        $sqlkeys = array();
+        foreach($sqlfields as $fld) {
+            $sqlkeys[ $fld[0] ] = [
+                'name' => $fld[0],
+                'definition' => $fld[1] . (($fld[2] == 'NO')?" not null":"") . (($fld[3] != 'NULL')?(" default " . $fld[3]):"")
+            ];
+        }
+
+        // print_r( $sqlkeys );
+
+
+        $common = array();
+        $alter = array();
+        foreach($sqlkeys as $skey => $sval) {
+            if(array_key_exists($skey, $tbfields)) {
+                if($sval[ 'definition'] == $tbfields[$skey]['def']) {
+                    $common[ $skey ] = $sval;
+                    unset( $sqlkeys[ $skey ]);
+                    unset( $tbfields[ $skey ]);
+                } else {
+                    $alter[ $skey ]['name'] = $skey;
+                    $alter[ $skey ]['definition'] = $tbfields[ $skey]['def'];
+                    unset( $sqlkeys[ $skey ]);
+                    unset( $tbfields[ $skey ]);
+                }
+
+            }
+        }
+
+        // echo "old fields\n";
+        // print_r( $sqlkeys );
+        
+        // echo "new fields\n";
+        // print_r( $tbfields );
+
+        // echo "remain fields\n";
+        // print_r( $common );
+
+        // echo "alter fields\n";
+        // print_r( $alter );
+
+        // echo "SQL code\n";
+        foreach($tbfields as $fld) {
+            echo "ALTER TABLE " . $this->name . " ADD " . $fld['name'] . ' ' . $fld['def'] . ";\n";
+        }        
+
+        foreach($sqlkeys as $fld) {
+            echo "ALTER TABLE " . $this->name . " DROP " . $fld['name'] . ";\n";
+        }
+
+        foreach($alter as $fld) {
+            echo "ALTER TABLE " . $this->name . " MODIFY " . $fld['name'] . ' ' . $fld['definition'] .";\n";
+        }
+    }
+
 }
 
 function get_dir_files($dir) {
@@ -361,6 +483,14 @@ function spill_bootstrap($files) {
     return ( ob_get_clean() );
 }
 
+function diff_sql($file) {
+    $tableinfo =  yaml_parse_file( $file );
+    
+    $db = new Database($tableinfo);
+    $s = $db->emitSqlDiff();
+
+    echo $s;
+}
 
 // execute various components of the framework
 
@@ -405,7 +535,8 @@ function spill_bootstrap($files) {
                 'spill:sql:all' => 'spill SQL code for all YAML files in yaml folder',
                 'spill:class' => 'spill PHP CLASS code for specific YAML file',
                 'spill:class:all' => 'spill PHP CLASS code for all YAML files in yaml folder',
-                'update:bootstrap' => 'update bootstrap for classes PHP file'
+                'update:bootstrap' => 'update bootstrap for classes PHP file',
+                'diff:sql' => 'show differences between YAML files and MySQL tables'
             ];
 
             foreach($commands as $key => $value) {
@@ -463,7 +594,10 @@ function spill_bootstrap($files) {
             file_put_contents($bootstrap_file, $s);
 
             // echo $s."\n";
-
+        case 'diff:sql':
+            $file = $optparams[1];
+            // echo "Processing file: $file\n";
+            diff_sql( $file );
             break;
         default:
             echo "Unknown command\n";
