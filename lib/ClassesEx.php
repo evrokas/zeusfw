@@ -55,6 +55,30 @@ class usersClassEx extends usersClass {
 }
 
 class patientsClassEx extends patientsClass {
+    
+    static function sgetByGuid($aguid) {
+        global $AppDBConnection;
+
+        if(!$AppDBConnection->isConnected()) {
+            if(!$AppDBConnection->Connect()) {
+                echo 'Could not connect to database';
+                return (null);
+            }
+        }
+
+        $sql = "SELECT * FROM patients WHERE guid=:guid";
+        $st = $AppDBConnection->getConnection()->prepare( $sql );
+        $st->bindValue(":guid", $aguid, PDO::PARAM_STR);
+        $st->execute();
+        $row = $st->fetch();
+
+        if($row) {
+            $rclass = new patientsClass();
+            $rclass->loadFields( $row );
+            return $rclass;
+        } else return (null);
+    }
+    
     static function search($aterm, $ascope = array()) {
         global $AppDBConnection;
 
