@@ -316,6 +316,9 @@ function getDBtime($atime = null) {
     return (date ('Y-m-d H:i:s', $atime));  
 }
 
+function getDBformattime($str) {
+    return (date("Y-m-d H:i:s", strtotime($str)));
+}
 function formatDateTime($str) {
     return (date("d-m-Y H:i:s", strtotime($str)));
 }
