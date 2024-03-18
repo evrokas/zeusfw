@@ -344,11 +344,19 @@ class Database {
 
         // print_r( $sqlkeys );
 
+        // here put definitions that one can use, and are mapped to the similat that MySQL server sends in describe
+        // array key is the MySQL syntax, equal to the uer syntax
+        // $definitions_equivalents[ 'boolean' ] = 'tinyint(1)';
+        $definitions_equivalents[ 'tinyint(1)' ] = 'boolean';
+        $definitions_equivalents[ 'tinyint(1) default 0' ] = 'boolean default false';
+        $definitions_equivalents[ 'tinyint(1) default 1' ] = 'boolean default true';
+
         $common = array();
         $alter = array();
         foreach($sqlkeys as $skey => $sval) {
             if(array_key_exists($skey, $tbfields)) {
-                if(strtolower( $sval[ 'definition'] ) == strtolower( $tbfields[$skey]['def'] )) {
+                if(strtolower( $sval[ 'definition'] ) == strtolower( $tbfields[$skey]['def'] ) ||
+                (array_key_exists($sval[ 'definition' ], $definitions_equivalents) && $definitions_equivalents[ $sval['definition'] ] == strtolower( $tbfields[$skey]['def']))) {
                     $common[ $skey ] = $sval;
                     unset( $sqlkeys[ $skey ]);
                     unset( $tbfields[ $skey ]);
