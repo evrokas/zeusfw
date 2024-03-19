@@ -302,7 +302,7 @@ class Database {
 
         $s = 'DESCRIBE ' . $this->name . ";";
         file_put_contents($temp, $s);
-        $res = shell_exec('../../sql/msql.sh < ' . $temp);
+        $res = shell_exec("../../sql/msql.sh < " . $temp);
         // print_r( $res );
 
         $res = str_replace("\t\t", "\t", $res);
