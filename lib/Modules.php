@@ -63,8 +63,8 @@ class htmltextModule extends moduleClass {
     }
 
     function render($params = array()) {
-        global $Renderer;
-        return($Renderer->render($this->getTemplate(), ['text' =>$this->htmltext, 'params' => $params]));
+        // global $Renderer;
+        return($this->renderTemplate(['text' =>$this->htmltext, 'params' => $params]));
     }
 }
 
@@ -219,6 +219,24 @@ class notificationsModule extends moduleClass {
     }
 }
 
+class githashModule extends moduleClass {
+    function __construct($amodule, $atemplate) {
+        parent::__construct($amodule, $atemplate);
+    }
+    
+    function render($params = array()) {
+        // $hash = __FUNCTION__;
+        $rootdir = explode('index.php', $_SERVER['SCRIPT_FILENAME'])[0] . "../";
+        
+        $headfile = file_get_contents($rootdir . ".git/HEAD");
+        $headfile = explode(' ', trim($headfile))[1];
+        $hash = file_get_contents($rootdir . ".git/" . $headfile);
+        $branch = explode('/', $headfile)[2];
+
+        // error_log( "git hash directory: $branch, hash: $hash\n" );
+        return $this->renderTemplate(['branch' => $branch, 'hash' => $hash]);
+    }
+}
 
 class UserModule extends moduleClass {
     function render($params = array()) {
@@ -306,6 +324,7 @@ function registerModules() {
     // $kernel->registerModule( new moduleClass('content', 'content.zetem') );
     $kernel->registerModule( new htmltextModule('copyright', 'htmltext.zetem', 
         '&copy 2023-24 by Evangelos M. Rokas, MD' . ' | <a href="#"><i class="bx bx-cog"></i></a>'));
+    $kernel->registerModule( new githashModule('githash', 'githash.zetem'));
     $kernel->registerModule( new contentModule('content', 'content.zetem'));
     $kernel->registerModule( new notificationsModule('notifications', 'notifications.zetem'));
     $kernel->registerModule( new UserModule('userblock', 'userblock.zetem'));

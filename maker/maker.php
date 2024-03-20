@@ -1,5 +1,6 @@
 <?php
-    function mlog($s, $nl = true) {
+    function mlog($s, $nl = true, $li=false) {
+        if($li)echo __FILE__."(".__FUNCTION__."):".__LINE__.": ";
         echo $s . ($nl?"\n":"");
     }
 
@@ -396,6 +397,11 @@ class Database {
             echo "ALTER TABLE " . $this->name . " MODIFY " . $fld['name'] . ' ' . $fld['definition'] .";\n";
         }
     }
+
+    function viewContent($afile) {
+
+    }
+
 }
 
 function get_dir_files($dir) {
@@ -499,6 +505,15 @@ function diff_sql($file) {
     echo $s;
 }
 
+
+
+function content_view($afile) {
+    mlog("processing file $afile", true, true);
+
+    // echo __FILE__.":".__LINE__."(".__FUNCTION__."): processing file $afile\n";
+
+}
+
 // execute various components of the framework
 
     $getopt_options_short = "f:";
@@ -544,7 +559,8 @@ function diff_sql($file) {
                 'spill:class:all' => 'spill PHP CLASS code for all YAML files in yaml folder',
                 'update:bootstrap' => 'update bootstrap for classes PHP file',
                 'diff:sql' => 'show differences between YAML files and MySQL tables',
-                'diff:sql:all' => 'show differences for all YAML files'
+                'diff:sql:all' => 'show differences for all YAML files',
+                'content:view' => 'show content data',
             ];
 
             foreach($commands as $key => $value) {
@@ -621,6 +637,13 @@ function diff_sql($file) {
                 diff_sql( $yaml_dir . '/' . $yfile );
             }
             break;
+
+        case 'content:view':
+            $file = $optparams[1];
+            echo "Showing content for file: $file\n";
+            content_view( $file );
+            break;
+
         default:
             echo "Unknown command\n";
             exit;
