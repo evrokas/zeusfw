@@ -95,6 +95,48 @@ class Kernel {
         }
     }
 
+    function renderPage() {
+        // $Renderer->view("main.zetem", $kernel->getConfig() );
+        // registerModules();
+        
+        $regions_resp = array();
+        global $Renderer;
+
+        // $cont = new ContentClass('content/homepage.html');
+
+        foreach($this->getConfig()['regions'] as $region) {
+            // echo "<pre>Region " . print_r( $region, 1 ) . "</pre>";
+            $blocks = $this->getBlocksInRegion( $region );
+            // print_r( $blocks );
+            $blk_resp = '';
+            foreach($blocks as $block) {
+                $blk = $this->getModule( $block );
+                // echo("Calling module->render() for block " . print_r( $blk, 1). "<br/>");
+                if($blk) {
+                    $bresponse = $blk->render();
+                    // echo("Reponse from module: " .print_r( $blk, 1) . " : << $bresponse >><br/>");
+                    $blk_resp .= $bresponse;
+                }
+            }
+            // echo "Region response text " . $blk_resp;
+            // $regions_resp[ $region ] = $blk_resp;
+            $regions_resp[ $region ] = $Renderer->render('region.zetem', ['region_name' => $region, 'blocks' => $blk_resp]);
+//            $Renderer->view('region.zetem', ['region_name' => $region, 'blocks' => $regions_resp[ $region ]]);
+        }
+
+        $Renderer->view('main.zetem', 
+        [
+            'title' => $this->getConfig('title'),
+            'meta' => $this->getConfig('meta'),
+            'css' => $this->getConfig('css'),
+            'head_script' => $this->getConfig('head_script'),
+            'foot_script' => $this->getConfig('foot_script'),
+            'regions' => $regions_resp
+        ]);
+    
+    }
+
+
     function addStatus($level, $statusMessage) {
         if(!isset($_SESSION[ $level ]))
             $_SESSION[ $level ] = array();
