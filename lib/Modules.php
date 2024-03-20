@@ -234,7 +234,7 @@ class githashModule extends moduleClass {
         $branch = explode('/', $headfile)[2];
 
         // error_log( "git hash directory: $branch, hash: $hash\n" );
-        return $this->renderTemplate(['branch' => $branch, 'hash' => $hash]);
+        return $this->renderTemplate(['branch' => $branch, 'hash' => $hash, 'db' => $GLOBALS['DATABASE']]);
     }
 }
 
