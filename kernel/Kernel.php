@@ -7,13 +7,17 @@ function kernel_debug($dbg) {
 }
 
 class Kernel {
-    protected $rootpath = null;
+    protected $rootpath = null;     // root directory relative to the webserver
+    protected $basepath = null;     // base directory relative to the filesystem
     protected $config = null;
 
     protected $modules = array();
 
     function __construct($asrv, $ainfofile) {
         $this->rootpath= substr($asrv['PHP_SELF'],0,strrpos($asrv['PHP_SELF'],'/')+1);
+        $this->basepath= substr($asrv['SCRIPT_FILENAME'],0,strrpos($asrv['SCRIPT_FILENAME'],'/')+1);
+
+        // echo "<pre>basepath: " . $this->basepath . "</pre>";
         $this->config = yaml_parse_file($ainfofile);
         // echo "<pre>";
         // print_r( $this->config );
@@ -29,6 +33,9 @@ class Kernel {
 
      function getrootpath() {
         return ($this->rootpath);
+    }
+     function getbasepath() {
+        return ($this->basepath);
     }
 
      function rel_url($apath) {
