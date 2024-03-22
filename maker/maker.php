@@ -80,7 +80,7 @@ class Database {
         ob_start();
         mlog('<?php');
         mlog('// class ' . $this->classname);
-        mlog("require_once(__DIR__ . \"/../db/dbal.php\");\n");
+        mlog("require_once(__DIR__ . \"/../../fw/db/dbal.php\");\n");
 
         mlog('class ' . $this->classname . (isset($options['extends-class'])?' extends ' . $options['extends-class']:"") . ' {');
         
@@ -622,6 +622,7 @@ function content_view($afile) {
 
             echo "Updating bootstrap file " . $bootstrap_file . "\n";
             file_put_contents($bootstrap_file, $s);
+            break;
 
             // echo $s."\n";
         case 'diff:sql':
