@@ -9,6 +9,14 @@
     $inline_options['add-id'] = 'true';
     // $inline_options['extend-class'] = null;
 
+    $yaml_dir = "yaml";
+    $sql_dir = "sql";
+    $data_dir = "../../web/files/database";
+    $class_dir = ".";
+    $bootstrap_file = 'bootstrap_classes.php';
+
+
+
 
 class Database {
     private $name;
@@ -275,6 +283,7 @@ class Database {
     
         // print_r( $tableinfo );
     
+        // $tbfields holds data from yaml file
         $tbfields = array();
         // echo "Table: ".$this-> name;
         foreach($this->fields as $fld) {
@@ -288,6 +297,7 @@ class Database {
             // echo "Field: " .$field['name'] . "\n";
         }
 
+        $tbfields2 = $tbfields;
         // print_r( $tbfields );
 
         // [0] => Array
@@ -309,6 +319,8 @@ class Database {
         $res = str_replace("\t\t", "\t", $res);
         $resl = explode("\n", $res);
 
+
+        // $sqlfields holds the fields data from the database
         $sqlfields = array();
         foreach($resl as $r) {
             // print_r( str_replace("\t", "|", $r));
@@ -318,14 +330,19 @@ class Database {
             $sqlfields[] = $exp;
         }
 
+        // remove the initial line
         unset( $sqlfields[0] );
         // print_r( $sqlfields );
         // unlink($temp);
+
+        // remove field if it has less than 4 elements
         foreach($sqlfields as $fk => $fv) {
             if(count($fv)< 4) {
                 unset( $sqlfields[ $fk ]);
                 continue;
             }
+
+            // remove if field is 'id'
             if( $fv[0] == 'id') {
                 unset( $sqlfields[ $fk ] );
                 continue;
@@ -335,6 +352,7 @@ class Database {
         // print_r( $sqlfields );
 
         // so we have prepared the SQL fields
+        // transform $sqlfields to $sqlkeys, that holds data from the database also
         $sqlkeys = array();
         foreach($sqlfields as $fld) {
             $sqlkeys[ $fld[0] ] = [
@@ -385,7 +403,24 @@ class Database {
 
         // echo "SQL code\n";
         foreach($tbfields as $fld) {
-            echo "ALTER TABLE " . $this->name . " ADD " . $fld['name'] . ' ' . $fld['def'] . ";\n";
+
+            // when adding a field, make sure to place it in the correct position in order for
+            // correct synchronization of different databases
+            $k = array_keys($tbfields2);
+            $v = array_values($tbfields2);
+
+            // print_r( $k );
+            // print_r( $v );
+
+            $i = array_search($fld['name'], $k);
+            // print_r( $i );
+            if($i>0) {
+                // echo "Key Found: $i\tprevious key: " . $k[ $i - 1 ]. "\n";
+                $position = " AFTER " . $k[$i-1];
+            } else
+                $position = " AFTER id";    // 'id' is always the first field
+
+            echo "ALTER TABLE " . $this->name . " ADD " . $fld['name'] . ' ' . $fld['def'] . $position . ";\n";
         }        
 
         foreach($sqlkeys as $fld) {
@@ -505,13 +540,44 @@ function diff_sql($file) {
     echo $s;
 }
 
+function export_data($afile) {
+    global $yaml_dir;
 
+    $temp = tempnam('/tmp', 'export-');
+
+    $yfile = $yaml_dir . '/' . $afile . '.yaml';
+    echo "yaml file: $yfile\n";
+
+    $yinfo = yaml_parse_file($yfile)[0];
+
+    // print_r( $yinfo );
+
+    $args = "-y --compact --skip-extended-insert --no-create-info --skip-comments ";
+    $cmd = "../../sql/msqldump2.sh " . $args . $yinfo['table'];
+    $res = shell_exec( $cmd );
+    // $res2 = array();
+    // $res = exec( $cmd , $res2);
+    print_r( $res );
+    // print_r( $res2 );
+}
 
 function content_view($afile) {
     mlog("processing file $afile", true, true);
 
     // echo __FILE__.":".__LINE__."(".__FUNCTION__."): processing file $afile\n";
 
+}
+
+
+function makesure_dir_exists($dir) {
+    if(!file_exists($dir)) {
+        mkdir($dir);
+
+        if(!file_exists($dir)) {
+            echo "Could not create folder: $dir\n";
+            exit();
+        }
+    }
 }
 
 // execute various components of the framework
@@ -542,10 +608,12 @@ function content_view($afile) {
         exit;
     }
 
-    $yaml_dir = "yaml";
-    $sql_dir = "sql";
-    $class_dir = ".";
-    $bootstrap_file = 'bootstrap_classes.php';
+    // $yaml_dir = "yaml";
+    // $sql_dir = "sql";
+    // $data_dir = "../../web/files/database";
+    // $class_dir = ".";
+    // $bootstrap_file = 'bootstrap_classes.php';
+
 
     switch($optparams[0]) {
         case 'help':
@@ -560,6 +628,7 @@ function content_view($afile) {
                 'update:bootstrap' => 'update bootstrap for classes PHP file',
                 'diff:sql' => 'show differences between YAML files and MySQL tables',
                 'diff:sql:all' => 'show differences for all YAML files',
+                'data:export' => 'export data from SQL database table to data folder',
                 'content:view' => 'show content data',
             ];
 
@@ -577,6 +646,9 @@ function content_view($afile) {
             break;
 
         case 'spill:sql':
+            // be sure the sql directory exists, otherwise create it
+            makesure_dir_exists( $sql_dir );
+            
             if(!$optparams[1]) {
                 mlog('Please specify a file to process.');
                 exit;
@@ -587,6 +659,10 @@ function content_view($afile) {
             break;
 
         case 'spill:sql:all':
+
+            // be sure the sql directory exists, otherwise create it
+            makesure_dir_exists( $sql_dir );
+
             $files = get_yaml_files( $yaml_dir );
             foreach( $files as $yfile ) {
                 spill_sql( $yaml_dir . '/' . $yfile, $sql_dir );
@@ -643,6 +719,15 @@ function content_view($afile) {
             $file = $optparams[1];
             echo "Showing content for file: $file\n";
             content_view( $file );
+            break;
+
+
+        case 'data:export':
+
+            // be sure the sql directory exists, otherwise create it
+            makesure_dir_exists( $data_dir );
+            $file =  $optparams[1];
+            export_data($file);
             break;
 
         default:
