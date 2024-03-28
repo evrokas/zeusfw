@@ -553,7 +553,7 @@ function export_data($afile) {
     // print_r( $yinfo );
 
     $args = "-y --compact --skip-extended-insert --no-create-info --skip-comments ";
-    $cmd = "../../sql/msqldump2.sh " . $args . $yinfo['table'];
+    $cmd = "../../sql/msqldump.sh " . $args . $yinfo['table'];
     $res = shell_exec( $cmd );
     // $res2 = array();
     // $res = exec( $cmd , $res2);
