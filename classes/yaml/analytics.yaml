@@ -1,0 +1,10 @@
+- table: analytics
+  class: analyticsClass
+  fields:
+    - cdate: datetime default current_timestamp
+    - page: text
+    - url: text
+    - remote_ip: text
+    - user_agent: text
+    - served: boolean
+    

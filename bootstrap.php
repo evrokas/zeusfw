@@ -3,10 +3,18 @@
 include_once(__DIR__ . "/../config/db.php");       // load database parameters
 
 include_once(__DIR__ . "/kernel/Kernel.php");       // include Kernel class
-require_once(__DIR__ . "/db/dbal.php");            // load database classes
+require_once(__DIR__ . "/db/dbal.php");            // load database abstract classes
 
 
-// include user classes only if it exists
+// include framework classes
+if(file_exists(__DIR__ . "/classes/bootstrap_classes.php"))
+    require_once(__DIR__ . "/classes/bootstrap_classes.php");	// load framework classes
+
+if(file_exists(__DIR__ . "ClassExFW.php"))
+    include_once(__DIR__ . "ClassExFW.php");        // framework class extentions
+
+
+// include user classes only if they exist
 if(file_exists('../src/user_classes.php'))
     include_once(__DIR__ . "/../src/user_classes.php");
 

@@ -100,6 +100,9 @@ class RouterClass {
             $params = array();
             $match = $this->matchRoutePaths($req, $rpath, $params);
             if($match) {
+
+
+                
                 //put all matching routes in $match_collection
                 //use _fit to distinguish between routes with same tokens and different parameters
 
@@ -127,7 +130,13 @@ class RouterClass {
                 if( (!isset($routedata['method'])) || 
                     ((isset($routedata['method']) && $areq->matchMethod( $routedata['method'] )))
                 ) {
-                    $match_collection[] = ["_routename" => $routename, "_routedata" => $routedata, "_params" => $params, "_fit" => $match];
+                    $match_collection[] = [
+                        "_routename" => $routename, 
+                        "_routedata" => $routedata, 
+                        "_params" => $params, 
+                        "_fit" => $match,
+                        "_request" => $areq->getQueryString()
+                    ];
                     // echo "<pre>Route match: " . $arequest . " === " . $routedata['title'] . " = " . $routedata['url'] . " method: " . $routedata['method'] . "</pre>";
                 }
 
@@ -137,6 +146,8 @@ class RouterClass {
 //                return( ["_routename" => $routename, "_routedata" => $routedata, "_params" => $params ]);
             }
         }
+
+        // find the route that has the best _fit
         // print_r( $match_collection );
         $rval = 0;
         $rmatch = null;
@@ -152,7 +163,22 @@ class RouterClass {
     }
 
     static function routerCallFunction($match_route) {
+
+        if(class_exists("analyticsClass")) {
+            $acl = new analyticsClass([
+                'cdate' => getDBtime(),
+                'page' => $match_route['_routename'],
+                'url' => $_SERVER['QUERY_STRING'], //print_r($match_route['_request'], 1),
+                'remote_ip' => $_SERVER['REMOTE_ADDR'],
+                'user_agent' => $_SERVER['HTTP_USER_AGENT']
+            ]);
+        }
         if(!$match_route) {
+            if(class_exists("analyticsClass")) {
+                $acl->setserved(0);
+                $acl->insert();
+            }
+
             if(self::getError()) {
                 http_response_code(self::getError());
 
@@ -171,13 +197,30 @@ class RouterClass {
 
         if(!isset($match_route['_routedata']['handler'])) {
             $fexe = $match_route['_routedata']['module'];
-            if(!$fexe)return (error_404());
+            if(!$fexe) {
+                if(class_exists("analyticsClass")) {
+                    $acl->setserved(0);
+                    $acl->insert();
+                }
+                return (error_404());
+            }
+
+            if(class_exists("analyticsClass")) {
+                $acl->setserved(1);
+                $acl->insert();
+            }
+    
             $params = $match_route['_params'];
             return (self::call_module_func($fexe, $params) );
 
         }
         $fexe = $match_route['_routedata']['handler'];
         $params = $match_route['_params'];
+
+        if(class_exists("analyticsClass")) {
+            $acl->setserved(1);
+            $acl->insert();
+        }
 
         return ( call_user_func($fexe, $params) );
     }

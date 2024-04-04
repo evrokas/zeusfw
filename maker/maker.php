@@ -440,7 +440,7 @@ class Database {
 }
 
 function get_dir_files($dir) {
-    echo "# Listing of ".$dir . '/' . " folder.\n";
+    // echo "# Listing of ".$dir . '/' . " folder.\n";
     // list YAML files
     $folder= scandir($dir . '/');
     $files = array();
@@ -504,7 +504,7 @@ function spill_sql($ymlfile, $sqldir) {
     $s = $db->emitDescription();
     
     // echo $s;
-    echo "emit SQL data in ". $sqldir . '/' . $dbinfo[0]['table']. ".sql\n";
+    // echo "emit SQL data in ". $sqldir . '/' . $dbinfo[0]['table']. ".sql\n";
     file_put_contents($sqldir . '/' . $dbinfo[0]['table'].'.sql',$s);
 }
 
@@ -516,7 +516,7 @@ function spill_class($sqlfile, $classdir) {
     $db = new Database( $dbinfo );
     $s = $db->emitClass();
 
-    echo "emit CLASS data in ". $classdir . '/' . $dbinfo[0]['table']. ".php\n";
+    // echo "emit CLASS data in ". $classdir . '/' . $dbinfo[0]['table']. ".php\n";
     file_put_contents($classdir . '/' . $dbinfo[0]['table'].'.php', $s);
 
 }
