@@ -224,6 +224,14 @@ class Kernel {
         unset( $_SESSION['user_roles']);
         session_destroy();
     }
+
+    function isAjaxRequest() {
+        if(key_exists('HTTP_X_REQUESTED_WITH', $_SERVER))
+            if($_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest')
+                return true;
+
+        return false;
+    }
 }
 
 
