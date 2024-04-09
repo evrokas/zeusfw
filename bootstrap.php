@@ -15,8 +15,8 @@ if(file_exists(__DIR__ . "ClassExFW.php"))
 
 
 // include user classes only if they exist
-if(file_exists('../src/user_classes.php'))
-    include_once(__DIR__ . "/../src/user_classes.php");
+if(file_exists('../web/user_classes.php'))
+    include_once(__DIR__ . "/../web/user_classes.php");
 
 
 require_once(__DIR__ . "/security/Permissions.php");    // security permissions classes

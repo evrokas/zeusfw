@@ -349,7 +349,7 @@ function module($astr, $params) {
 function attach_library_helper($libname) {
     global $kernel;
 
-    error_log("attach library: " . $libname . "\n");
+    // error_log("attach library: " . $libname . "\n");
 
     $cnf = $kernel->getConfig();
     // echo "<pre>";print_r( $cnf['css'] );echo "</pre>";

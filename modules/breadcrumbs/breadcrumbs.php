@@ -53,4 +53,9 @@ function register_breadcrumbs_module() {
     global $kernel;
 
     $kernel->registerModule( new breadcrumbsModule('breadcrumbs', 'breadcrumbs.zetem'));
+
+    $info = yaml_parse_file( __DIR__ . "/breadcrumbs.yaml");
+    $kernel->addConfig($info);
+
+    attach_library('breadcrumbs-library');
 }
