@@ -57,7 +57,10 @@ class Kernel {
     }
 
     function addConfig($section) {
-        $addsection = yaml_parse($section);
+        if(!is_array($section)) {
+            $addsection = yaml_parse($section);
+        } else
+            $addsection = $section;
 
         // echo "<pre>addConfig: " . print_r( $addsection, 1) . "</pre>";
         // echo "<pre>addConfig: " . print_r( $this->config, 1) . "</pre>";
@@ -340,4 +343,34 @@ function module($astr, $params) {
     $mod = $kernel->getModule( $astr );
     // echopre(print_r($mod, 1));
     return ( $mod->run( $params ) );
+}
+
+
+function attach_library_helper($libname) {
+    global $kernel;
+
+    error_log("attach library: " . $libname . "\n");
+
+    $cnf = $kernel->getConfig();
+    // echo "<pre>";print_r( $cnf['css'] );echo "</pre>";
+    // echo "<pre>";print_r( $cnf['libraries'] );echo "</pre>";
+
+    if(array_key_exists($libname, $cnf['libraries'])) {
+        // echo "<pre>";print_r( $cnf['libraries'][$libname] );echo "</pre>";
+        $kernel->addConfig($cnf['libraries'][$libname]);
+    }
+
+    // echo "<pre>";print_r( $kernel->getConfig('css'));echo "</pre>";
+    // echo "<pre>";print_r( $kernel->getConfig('foot_script'));echo "</pre>";
+    // exit();
+}
+
+function attach_library($libname) {
+    if(is_array($libname)) {
+        foreach($libname as $lib) {
+            attach_library_helper( $lib );
+        }
+    } else {
+        attach_library_helper( $libname );
+    }
 }
