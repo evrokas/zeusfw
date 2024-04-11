@@ -54,7 +54,7 @@ function registerModules() {
     global $kernel;
 
     $mods = $kernel->getConfig('modules');
-    // echo(print_r($mods));
+    // echo("Register module: " . print_r($mods, 1) . "\n");
 
     foreach($mods['path'] as $mpath) {
         $modpath = $kernel->getbasepath() . '..' . $mpath;
@@ -69,6 +69,8 @@ function registerModules() {
                 // echo "<pre>" . print_r($yinfo, 1) . "</pre>";
 
                 $module_class = $modpath . $mod . '/' . $mod . '.php';
+
+                // include module source
                 require( $module_class );
                 
                 $module_register_callback = 'register_' . $mod . '_module';

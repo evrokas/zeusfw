@@ -6,6 +6,15 @@ function kernel_debug($dbg) {
     $footer_message .= '<br/>' . $dbg;
 }
 
+define("LOG_FILE", '/tmp/fwkernel.log');
+
+function prelog(string $msg) {
+    $f = fopen(LOG_FILE, "a");
+    fwrite($f, $msg . "\n");
+    fclose($f);
+}
+
+
 class Kernel {
     protected $rootpath = null;     // root directory relative to the webserver
     protected $basepath = null;     // base directory relative to the filesystem
@@ -210,17 +219,6 @@ class Kernel {
         } else return null;
     }
 
-    function loginUser($uname, $uroles) {
-        session_start();
-        session_regenerate_id();
-        $_SESSION['user'] = $uname;
-        $urolelist = SecurityClass::processRoles($uroles);
-        if(!$urolelist) {
-            echo "<pre>User roles are initialized falsely. Please check!";
-            exit();
-        }
-        $_SESSION['user_roles'] = $urolelist;
-    }
 
     function logoutUser() {
         unset( $_SESSION['user'] );
