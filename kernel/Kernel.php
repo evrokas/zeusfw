@@ -219,7 +219,18 @@ class Kernel {
         } else return null;
     }
 
-
+    function loginUser($uname, $uroles) {
+        session_start();
+        session_regenerate_id();
+        $_SESSION['user'] = $uname;
+        $urolelist = SecurityClass::processRoles($uroles);
+        if(!$urolelist) {
+            echo "<pre>User roles are initialized falsely. Please check!";
+            exit();
+        }
+        $_SESSION['user_roles'] = $urolelist;
+    }
+    
     function logoutUser() {
         unset( $_SESSION['user'] );
         unset( $_SESSION['user_roles']);
