@@ -1,11 +1,5 @@
 <?php
 
-
-/*
- * based on web page: https://www.phptutorial.net/php-tutorial/php-remember-me/
- * 
- */
-
 class userTokensClassEx extends userTokensClass {
 
     static function generate_token(): array {

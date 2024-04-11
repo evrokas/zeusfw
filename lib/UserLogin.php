@@ -5,19 +5,13 @@
  * and proceeding implementing cookie, selector&validateor hashes, storage
  * in database, retrieving the hases and validating selector&validator
  * implementing another approach into the code is difficult and unnecessary
+ * 
+ * based on web pages: 
+ * https://www.phptutorial.net/php-tutorial/php-remember-me/
+ * https://paragonie.com/blog/2015/04/secure-authentication-php-with-long-term-persistence
+ * 
  */
 
-function loginUser($uname, $uroles) {
-    session_start();
-    session_regenerate_id();
-    $_SESSION['user'] = $uname;
-    $urolelist = SecurityClass::processRoles($uroles);
-    if(!$urolelist) {
-        echo "<pre>User roles are initialized falsely. Please check!";
-        exit();
-    }
-    $_SESSION['user_roles'] = $urolelist;
-}
 
 function login($params) {
     global $Renderer;
@@ -28,13 +22,13 @@ function login($params) {
 function login_post($params) {
     global $kernel;
 
-    $user = userTokensClassEx::getUserByToken($_POST['token']);
+    // $user = userTokensClassEx::getUserByToken($_POST['token']);
 
-    prelog("User (login_post): " . print_r(user, 1));
+    // prelog("User (login_post): " . print_r(user, 1));
 
-    if($user && password_verify($_POST['password'], $user->['password'])) {
-
-    }
+    // if($user && password_verify($_POST['password'], $user->['password'])) {
+// 
+    // }
 
     $us = UsersClassEx::getUser($_POST['username'], hash('sha256', $_POST['password']));
     // echo "<pre>User: " . print_r( $us, 1 ) . "</pre>";
