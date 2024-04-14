@@ -13,6 +13,24 @@
  */
 
 
+ function setup_rememberme(string $uname) {
+    prelog("Setup selector:validator");
+    [$selector, $validator, $token] = userTokensClassEx::generate_tokens();
+    prelog("Tokens: $selector:$validator");
+    userTokensClassEx::delete_user_token($uname);
+
+    $days = 10;
+    $expired_seconds = time() + 60 * 60 * 24 * $days;
+    $hash_validator = password_hash($validator, PASSWORD_DEFAULT);
+    $expiry = date('Y-m-d H:i:s', $expired_seconds);
+    prelog("expiry: $expiry\texpired_seconds: $expired_seconds");
+
+    if(userTokensClassEx::insert_user_token($uname, $selector, $hash_validator, $expiry)) {
+        setcookie('zeusfwrememberme', $token, $expired_seconds);
+        prelog("setup cookie for future!");
+    }
+}
+
 function login($params) {
     global $Renderer;
 
@@ -22,20 +40,20 @@ function login($params) {
 function login_post($params) {
     global $kernel;
 
-    // $user = userTokensClassEx::getUserByToken($_POST['token']);
-
-    // prelog("User (login_post): " . print_r(user, 1));
-
-    // if($user && password_verify($_POST['password'], $user->['password'])) {
-// 
-    // }
-
     $us = UsersClassEx::getUser($_POST['username'], hash('sha256', $_POST['password']));
-    // echo "<pre>User: " . print_r( $us, 1 ) . "</pre>";
+    prelog("User: " . print_r( $us, 1 ));
     if($us) {
         $kernel->loginUser($us->getuname(), $us->getroles());
+
+        if(isset($_POST['rememberme'])) {
+            setup_rememberme($us->getuname());
+        }
+
         header('location: '.rel_url('/profile'));
         exit();
+    } else {
+        $kernel->addStatus('warning', 'Username and password does not match, or do not exist');
+        header('location: ' . rel_url('/login'));
     }
 }
 
@@ -46,9 +64,14 @@ function logout($params) {
 
     $us = $kernel->getUserName();
     if($us) {
+        userTokensClassEx::delete_user_token($_SESSION['user']);
+        if(isset($_COOKIE['zeusfwrememberme'])) {
+            unset($_COOKIE['zeusfwrememberme']);
+            setcookie('zeusfwrememberme', null, -1);
+        }
+
         $kernel->logoutUser();
     }
     header('location: '.rel_url('/'));
     exit();
-
 }
