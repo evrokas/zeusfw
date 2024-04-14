@@ -2,7 +2,7 @@
 
 class userTokensClassEx extends userTokensClass {
 
-    static function generate_token(): array {
+    static function generate_tokens(): array {
         $selector = bin2hex(random_bytes(16));
         $validator = bin2hex(random_bytes(32));
     
@@ -18,7 +18,12 @@ class userTokensClassEx extends userTokensClass {
     }
     
     static function insert_user_token(string $uname, string $selector, string $validator, string $expiry): bool {
-        $tok = new userTokensClass([$selector, $validator, $uname, $expiry]);
+        $tok = new userTokensClass(
+            ['selector' => $selector, 
+                "validator" => $validator, 
+                'uname' => $uname, 
+                'expiry' => $expiry
+            ]);
         $tok->insert();
     
         return true;
@@ -77,14 +82,18 @@ class userTokensClassEx extends userTokensClass {
             }
         }
 
-        $sql = "SELECT * FROM users INNER JOIN user_tokens ON uname=users.uname WHERE selector=:selector AND expiry > now() LIMIT 1";
+        $tokens = userTokensClassEx::parse_token($token);
+        prelog("getUserByToken: $token, $tokens[0]");
+
+        $sql = "SELECT * FROM users INNER JOIN user_tokens ON user_tokens.uname=users.uname WHERE selector=:selector AND expiry > now() LIMIT 1";
         $st = $AppDBConnection->getConnection()->prepare( $sql );
-        $st->bindValue(":selector", $token[0], PDO::PARAM_STR);
+        $st->bindValue(":selector", $tokens[0], PDO::PARAM_STR);
         $st->execute();
         $row = $st->fetch();
 
         if($row) {
-            $rclass = new usersClass();
+            // prelog(print_r($row, 1));
+            $rclass = new userTokensClass();
             $rclass->loadFields( $row );
             return $rclass;
         } else return (null);
@@ -93,11 +102,18 @@ class userTokensClassEx extends userTokensClass {
     static function token_is_valid(string $token): bool {
         global $kernel;
 
-        [$selector, $validator] = $parse_token($token);
-        $tokens = $this->getUserTokenBySelector($selector);
+        [$selector, $validator] = self::parse_token($token);
+        prelog("token_is_valid: selector: $selector, validator: $validator");
+
+        $tokens = self::getUserTokenBySelector($selector);
+        prelog("token_is_valid: tokens: " . print_r($tokens, 1));
+    
         if(!$tokens)return false;
 
-        return password_verify($validator, $tokens['validator']);
+        prelog("Test for validator correctness: validator: $validator hashed: " . $tokens->getvalidator() . " (hashed validator: " . password_hash($validator, PASSWORD_DEFAULT) . ")\n");
+        prelog("verify: " . (password_verify('a'.$validator, $tokens->getvalidator()))?"yes":"no" );
+
+        return password_verify($validator, $tokens->getvalidator());
         // if(!token)
     }
 

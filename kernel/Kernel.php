@@ -155,12 +155,12 @@ class Kernel {
     
     }
 
-
+    // status can be: error || warning || notice
     function addStatus($level, $statusMessage) {
         if(!isset($_SESSION[ $level ]))
             $_SESSION[ $level ] = array();
         $_SESSION[ $level ][] = $statusMessage;
-        // error_log("\nSet status: [$level]: $statusMessage\n");
+        error_log("\nSet status: [$level]: $statusMessage\n");
     }
 
     function getStatus($level, $clear = null) {
@@ -237,6 +237,34 @@ class Kernel {
         session_destroy();
     }
 
+    function isUserLoggedin(): bool {
+        global $kernel;
+        // unset($_SESSION['user']);
+
+        if(isset($_SESSION['user'])) {
+            return true;
+        }
+
+        prelog('Trying to get user info from cookie');
+
+        $token = filter_input(INPUT_COOKIE, 'zeusfwrememberme', FILTER_SANITIZE_STRING);
+        prelog("token from cookie: " . print_r($token, 1));
+        if($token && userTokensClassEx::token_is_valid($token)) {
+            prelog("Found valid token in DB, token: " . print_r($token));
+
+            $user = userTokensClassEx::getUserByToken($token);
+            $us = usersClassEx::getUserAccount( $user->getuname());
+            prelog("Found user: " . print_r($user, 1) . " user record: " . print_r($us, 1));
+
+
+            $kernel->loginUser($us->getuname(), $us->getroles());
+            return true;
+        } else {
+            prelog("token does not exist or is invalid");
+        }
+
+        return false;
+    }
     function isAjaxRequest() {
         if(key_exists('HTTP_X_REQUESTED_WITH', $_SERVER))
             if($_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest')

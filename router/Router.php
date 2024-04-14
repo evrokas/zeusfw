@@ -167,7 +167,7 @@ class RouterClass {
         if(class_exists("analyticsClass")) {
             $acl = new analyticsClass([
                 'cdate' => getDBtime(),
-                'page' => $match_route['_routename'],
+                'page' => ($match_route && $match_route['_routename'])?$match_route['_routename']:"n/a",
                 'url' => $_SERVER['QUERY_STRING'], //print_r($match_route['_request'], 1),
                 'remote_ip' => $_SERVER['REMOTE_ADDR'],
                 'user_agent' => $_SERVER['HTTP_USER_AGENT']
