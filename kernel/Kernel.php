@@ -213,6 +213,8 @@ class Kernel {
     function loginUser($uname, $uroles) {
         session_start();
         session_regenerate_id();
+
+        // error_log("<pre>SESSION #2: " .print_r($_SESSION, 1) . '</pre>');
         $_SESSION['user'] = $uname;
         $urolelist = SecurityClass::processRoles($uroles);
         if(!$urolelist) {

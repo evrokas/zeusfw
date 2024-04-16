@@ -10,8 +10,8 @@ require_once(__DIR__ . "/db/dbal.php");            // load database abstract cla
 if(file_exists(__DIR__ . "/classes/bootstrap_classes.php"))
     require_once(__DIR__ . "/classes/bootstrap_classes.php");	// load framework classes
 
-if(file_exists(__DIR__ . "ClassExFW.php"))
-    include_once(__DIR__ . "ClassExFW.php");        // framework class extentions
+if(file_exists(__DIR__ . "./ClassExFW.php"))
+    include_once(__DIR__ . "./ClassExFW.php");        // framework class extentions
 
 
 // include user classes only if they exist
