@@ -253,12 +253,13 @@ class Kernel {
             prelog("Found valid token in DB, token: " . print_r($token));
 
             $user = userTokensClassEx::getUserByToken($token);
-            $us = usersClassEx::getUserAccount( $user->getuname());
-            prelog("Found user: " . print_r($user, 1) . " user record: " . print_r($us, 1));
-
-
-            $kernel->loginUser($us->getuname(), $us->getroles());
-            return true;
+            if($user) {
+                $us = usersClassEx::getUserAccount( $user->getuname());
+                prelog("Found user: " . print_r($user, 1) . " user record: " . print_r($us, 1));
+                
+                $kernel->loginUser($us->getuname(), $us->getroles());
+                return true;
+            }
         } else {
             prelog("token does not exist or is invalid");
         }

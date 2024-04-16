@@ -23,11 +23,11 @@
     $expired_seconds = time() + 60 * 60 * 24 * $days;
     $hash_validator = password_hash($validator, PASSWORD_DEFAULT);
     $expiry = date('Y-m-d H:i:s', $expired_seconds);
-    prelog("expiry: $expiry\texpired_seconds: $expired_seconds");
+    // prelog("expiry: $expiry\texpired_seconds: $expired_seconds");
 
     if(userTokensClassEx::insert_user_token($uname, $selector, $hash_validator, $expiry)) {
         setcookie('zeusfwrememberme', $token, $expired_seconds);
-        prelog("setup cookie for future!");
+        // prelog("setup cookie for future!");
     }
 }
 
@@ -41,7 +41,7 @@ function login_post($params) {
     global $kernel;
 
     $us = UsersClassEx::getUser($_POST['username'], hash('sha256', $_POST['password']));
-    prelog("User: " . print_r( $us, 1 ));
+    // prelog("User: " . print_r( $us, 1 ));
     if($us) {
         $kernel->loginUser($us->getuname(), $us->getroles());
 
@@ -60,7 +60,7 @@ function login_post($params) {
 function logout($params) {
     global $kernel;
 
-    echo "Logout user<br>";
+    // echo "Logout user<br>";
 
     $us = $kernel->getUserName();
     if($us) {
