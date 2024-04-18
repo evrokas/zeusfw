@@ -294,7 +294,7 @@ function attributes($at) {
 }
 
 function guid() {
-    return (file_get_contents('/proc/sys/kernel/random/uuid'));
+    return (trim(file_get_contents('/proc/sys/kernel/random/uuid')));
 }
 
 function getDBtime($atime = null) {
