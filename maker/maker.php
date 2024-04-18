@@ -5,6 +5,11 @@
     }
 
 
+    function guid() {
+        return (trim(file_get_contents('/proc/sys/kernel/random/uuid')));
+    }
+    
+
     // $inline_options[] = array();
     $inline_options['add-id'] = 'true';
     // $inline_options['extend-class'] = null;
@@ -540,6 +545,24 @@ function diff_sql($file) {
     echo $s;
 }
 
+function generate_content($user, $name, $title, $desc, $viewmode) {
+
+    $s = '';
+    $s .= "guid: " . guid() . "\n";
+    $s .= "title: $title\n";
+    $s .= "description: $desc\n";
+    $s .= "author: $user\n";
+    // $s .= "date: " . (new DateTime("now", new DateTimeZone('Europe/Athens')))->format('d-m-Y H:i:s T') . "\n";
+    $s .= "date: " . date ('Y-m-d H:i:s T') . "\n";
+    $s .= "viewmode: $viewmode\n";
+    $s .= "---\n";
+    $s .= "This is test content\n";
+
+    echo(print_r($s, 1));
+}
+
+
+
 function export_data($afile) {
     global $yaml_dir;
 
@@ -583,7 +606,8 @@ function makesure_dir_exists($dir) {
 // execute various components of the framework
 
     $getopt_options_short = "f:";
-    $getopt_options_long = ['add-id', 'extends-class:'];
+    $getopt_options_long = array('add-id', 'extends-class:',
+        'name:', 'user:', 'title:', 'desc:', 'viewmode:');
     $i=0;
     $optparams = array();
     
@@ -629,6 +653,7 @@ function makesure_dir_exists($dir) {
                 'diff:sql' => 'show differences between YAML files and MySQL tables',
                 'diff:sql:all' => 'show differences for all YAML files',
                 'data:export' => 'export data from SQL database table to data folder',
+                'content:gen' => 'generate content template',
                 'content:view' => 'show content data',
             ];
 
@@ -714,6 +739,27 @@ function makesure_dir_exists($dir) {
                 diff_sql( $yaml_dir . '/' . $yfile );
             }
             break;
+
+        case 'content:gen':
+                // echo "options: " . print_r($cmdline_options, 1);
+                // usage: content:gen content-name title
+                if(!isset($options['name'])
+                    && !isset($options['user'])
+                    && !isset($options['title'])
+                    // && !isset($options['desc'])
+                    // && !isset($options['viewmode'])
+                    ) {
+                        echo "Usage: --name [content-name] --user [user-created] --title [title of content] {--desc [description of content]} {--viewmode [view mode]}\n";
+                        exit;
+                    }
+                    if(!isset($optins['viewmode']))$options['viewmode' ] = 'main';
+                    if(!isset($options['desc']))$options['desc'] = $options['title'];
+
+                    generate_content($options['user'], $options['name'], $options['title'], $options['desc'], $options['viewmode'] );
+                    // echo "Creating content " . print_r($options, 1);
+                    exit;
+            break;
+
 
         case 'content:view':
             $file = $optparams[1];
