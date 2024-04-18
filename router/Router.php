@@ -196,6 +196,8 @@ class RouterClass {
         http_response_code(200);
 
         if(!isset($match_route['_routedata']['handler'])) {
+
+            // if there is no page match, search for modules match
             $fexe = $match_route['_routedata']['module'];
             if(!$fexe) {
                 if(class_exists("analyticsClass")) {
@@ -214,6 +216,8 @@ class RouterClass {
             return (self::call_module_func($fexe, $params) );
 
         }
+
+        
         $fexe = $match_route['_routedata']['handler'];
         $params = $match_route['_params'];
 
