@@ -7,23 +7,25 @@ class ContentClass {
     private $content;
     private $meta;
     function __construct($afile) {
-        echo $afile;
-        $this->content = file_get_contents($afile);
-        $str = explode('---', $this->content);
-        echo "<pre>";
-        print_r( $str );
-        echo "</pre>";
-        
-        $this->meta = yaml_parse( $this->content );
-        echo($this->meta);
-        
+        global $kernel;
+        // echo $afile;
 
-        if($this->content) {
+        // echopre(print_r($kernel->getbasepath(), 1));
+        $contents = file_get_contents($kernel->getbasepath() . $afile);
+        $str = explode('---', $contents);
+        // echopre( print_r($str, 1) );
+        
+        $this->meta = yaml_parse( $str[0] );
+        echopre( print_r($this->meta, 1));
+
+        if($str[1]) {
             $this->filename = $afile;
+            $this->content = $str[1];
         }
     }
 
     function render() {
+        return $this->content;
         // echo $conten
     }
 }
