@@ -258,7 +258,7 @@ class Kernel {
             return true;
         }
 
-        prelog('Trying to get user info from cookie');
+        // prelog('Trying to get user info from cookie');
 
         $token = filter_input(INPUT_COOKIE, 'zeusfwrememberme', FILTER_SANITIZE_STRING);
         prelog("token from cookie: " . print_r($token, 1));
