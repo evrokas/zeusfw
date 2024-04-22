@@ -139,7 +139,20 @@ class Kernel {
             }
             // echo "Region response text " . $blk_resp;
             // $regions_resp[ $region ] = $blk_resp;
-            $regions_resp[ $region ] = $Renderer->render('region.zetem', ['region_name' => $region, 'blocks' => $blk_resp]);
+            $sugg = array();
+            $Renderer->getTemplateSuggestions(['type' => 'region', 'name' => $region], function($args, &$suggestions) {
+                // echopre(print_r($args, 1));
+                if($args['type'] == 'region') {
+                    $suggestions[] = 'region';
+                    $suggestions[] = 'region--' . $args['name'];
+                }
+            }, $sugg);
+
+            // echopre(print_r($sugg, 1));
+
+            $temp = $Renderer->getTemplate($sugg);
+            // echopre("found template: $temp");
+            $regions_resp[ $region ] = $Renderer->render($temp /*'region.zetem'*/, ['region_name' => $region, 'blocks' => $blk_resp], [$sugg, $temp]);
 //            $Renderer->view('region.zetem', ['region_name' => $region, 'blocks' => $regions_resp[ $region ]]);
         }
 
