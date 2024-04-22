@@ -17,7 +17,7 @@ class ContentClass {
         // echopre( print_r($str, 1) );
         
         $this->meta = yaml_parse( $str[0] );
-        echopre( print_r($this->meta, 1) );
+        // echopre( print_r($this->meta, 1) );
 
         if($str[1]) {
             $this->filename = $afile;
