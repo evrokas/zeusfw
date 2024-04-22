@@ -6,11 +6,13 @@
  * Thanks to David Adams
  * 
  * Used with modifications by Evangelos Rokas (c) 2024
+ * major modification [Apr, 2024] template_path changed to array
+ *   so to allow for more folders to be searched for templates
  */
 
 class ZETEMTemplate {
 	static $blocks = array();
-	static $template_path = '';
+	static $template_path = array();
 	static $cache_path = 'cache/';
 	static $cache_enabled = FALSE;
 	// static $cache_enabled = true;   //FALSE;
@@ -23,28 +25,37 @@ class ZETEMTemplate {
 	 *             to that string, if it is TRUE then cache_path set to the default 'cache/'
 	 * $enable_comments can TRUE or FALSE */
 	function __construct($template_path, $cache_path = null, $enable_comments = null) {
-		if(isset($template_path))self::$template_path = $template_path;
+		// $template_path can be string or array of strings, but self::$template_path
+		// should be an array
+		if(isset($template_path)) {
+			if(is_array($template_path))self::$template_path = $template_path;
+			else array_push(self::$template_path, $template_path);
+		}
 		if(isset($cache_path))
 			if(is_bool($cache_path)) {
 				if(!$cache_path)self::$cache_enabled = false; 
 			} else self::$cache_path = $cache_path;
 		if(isset($enable_comments))self::$enable_comments = $enable_comments;
 
-		// echo self::emmitComment("Template path: ".self::$template_path . PHP_EOL .
+		// echo self::emmitComment("Template path: ".print_r(self::$template_path,1) . PHP_EOL .
 		// "Cache path: " . self::$cache_path . PHP_EOL . 
-		// "Comments : " . self::$enable_comments;
+		// "Comments : " . self::$enable_comments);
 
-		self::$template_files = self::findTemplates(self::$template_path);
+		self::$template_files = array();
+		foreach(self::$template_path as $tpath) {
+			// add templates to template_files
+			self::findTemplates($tpath, self::$template_files);
+		}
 	}
-	static function view($file, $data = array()) {
-		$cached_file = self::cache($file);
+	static function view($file, $data = array(), $stemplate = null) {
+		$cached_file = self::cache($file, $stemplate);
 	    extract($data, EXTR_SKIP);
 	   	require $cached_file;
 	}
 
-	static function render($file, $data = array()) {
+	static function render($file, $data = array(), $stemplates = null) {
 		ob_start();
-		$cached_file = self::cache($file);
+		$cached_file = self::cache($file, $stemplates);
 		extract($data, EXTR_SKIP);
 		require $cached_file;
 		
@@ -55,7 +66,7 @@ class ZETEMTemplate {
 	}
 	
 	/* return recursively all templates in $apth */
-	static function findTemplates($apath) {
+	static function findTemplates($apath, &$farr) {
 		$files = glob($apath . '*.zetem');
 
 		// $dir  = new RecursiveDirectoryIterator($apath, RecursiveDirectoryIterator::SKIP_DOTS);
@@ -66,7 +77,7 @@ class ZETEMTemplate {
 			RecursiveIteratorIterator::LEAVES_ONLY);
 
 		// print_r( $files );
-		$farr = array();
+		// $farr = array();
 		// echo "Template files in path: $apath\n";
 
 		$dupl=0;
@@ -74,7 +85,8 @@ class ZETEMTemplate {
 			$f = explode('/', $fnam);
 			// $farr[  str_replace('.zetem', '', $f[ array_key_last($f) ]) ] = $fnam;
 			if(isset( $farr [ $f[ array_key_last($f)] ])) {
-				echo "Duplicate template name exists. (". $f[ array_key_last($f)]. " @ " . $fnam->getPathName() . ")\n";
+				echo "Override template name exists. (". $f[ array_key_last($f)]. " @ " . $fnam->getPathName() . ")\n";
+				// echo "Duplicate template name exists. (". $f[ array_key_last($f)]. " @ " . $fnam->getPathName() . ")\n";
 				$dupl++;
 				// exit;
 			}
@@ -82,13 +94,26 @@ class ZETEMTemplate {
 		}
 		// print_r( $farr );
 		if($dupl>0) {
+			// duplicate overrides parent template, so allow it!
 			echo "Please rename the above duplicates!\n";
-			exit;
+			// exit;
 		}
-	  return ( $farr );
+	//   return ( $farr );
 	}
 
-	static function cache($file) {
+	function getTemplateSuggestions($args, callable $callback, &$tsuggestions) {
+		$callback($args, $tsuggestions);
+	}
+	
+	function getTemplate($suggestions) {
+		// echo self::emmitComment('Template suggestions: ' . implode(' * ', $suggestions));
+		foreach(array_reverse($suggestions) as $s) {
+			// echopre("checking template $s");
+			if(isset(self::$template_files[ $s.'.zetem' ]))return $s.'.zetem';
+		}
+	}
+
+	static function cache($file, $stemplates) {
 		if (!file_exists(self::$cache_path)) {
 		  	mkdir(self::$cache_path, 0744);
 		}
@@ -97,8 +122,21 @@ class ZETEMTemplate {
 		// echo "Template: ". self::$template_files[ $file ] . "\n";
 	    if (!self::$cache_enabled || !file_exists($cached_file) || filemtime($cached_file) < filemtime($file)) {
 			
+			if($stemplates != null) {
+				$code = "<!--- template suggestions: ---!>";
+				foreach($stemplates[0] as $sugg) {
+					$code .= "<!--- ";
+
+					if($sugg .'.zetem'== $stemplates[1])$code .= " * ";
+					else $code .= " - ";
+					
+					$code .= $sugg.'.zetem' . " ---!>";
+				}
+
+				// $code = self::emmitComment("Template suggestions:\n" . implode("\n * ", $stemplates[0]));
+			} else $code = '';
 			// $code = self::emmitComment("processing $file");
-			$code = self::includeFiles($file);
+			$code .= self::includeFiles($file);
 			$code = self::compileCode($code);
 	        file_put_contents($cached_file, '<?php class_exists(\'' . __CLASS__ . '\') or exit; ?>' . PHP_EOL . $code);
 	    }
