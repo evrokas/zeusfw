@@ -252,6 +252,8 @@ class Kernel {
 
     function isUserLoggedin(): bool {
         global $kernel;
+
+        // uncomment the following line to force cookie search
         // unset($_SESSION['user']);
 
         if(isset($_SESSION['user'])) {
@@ -261,9 +263,9 @@ class Kernel {
         // prelog('Trying to get user info from cookie');
 
         $token = filter_input(INPUT_COOKIE, 'zeusfwrememberme', FILTER_SANITIZE_STRING);
-        prelog("token from cookie: " . print_r($token, 1));
+        // prelog("token from cookie: " . print_r($token, 1));
         if($token && userTokensClassEx::token_is_valid($token)) {
-            prelog("Found valid token in DB, token: " . print_r($token));
+            prelog("Found valid token in DB, token: " . print_r($token, 1));
 
             $user = userTokensClassEx::getUserByToken($token);
             if($user) {
@@ -276,7 +278,6 @@ class Kernel {
         } else {
             prelog("token does not exist or is invalid");
         }
-
         return false;
     }
     function isAjaxRequest() {
