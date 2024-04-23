@@ -103,18 +103,17 @@ class userTokensClassEx extends userTokensClass {
         global $kernel;
 
         [$selector, $validator] = self::parse_token($token);
-        prelog("token_is_valid: selector: $selector, validator: $validator");
-
+        // prelog("token_is_valid: selector: $selector, validator: $validator");
+        
         $tokens = self::getUserTokenBySelector($selector);
-        prelog("token_is_valid: tokens: " . print_r($tokens, 1));
-    
+        // prelog("token_is_valid: tokens: " . print_r($tokens, 1));
+        
         if(!$tokens)return false;
-
+        
         prelog("Test for validator correctness: validator: $validator hashed: " . $tokens->getvalidator() . " (hashed validator: " . password_hash($validator, PASSWORD_DEFAULT) . ")\n");
         prelog("verify: " . (password_verify('a'.$validator, $tokens->getvalidator()))?"yes":"no" );
-
+        
         return password_verify($validator, $tokens->getvalidator());
-        // if(!token)
     }
 
     
