@@ -104,9 +104,9 @@ class Database {
 
             
             mlog("  function __construct(\$adata = array() ) {
-      parent::__construct('".$this->name."', \$adata);
-      \$this->loadFields( \$adata );
-  }");
+                        parent::__construct('".$this->name."', \$adata);
+                        \$this->loadFields( \$adata );
+                }");
 
             mlog("  static function sgetById(int \$aid) {
                 global \$AppDBConnection;
