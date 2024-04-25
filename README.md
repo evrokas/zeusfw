@@ -1,5 +1,7 @@
 Zeus Framework
 
+[25/04/2024] Framework folders have been split, to framework and webpage projects
+
 In the main index PHP script,
 
 1. create a Kernel instance
