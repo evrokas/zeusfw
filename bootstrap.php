@@ -1,7 +1,5 @@
 <?php
 
-include_once(__DIR__ . "/../config/db.php");       // load database parameters
-
 include_once(__DIR__ . "/kernel/Kernel.php");       // include Kernel class
 require_once(__DIR__ . "/db/dbal.php");            // load database abstract classes
 
@@ -10,13 +8,15 @@ require_once(__DIR__ . "/db/dbal.php");            // load database abstract cla
 if(file_exists(__DIR__ . "/classes/bootstrap_classes.php"))
     require_once(__DIR__ . "/classes/bootstrap_classes.php");	// load framework classes
 
-if(file_exists(__DIR__ . "/ClassExFW.php"))
+if(file_exists(__DIR__ . "/ClassExFW.php")) {
     include_once(__DIR__ . "/ClassExFW.php");        // framework class extentions
-
+}
 
 // include user classes only if they exist
-if(file_exists('../web/user_classes.php'))
-    include_once(__DIR__ . "/../web/user_classes.php");
+if(file_exists(__APPDIR__ . '/web/user_classes.php')) {
+    include_once(__APPDIR__ . "/web/user_classes.php");
+} else
+error_log(__APPDIR__ . "/web/users_classes.php was not found\n");
 
 
 require_once(__DIR__ . "/security/Permissions.php");    // security permissions classes

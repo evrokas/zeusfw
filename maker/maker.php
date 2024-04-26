@@ -93,7 +93,7 @@ class Database {
         ob_start();
         mlog('<?php');
         mlog('// class ' . $this->classname);
-        mlog("require_once(__DIR__ . \"/../../fw/db/dbal.php\");\n");
+        // mlog("require_once(__DIR__ . \"/../../fw/db/dbal.php\");\n");
 
         mlog('class ' . $this->classname . (isset($options['extends-class'])?' extends ' . $options['extends-class']:"") . ' {');
         
