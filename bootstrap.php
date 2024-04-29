@@ -36,6 +36,7 @@ require_once(__DIR__ . "/lib/Menutrail.php");
 require_once(__DIR__ . "/lib/Routetrail.php");
 require_once(__DIR__ . "/lib/Security.php");
 require_once(__DIR__ . "/lib/UserLogin.php");
+require_once(__DIR__ . "/lib/Feeders.php");
 
 // moved to ../src/
 // if(file_exists('../src/ClassesEx.php'))
