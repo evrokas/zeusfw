@@ -643,6 +643,7 @@ function generate_content($author, $type, $name, $title, $desc, $viewmode) {
 }
 
 function generate_feed($template, $name, $output = null) {
+    // echo $template;
     $s = "# generated with: " . implode(' ', $GLOBALS['argv']) . "\n";
     $s .= "# from directory: " .getcwd() . "\n";
     $s .= "# date: " . date ('d-m-Y H:i:s') . "\n";
@@ -669,8 +670,8 @@ function generate_feed($template, $name, $output = null) {
         }
     }
 
-    $y = yaml_parse( $s );
-    $s .= 'hash: ' . hash('sha256', serialize($y['data'])) . "\n";
+    // $y = yaml_parse( $s );
+    // $s .= 'hash: ' . hash('sha256', serialize($y['data'])) . "\n";
     // print_r( $y );
 
     if(!$output) {
@@ -688,7 +689,7 @@ function generate_feed_from_yaml($name, $dir) {
     // print_r( $yfeed );
     // echo "yaml path " . $dir. "\n";
     // echo "Real path: " . realpath($name) . "\n";
-    $dir = trim($dir, " /\\");
+    // $dir = trim($dir, " /\\");
 
     $ytemplate = $dir . '/' . $yfeed['schema'];
 
@@ -756,6 +757,7 @@ function load_feed_data($name) {
         // echo"ordered ydata['data']\n";
         // print_r($ydata['data'][array_key_first($ydata['data'])]);
 
+        // incoming data hash
         $feeder_hash = hash('sha256', serialize(
             $ydata['data'][array_key_first($ydata['data'])]
         ));
@@ -793,6 +795,7 @@ function load_feed_data($name) {
                 print_r($hash2 . "\n");
 
                 $fh->sethash( $hash2 );
+
                 $fh->update();
 
                 // $old_feeder_class->loadFields($feeder_class)
@@ -807,7 +810,9 @@ function load_feed_data($name) {
             $fexp = time() + 1 * 24 * 60 * 60;
             
             $fhash = new feedhashesClass(['guid' => $feeder_class->getguid(),
-            'hash' => $feeder_hash, 'expiry' => date('Y-m-d H:i:s', $fexp),
+            'hash' => $feeder_hash, 
+            'feedclass' => $schemaClass,
+            'expiry' => date('Y-m-d H:i:s', $fexp),
             'feedid' => $feeder_class->getid() ]);
             $fhash->insert();
         }
