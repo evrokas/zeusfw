@@ -1,4 +1,33 @@
 <?php
+    // include( getcwd() . "/../../config/db.php");
+    // echo "cwd(): " . getcwd() . "\n";
+    $dnames = explode('/' , getcwd());
+    // print_r( $dnames );
+
+    for($i=count($dnames);$i>0;$i--) {
+        $dir = implode('/',array_slice($dnames, 0, $i));
+        if(file_exists($dir . '/config')) {
+            // echo "$dir/config exists!";
+            define('__APPDIR__', $dir);
+            define('__FWDIR__', $dir . '/fw');
+            break;
+        } else
+        if(file_exists($dir . '/bootstrap.php')) {
+            define('__FWDIR__', $dir);
+            break;
+        }
+    }
+
+    // if(defined('__APPDIR__'))echo 'app dir: ' . __APPDIR__ . "\n";
+    // if(defined('__FWDIR__'))echo 'fw dir: ' . __FWDIR__ . "\n";
+
+
+    if(defined('__APPDIR__')) {
+        // echo __APPDIR__ . '/config/db.php' . "\n";
+        include(__APPDIR__ . '/config/db.php');
+    }
+    
+
     function mlog($s, $nl = true, $li=false) {
         if($li)echo __FILE__."(".__FUNCTION__."):".__LINE__.": ";
         echo $s . ($nl?"\n":"");
@@ -9,6 +38,13 @@
         return (trim(file_get_contents('/proc/sys/kernel/random/uuid')));
     }
     
+
+
+    $getopt_options_short = "f:";
+    $getopt_options_long = array('app-dir:', 'add-id', 'extends-class:',
+        'name:', 'type:', 'author:', 'title:', 'desc:', 'viewmode:',
+        'template:', 'dir:');
+    $options = array();
 
     // $inline_options[] = array();
     $inline_options['add-id'] = 'true';
@@ -21,11 +57,23 @@
     $bootstrap_file = 'bootstrap_classes.php';
 
 
+    function require_option($opt) {
+        global $options;
+
+            if(!isset($options[ $opt ])) {
+                echo "Please set option `$opt` because is required for action.\n";
+                exit;
+            }
+            
+        return true;
+    }
+
 
 
 class Database {
     private $name;
     private $classname;
+    private $extends;
     private $fields;
 
     function __construct($ayaml) {
@@ -37,6 +85,9 @@ class Database {
                 // mlog("table name: " . $this->name);
                 
                 $this->classname = $table['class'];
+                if(isset($table['extends']))
+                    $this->extends = $table['extends'];
+                else $this->extends = null;
 
                 if(isset($table['fields'])) {
                     // mlog("Fields set");
@@ -94,8 +145,11 @@ class Database {
         mlog('<?php');
         mlog('// class ' . $this->classname);
         // mlog("require_once(__DIR__ . \"/../../fw/db/dbal.php\");\n");
+        $ext = 'dbAbstractEntityClass';
+        if($this->extends)$ext = $this->extends;
+        if(isset($options['extends-class']))$ext = $options['extends-class'];
 
-        mlog('class ' . $this->classname . (isset($options['extends-class'])?' extends ' . $options['extends-class']:"") . ' {');
+        mlog('class ' . $this->classname . ' extends ' . $ext . ' {');
         
 
             foreach($this->fields as $fld) {
@@ -157,14 +211,31 @@ class Database {
         
             }");
 
-            mlog("  function loadFields(\$adata) {
+            mlog("function loadFields(\$adata) {
       parent::loadFields(\$adata);");
 
             foreach($this->fields as $fld) {
                 mlog("      if(isset(\$adata['".$fld['name']."']))\$this->".$fld['name']." = \$adata['".$fld['name']."'];");
             }
 
-            mlog("  }");
+            mlog("}\n");
+
+            mlog("function getFields() {
+              \$resp = array();
+              \$resp = array_merge(\$resp, parent::getFields());");
+
+
+            foreach($this->fields as $fld) {
+                mlog("              \$resp = array_merge(\$resp, ['" .$fld['name']. "' => \$this->".$fld['name']."]);");
+            }
+            // foreach($this->fields as $fld) {
+                // mlog("      if(isset(\$adata['".$fld['name']."']))\$this->".$fld['name']." = \$adata['".$fld['name']."'];");
+            // }
+
+            mlog("      return \$resp;\n}\n");
+
+
+
 
             // emit setters and getters
             foreach($this->fields as $fld) {
@@ -318,7 +389,7 @@ class Database {
 
         $s = 'DESCRIBE ' . $this->name . ";";
         file_put_contents($temp, $s);
-        $res = shell_exec("../../sql/msql.sh < " . $temp);
+        $res = shell_exec(__APPDIR__ . "/sql/msql.sh < " . $temp);
         // print_r( $res );
 
         $res = str_replace("\t\t", "\t", $res);
@@ -517,10 +588,15 @@ function spill_sql($ymlfile, $sqldir) {
 function spill_class($sqlfile, $classdir) {
     $dbinfo = yaml_parse_file( $sqlfile );
     // print_r( $dbinfo );
-        
+
     $db = new Database( $dbinfo );
     $s = $db->emitClass();
 
+    if(isset($dbinfo[0]['extention'])) {
+        $s .= "\n\n";
+        $s .= "require_once( " . $dbinfo[0]['extention'] . " );\n";
+    }
+        
     // echo "emit CLASS data in ". $classdir . '/' . $dbinfo[0]['table']. ".php\n";
     file_put_contents($classdir . '/' . $dbinfo[0]['table'].'.php', $s);
 
@@ -537,6 +613,9 @@ function spill_bootstrap($files) {
 }
 
 function diff_sql($file) {
+
+    if(!defined('__APPDIR__'))require_option('app-dir');
+
     $tableinfo =  yaml_parse_file( $file );
     
     $db = new Database($tableinfo);
@@ -563,10 +642,185 @@ function generate_content($author, $type, $name, $title, $desc, $viewmode) {
     echo(print_r($s, 1));
 }
 
+function generate_feed($template, $name, $output = null) {
+    $s = "# generated with: " . implode(' ', $GLOBALS['argv']) . "\n";
+    $s .= "# from directory: " .getcwd() . "\n";
+    $s .= "# date: " . date ('d-m-Y H:i:s') . "\n";
+    $s .= "\n";
+
+    $s .= 'schema: ' . realpath( $template ) . "\n";
+    $s .= "data:\n";
+    $s .= "  $name:\n";
+
+    $tem = yaml_parse_file($template);
+    // print_r($tem);
+
+    foreach($tem as $temrec) {
+        if(isset($temrec['fields'])) {
+            foreach($temrec['fields'] as $fldrec) {
+                foreach($fldrec as $fkey => $fval) {
+                    if($fkey == 'guid') {
+                        $s .= "    guid: " . guid() . "\n";
+                    } else {
+                        $s .= "    $fkey:\n";
+                    }
+                }
+            }
+        }
+    }
+
+    $y = yaml_parse( $s );
+    $s .= 'hash: ' . hash('sha256', serialize($y['data'])) . "\n";
+    // print_r( $y );
+
+    if(!$output) {
+
+        echo $s;
+        echo "\n# output: $name.yml\n";
+    } else {
+        file_put_contents($output, $s);
+        echo "output: $output\n";
+    }
+}
+
+function generate_feed_from_yaml($name, $dir) {
+    $yfeed = yaml_parse_file($name);
+    // print_r( $yfeed );
+    // echo "yaml path " . $dir. "\n";
+    // echo "Real path: " . realpath($name) . "\n";
+    $dir = trim($dir, " /\\");
+
+    $ytemplate = $dir . '/' . $yfeed['schema'];
+
+    if(isset($yfeed['order'])) {
+        foreach($yfeed['order'] as $feeder) {
+            echo "#Feeder $feeder ... ";
+            generate_feed($ytemplate, $feeder,
+            $yfeed['source'][0] . '/' . $feeder . '.yml');
+        }
+    }
+}
+
+if(!defined('DB_HOST')) {
+    // define some dummy constants
+    define('DB_HOST', '');
+    define('DB_USER', '');
+    define('DB_PASS', '');
+    define('DB_NAME', '');
+}
+
+include(__DIR__ . '/../db/dbal.php');
+include(__FWDIR__ . '/classes/feed_hashes.php');
+include(__FWDIR__ . '/classes/feed_class.php');
+
+function load_feed_data($name) {
+    // echo("load yaml feeds to database\n");
+    // echo "yfile: " . $name;
+
+    $yfeed = yaml_parse_file($name);
+    print_r( $yfeed );
+
+
+    // find source files
+    $files = array();
+    foreach($yfeed['source'] as $src) {
+        // echo "source dir: " . $src . "\n";
+        $files= array_merge($files, glob($src . '/*.yml'));
+    }
+    // print_r('yml files: ' . print_r($files, 1));
+
+    
+    foreach($files as $yfile) {
+        $ydata = yaml_parse_file($yfile);
+        echo "schema: " . $ydata['schema'] . "\n";
+        // print_r($ydata);
+        // print_r($ydata['data']);
+        // print_r( pathinfo($ydata['schema']));
+        $yschema = yaml_parse_file( $ydata['schema'])[0];
+        $schemaClass = $yschema['class'];
+
+        // echo('schema y-file: '. print_r($yschema, 1));
+        // echo('schema class: ' . $schemaClass . "\n");
+
+        $pinfo = pathinfo($ydata['schema']);
+        $phpfile = dirname($pinfo['dirname']) . '/' . $pinfo['filename'] . '.php';
+        // echo "basename: " . $phpfile . "\n";
+
+        include_once( $phpfile );
+
+        // echo "generating class `$schemaClass`\n";
+        $feeder_class = new $schemaClass( $ydata['data'][array_key_first($ydata['data'])] );
+        // print_r($feeder_class);
+
+        ksort($ydata['data'][array_key_first($ydata['data'])]);
+        // echo"ordered ydata['data']\n";
+        // print_r($ydata['data'][array_key_first($ydata['data'])]);
+
+        $feeder_hash = hash('sha256', serialize(
+            $ydata['data'][array_key_first($ydata['data'])]
+        ));
+
+        // print_r($feeder_class);
+        echo("Feeder name: " . $feeder_class->getname() . "   GUID: " . $feeder_class->getguid() . " HASH: " . $feeder_hash . "\n");
+
+        if(($fh=feedhashesClassEx::gethashByGuid($feeder_class->getguid()))) {
+            echo "GUID exists!";
+            print_r($fh);
+            if($fh->gethash() != $feeder_hash) {
+                echo "hashes differ!\n";
+
+                echo "new data\n";
+                print_r( $feeder_class );
+
+                $old_feeder_class = $schemaClass::sgetById($fh->getfeedid());
+                // echo "found old class: " . print_r($old_feeder_class, 1);
+
+                echo "old data";
+                print_r($old_feeder_class);
+
+                $fld = $feeder_class->getFields();
+
+
+                $old_feeder_class->loadFields( $fld );
+                $old_feeder_class->update();
+
+                // remove 'id' key
+                if(isset($fld['id']))unset($fld['id']);
+                ksort($fld);
+                print_r($fld);
+
+                $hash2 = hash('sha256', serialize( $fld ));
+                print_r($hash2 . "\n");
+
+                $fh->sethash( $hash2 );
+                $fh->update();
+
+                // $old_feeder_class->loadFields($feeder_class)
+            } else {
+                echo "hashes same!\n";
+
+            }
+
+        } else {
+
+            $feeder_class->insert();
+            $fexp = time() + 1 * 24 * 60 * 60;
+            
+            $fhash = new feedhashesClass(['guid' => $feeder_class->getguid(),
+            'hash' => $feeder_hash, 'expiry' => date('Y-m-d H:i:s', $fexp),
+            'feedid' => $feeder_class->getid() ]);
+            $fhash->insert();
+        }
+    }
+}
+
+
 
 
 function export_data($afile) {
     global $yaml_dir;
+
+    if(!defined('__APPDIR__'))require_option('app-dir');
 
     $temp = tempnam('/tmp', 'export-');
 
@@ -578,7 +832,7 @@ function export_data($afile) {
     // print_r( $yinfo );
 
     $args = "-y --compact --skip-extended-insert --no-create-info --skip-comments ";
-    $cmd = "../../sql/msqldump.sh " . $args . $yinfo['table'];
+    $cmd = __APPDIR__ . "/sql/msqldump.sh " . $args . $yinfo['table'];
     $res = shell_exec( $cmd );
     // $res2 = array();
     // $res = exec( $cmd , $res2);
@@ -607,9 +861,10 @@ function makesure_dir_exists($dir) {
 
 // execute various components of the framework
 
-    $getopt_options_short = "f:";
-    $getopt_options_long = array('add-id', 'extends-class:',
-        'name:', 'type:', 'author:', 'title:', 'desc:', 'viewmode:');
+    // $getopt_options_short = "f:";
+    // $getopt_options_long = array('app-dir:', 'add-id', 'extends-class:',
+    //     'name:', 'type:', 'author:', 'title:', 'desc:', 'viewmode:',
+    //     'template:', 'dir:');
     $i=0;
     $optparams = array();
     
@@ -617,9 +872,9 @@ function makesure_dir_exists($dir) {
     $options = array_merge($inline_options, $cmdline_options);
     // print_r($options);
 
-    if(!isset($options['extends-class'])) {
-        $options['extends-class'] = 'dbAbstractEntityClass';
-    }
+    // if(!isset($options['extends-class'])) {
+        // $options['extends-class'] = 'dbAbstractEntityClass';
+    // }
 
     while($i < $argc) {
         $optparams[] = $argv[$i++];
@@ -641,6 +896,8 @@ function makesure_dir_exists($dir) {
     // $bootstrap_file = 'bootstrap_classes.php';
 
 
+    if(isset($options['app-dir']))define('__APPDIR__', $options['app-dir']);
+
     switch($optparams[0]) {
         case 'help':
             $commands = [
@@ -657,6 +914,10 @@ function makesure_dir_exists($dir) {
                 'data:export' => 'export data from SQL database table to data folder',
                 'content:gen' => 'generate content template',
                 'content:view' => 'show content data',
+                'feed:gen' => 'generate feeder template',
+                'feed:gen:yaml' => 'generate feed templates from yaml file', 
+                'feed:view' => 'show feed data',
+                'feed:load' => 'load feed data to database'
             ];
 
             foreach($commands as $key => $value) {
@@ -746,9 +1007,9 @@ function makesure_dir_exists($dir) {
                 // echo "options: " . print_r($cmdline_options, 1);
                 // usage: content:gen content-name title
                 if(!isset($options['name'])
-                    && !isset($options['author'])
-                    && !isset($options['type'])
-                    && !isset($options['title'])
+                    || !isset($options['author'])
+                    || !isset($options['type'])
+                    || !isset($options['title'])
                     // && !isset($options['desc'])
                     // && !isset($options['viewmode'])
                     ) {
@@ -760,7 +1021,7 @@ function makesure_dir_exists($dir) {
 
                     generate_content($options['author'], $options['type'], $options['name'], $options['title'], $options['desc'], $options['viewmode'] );
                     // echo "Creating content " . print_r($options, 1);
-                    exit;
+                    // exit;
             break;
 
 
@@ -770,6 +1031,38 @@ function makesure_dir_exists($dir) {
             content_view( $file );
             break;
 
+        case 'feed:gen':
+            // echo "options: " . print_r($cmdline_options, 1);
+            // usage: content:gen content-name title
+            if(!isset($options['template'])
+                || !isset($options['name'])
+                ) {
+                    echo "Usage: --template [yaml-template] --name [content-name] \n";
+                    exit;
+                }
+
+            generate_feed($options['template'], $options['name'] );
+            // echo "Creating feeder " . print_r($options, 1);
+            break;
+
+        case 'feed:gen:yaml':
+            if(!isset($options['name'])
+                || !isset($options['dir'])) {
+                echo "Usage: --name [feeder yaml template] --dir [yaml template dir]\n";
+                exit;
+            }
+
+            generate_feed_from_yaml($options['name'], $options['dir']);
+            break;
+
+        case 'feed:load':
+            if(!isset($options['name'])) {
+                echo "Usage: --name [feeder yaml template]\n";
+                exit;
+            }
+
+            load_feed_data($options['name']);
+            break;
 
         case 'data:export':
 

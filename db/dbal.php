@@ -35,9 +35,10 @@ class dbConnection {
     }
 };
 
+// configuration is included from parent script
 // require_once(__DIR__ . '/../../config/db.php');
 
-$AppDBConnection = new dbConnection($HOST, $USERNAME, $PASSWORD, $DATABASE);
+$AppDBConnection = new dbConnection(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 
 abstract class dbAbstractEntityClass {
     protected $_table;
@@ -54,6 +55,13 @@ abstract class dbAbstractEntityClass {
     function loadFields($adata) {
         if(isset($adata['id']))
             $this->id = $adata['id'];
+    }
+
+    function getFields() {
+        $resp = array();
+        $resp = array_merge($resp, ['id' => $this->id]);
+
+        return $resp;
     }
 
     function getConnection() { return $GLOBALS['AppDBConnection']; }

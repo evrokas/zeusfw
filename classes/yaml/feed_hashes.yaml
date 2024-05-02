@@ -1,0 +1,9 @@
+# feed hashes tables
+- table: feed_hashes
+  class: feedhashesClass
+  extention: __FWDIR__ . '/feedhashesClassEx.php'
+  fields:
+    - guid: char(36) not null
+    - hash: char(65) not null
+    - feedid: int not null
+    - expiry: timestamp not null
