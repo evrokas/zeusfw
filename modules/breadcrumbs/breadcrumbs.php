@@ -52,7 +52,7 @@ class breadcrumbsModule extends moduleClass {
 function register_breadcrumbs_module() {
     global $kernel;
 
-    $kernel->registerModule( new breadcrumbsModule('breadcrumbs', 'breadcrumbs.zetem'));
+    $kernel->registerModule(new breadcrumbsModule(__DIR__, 'breadcrumbs', 'breadcrumbs.zetem'));
 
     $info = yaml_parse_file( __DIR__ . "/breadcrumbs.yaml");
     $kernel->addConfig($info);

@@ -20,5 +20,5 @@ class notificationsModule extends moduleClass {
 function register_notifications_module() {
     global $kernel;
 
-    $kernel->registerModule( new notificationsModule('notifications', 'notifications.zetem'));
+    $kernel->registerModule( new notificationsModule(__DIR__, 'notifications', 'notifications.zetem'));
 }

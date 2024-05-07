@@ -6,8 +6,8 @@
 class htmltextModule extends moduleClass {
     protected $htmltext;
 
-    function __construct($amodule, $atemplate, $text) {
-        parent::__construct($amodule, $atemplate);
+    function __construct($adir, $amodule, $atemplate, $text) {
+        parent::__construct($adir, $amodule, $atemplate);
         $this->htmltext = $text;
     }
 

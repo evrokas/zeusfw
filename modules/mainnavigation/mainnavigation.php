@@ -4,10 +4,10 @@ class mainnavigationModule extends moduleClass {
     protected $menu;
     protected $trail = array();
 
-    function __construct($amodule, $atemplate, $amenu) {
+    function __construct($adir, $amodule, $atemplate, $amenu) {
         global $Request;
 
-        parent::__construct($amodule, $atemplate);
+        parent::__construct($adir, $amodule, $atemplate);
         $this->menu = $amenu;
         $pathtrail = new Menutrail($Request->getQueryRoute(), $amenu);
         $pathtrail->getTrail($this->trail);
@@ -70,5 +70,5 @@ class mainnavigationModule extends moduleClass {
 function register_mainnavigation_module() {
     global $kernel;
 
-    $kernel->registerModule( new mainnavigationModule('mainnavigation', 'main_navigation.zetem', $kernel->getConfig('menu')['main']));
+    $kernel->registerModule( new mainnavigationModule(__DIR__, 'mainnavigation', 'main_navigation.zetem', $kernel->getConfig('menu')['main']));
    }

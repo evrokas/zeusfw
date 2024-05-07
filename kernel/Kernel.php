@@ -97,9 +97,19 @@ class Kernel {
       return ($blks[$aregion]);
     }
 
-    function registerModule($amod) {
+    function registerModule($amod ) {
         // echo "kernel: registering new module " . $amod->getName() . "<br/>";
         $this->modules[$amod->getName()] = $amod;
+    }
+
+    function resolveModuleDir($info, $adir, $amodule) {
+        // echopre("SERVER: ". print_r($_SERVER, 1));
+        // echopre("module dir: " . $adir);
+        // echopre("pre resolve: " .  print_r($info, 1) );
+        $aadir = substr(dirname($adir), strlen($_SERVER['DOCUMENT_ROOT'])+strlen(dirname($_SERVER['PHP_SELF']))+1).'/'.$amodule;
+        return ( recursive_array_replace("@", $aadir, $info) );
+        // echopre("post resolve: " . print_r( $info, 1) );
+    
     }
 
     function getModule($amodulename) {
@@ -412,8 +422,8 @@ function attach_library_helper($libname) {
         $kernel->addConfig($cnf['libraries'][$libname]);
     }
 
-    // echo "<pre>";print_r( $kernel->getConfig('css'));echo "</pre>";
-    // echo "<pre>";print_r( $kernel->getConfig('foot_script'));echo "</pre>";
+    echo "<pre>";print_r( $kernel->getConfig('css'));echo "</pre>";
+    echo "<pre>";print_r( $kernel->getConfig('foot_script'));echo "</pre>";
     // exit();
 }
 
@@ -425,4 +435,16 @@ function attach_library($libname) {
     } else {
         attach_library_helper( $libname );
     }
+}
+
+function recursive_array_replace ($find, $replace, $array) {
+    if (!is_array($array)) {
+        return str_replace($find, $replace, $array);
+    }
+
+    $newArray = [];
+    foreach ($array as $key => $value) {
+        $newArray[$key] = recursive_array_replace($find, $replace, $value);
+    }
+    return $newArray;
 }

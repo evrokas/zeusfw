@@ -13,5 +13,5 @@ class contentModule extends moduleClass {
 function register_content_module() {
     global $kernel;
 
-    $kernel->registerModule( new contentModule('content', 'content.zetem') );
+    $kernel->registerModule( new contentModule(__DIR__, 'content', 'content.zetem') );
 }

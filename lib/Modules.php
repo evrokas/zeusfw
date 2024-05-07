@@ -4,10 +4,12 @@
 
 
 class moduleClass {
+    private $moduledir;
     private $modulename;     // module name
     private $template;       // template associateed wi
 
-    function __construct($amodule, $atemplate) {
+    function __construct($adir, $amodule, $atemplate) {
+        $this->moduledir = $adir;
         $this->modulename = $amodule;
         $this->template = $atemplate;
 

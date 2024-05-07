@@ -20,5 +20,5 @@ class UserModule extends moduleClass {
 function register_userblock_module() {
     global $kernel;
 
-    $kernel->registerModule( new UserModule('userblock', 'userblock.zetem'));
+    $kernel->registerModule( new UserModule(__DIR__, 'userblock', 'userblock.zetem'));
 }
