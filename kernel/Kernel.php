@@ -422,8 +422,8 @@ function attach_library_helper($libname) {
         $kernel->addConfig($cnf['libraries'][$libname]);
     }
 
-    echo "<pre>";print_r( $kernel->getConfig('css'));echo "</pre>";
-    echo "<pre>";print_r( $kernel->getConfig('foot_script'));echo "</pre>";
+    // echo "<pre>";print_r( $kernel->getConfig('css'));echo "</pre>";
+    // echo "<pre>";print_r( $kernel->getConfig('foot_script'));echo "</pre>";
     // exit();
 }
 
