@@ -297,6 +297,17 @@ class Kernel {
 
         return false;
     }
+
+
+
+    function setCurrentLanguage($curlang) {
+        $_SESSION['CURRENT_LANGUAGE'] = $curlang;
+    }
+
+    function getCurrentLanguage() {
+        if(isset($_SESSION['CURRENT_LANGUAGE']))
+          return $_SESSION['CURRENT_LANGUAGE'];
+    }
 }
 
 
