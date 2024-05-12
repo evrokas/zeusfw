@@ -59,7 +59,7 @@ abstract class dbAbstractEntityClass {
 
     function getFields() {
         $resp = array();
-        $resp = array_merge($resp, ['id' => $this->id]);
+//        $resp = array_merge($resp, ['id' => $this->id]);
 
         return $resp;
     }
