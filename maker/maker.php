@@ -41,9 +41,16 @@
 
 
     $getopt_options_short = "f:";
-    $getopt_options_long = array('app-dir:', 'add-id', 'extends-class:',
-        'name:', 'type:', 'author:', 'title:', 'desc:', 'viewmode:',
-        'template:', 'dir:');
+    $getopt_options_long = array(
+        'app-dir:',         // application directory
+        'add-id',           // add 'is' field (default: yes)
+        'extends-class:',   // class name to extend
+        'name:',            // class name to create
+        'type:', 'author:', 'title:', 'desc:', 'viewmode:',     // content fields
+        'template:',        // YAML template to create feeder
+        'dir:',             // YAML templates folder
+        'key:'              // feeder key field to create feed yaml files
+    );
     $options = array();
 
     // $inline_options[] = array();
@@ -226,7 +233,9 @@ class Database {
 
 
             foreach($this->fields as $fld) {
-                mlog("              \$resp = array_merge(\$resp, ['" .$fld['name']. "' => \$this->".$fld['name']."]);");
+                if($fld['name'] != 'id') {
+                    mlog("              \$resp = array_merge(\$resp, ['" .$fld['name']. "' => \$this->".$fld['name']."]);");
+                }
             }
             // foreach($this->fields as $fld) {
                 // mlog("      if(isset(\$adata['".$fld['name']."']))\$this->".$fld['name']." = \$adata['".$fld['name']."'];");
@@ -642,44 +651,77 @@ function generate_content($author, $type, $name, $title, $desc, $viewmode) {
     echo(print_r($s, 1));
 }
 
-function generate_feed($template, $name, $output = null) {
-    // echo $template;
-    $s = "# generated with: " . implode(' ', $GLOBALS['argv']) . "\n";
-    $s .= "# from directory: " .getcwd() . "\n";
-    $s .= "# date: " . date ('d-m-Y H:i:s') . "\n";
-    $s .= "\n";
+function generate_feed($template, $name, $key, $output = null) {
 
-    $s .= 'schema: ' . realpath( $template ) . "\n";
-    $s .= "data:\n";
-    $s .= "  $name:\n";
+    // echo $template;
+    $arr = array();
+
+    $arr += ['cmd' => implode(' ', $GLOBALS['argv'])];
+    $arr += ['directory' => getcwd()];
+    $arr += ['createdate' => date ('d-m-Y H:i:s')];
+
+    $arr += ['schema' => realpath( $template )];
+
 
     $tem = yaml_parse_file($template);
     // print_r($tem);
 
+    if(!isset($key)){
+        $key = array('name' => 'default', 'value' => array('default'));
+    }
+    $arr += ['key' => $key];
+    $arr['data'] = array();
+    
     foreach($tem as $temrec) {
         if(isset($temrec['fields'])) {
-            foreach($temrec['fields'] as $fldrec) {
-                foreach($fldrec as $fkey => $fval) {
-                    if($fkey == 'guid') {
-                        $s .= "    guid: " . guid() . "\n";
-                    } else {
-                        $s .= "    $fkey:\n";
-                    }
+            // print_r($temrec['fields']);
+            include_once( dirname(dirname(realpath($template))).'/'.$tem[0]['table'].'.php');
+            $cl = new $tem[0]['class']();
+            $fields = $cl->getFields();
+            // print_r($fields);
+
+            foreach($key['value'] as $optval) {
+                $arr['data'][$optval] = array();
+
+                foreach($fields as $fkey => $fval) {
+                        if($fkey == 'guid') {
+                            $g = guid();
+                            // $arr['data'][$name . '_' . $optval][$fkey] = $g;
+                            $arr['data'][$optval] += [$fkey => $g];
+                        } else 
+                        if($fkey == $key['name']) {
+                            // $arr['data'][$name . '_' . $optval][$fkey] = $optval;
+                            $arr['data'][$optval] += [$fkey => $optval];
+
+                        } else {
+                            // $arr['data'][$name . '_' . $optval][$fkey] = null;
+                            $arr['data'][$optval] += [$fkey => null];
+                        }
+                    // }
                 }
+
+                echo "opt key val: $optval\n";
             }
         }
     }
 
-    // $y = yaml_parse( $s );
-    // $s .= 'hash: ' . hash('sha256', serialize($y['data'])) . "\n";
-    // print_r( $y );
+    print_r($arr);
+    // print_r( yaml_emit($arr));
+
 
     if(!$output) {
 
-        echo $s;
         echo "\n# output: $name.yml\n";
     } else {
-        file_put_contents($output, $s);
+
+        if(file_exists($output)) {
+            $in = yaml_parse_file($output);
+            $out = array_replace_recursive($arr, $in);
+            print_r($in);
+            print_r($out);
+        } else $out = $arr;
+        // file_put_contents($output, $s);
+        yaml_emit_file($output, $out, YAML_UTF8_ENCODING);
         echo "output: $output\n";
     }
 }
@@ -693,10 +735,17 @@ function generate_feed_from_yaml($name, $dir) {
 
     $ytemplate = $dir . '/' . $yfeed['schema'];
 
+    if(isset($yfeed['key'])) {
+        $key = $yfeed['key'];
+    } else $key = null;
+
+    print_r($key);
+
     if(isset($yfeed['order'])) {
         foreach($yfeed['order'] as $feeder) {
             echo "#Feeder $feeder ... ";
             generate_feed($ytemplate, $feeder,
+            $key,
             $yfeed['source'][0] . '/' . $feeder . '.yml');
         }
     }
@@ -719,7 +768,7 @@ function load_feed_data($name) {
     // echo "yfile: " . $name;
 
     $yfeed = yaml_parse_file($name);
-    print_r( $yfeed );
+    // print_r( $yfeed );
 
 
     // find source files
@@ -733,7 +782,7 @@ function load_feed_data($name) {
     
     foreach($files as $yfile) {
         $ydata = yaml_parse_file($yfile);
-        echo "schema: " . $ydata['schema'] . "\n";
+        // echo "schema: " . $ydata['schema'] . "\n";
         // print_r($ydata);
         // print_r($ydata['data']);
         // print_r( pathinfo($ydata['schema']));
@@ -749,73 +798,83 @@ function load_feed_data($name) {
 
         include_once( $phpfile );
 
-        // echo "generating class `$schemaClass`\n";
-        $feeder_class = new $schemaClass( $ydata['data'][array_key_first($ydata['data'])] );
-        // print_r($feeder_class);
+        $feeder_class = array();
+        $feeder_hash = array();
 
-        ksort($ydata['data'][array_key_first($ydata['data'])]);
-        // echo"ordered ydata['data']\n";
-        // print_r($ydata['data'][array_key_first($ydata['data'])]);
-
-        // incoming data hash
-        $feeder_hash = hash('sha256', serialize(
-            $ydata['data'][array_key_first($ydata['data'])]
-        ));
-
-        // print_r($feeder_class);
-        echo("Feeder name: " . $feeder_class->getname() . "   GUID: " . $feeder_class->getguid() . " HASH: " . $feeder_hash . "\n");
-
-        if(($fh=feedhashesClassEx::gethashByGuid($feeder_class->getguid()))) {
-            echo "GUID exists!";
-            print_r($fh);
-            if($fh->gethash() != $feeder_hash) {
-                echo "hashes differ!\n";
-
-                echo "new data\n";
-                print_r( $feeder_class );
-
-                $old_feeder_class = $schemaClass::sgetById($fh->getfeedid());
-                // echo "found old class: " . print_r($old_feeder_class, 1);
-
-                echo "old data";
-                print_r($old_feeder_class);
-
-                $fld = $feeder_class->getFields();
-
-
-                $old_feeder_class->loadFields( $fld );
-                $old_feeder_class->update();
-
-                // remove 'id' key
-                if(isset($fld['id']))unset($fld['id']);
-                ksort($fld);
-                print_r($fld);
-
-                $hash2 = hash('sha256', serialize( $fld ));
-                print_r($hash2 . "\n");
-
-                $fh->sethash( $hash2 );
-
-                $fh->update();
-
-                // $old_feeder_class->loadFields($feeder_class)
-            } else {
-                echo "hashes same!\n";
-
-            }
-
-        } else {
-
-            $feeder_class->insert();
-            $fexp = time() + 1 * 24 * 60 * 60;
+        foreach($yfeed['key']['value'] as $fkey) { 
             
-            $fhash = new feedhashesClass(['guid' => $feeder_class->getguid(),
-            'hash' => $feeder_hash, 
-            'feedclass' => $schemaClass,
-            'expiry' => date('Y-m-d H:i:s', $fexp),
-            'feedid' => $feeder_class->getid() ]);
-            $fhash->insert();
+            // echo "generating class `$schemaClass`\n";
+            $feeder_class[$fkey] = new $schemaClass( $ydata['data'][$fkey] );
+            // print_r($feeder_class[$fkey]);
+
+            ksort($ydata['data'][$fkey]);
+            // echo"ordered ydata['data']\n";
+            // print_r($ydata['data'][array_key_first($ydata['data'])]);
+            
+            // incoming data hash
+            $feeder_hash[$fkey] = hash('sha256', 
+                                    serialize( $ydata['data'][$fkey] )
+            );
         }
+
+        foreach($yfeed['key']['value'] as $fkey) { 
+            // print_r($feeder_class);
+            echo("Feeder key: $fkey  name: " . $feeder_class[$fkey]->getname() . "   GUID: " . $feeder_class[$fkey]->getguid() . " HASH: " . $feeder_hash[$fkey] . "\n");
+        
+            if(($fh=feedhashesClassEx::gethashByGuid($feeder_class[$fkey]->getguid()))) {
+                echo "GUID exists!";
+                // print_r($fh);
+                if($fh->gethash() != $feeder_hash[$fkey]) {
+                    echo "hashes differ!\n";
+
+                    echo "new data\n";
+                    print_r( $feeder_class[$fkey] );
+
+                    $old_feeder_class = $schemaClass::sgetById($fh->getfeedid());
+                    // echo "found old class: " . print_r($old_feeder_class, 1);
+
+                    echo "old data\n";
+                    print_r($old_feeder_class);
+
+                    $fld = $feeder_class[$fkey]->getFields();
+
+
+                    $old_feeder_class->loadFields( $fld );
+                    $old_feeder_class->update();
+
+                    // remove 'id' key
+                    if(isset($fld['id']))unset($fld['id']);
+                    ksort($fld);
+                    // print_r($fld);
+
+                    $hash2 = hash('sha256', serialize( $fld ));
+                    print_r($hash2 . "\n");
+
+                    $fh->sethash( $hash2 );
+
+                    $fh->update();
+
+                    // $old_feeder_class->loadFields($feeder_class)
+                } else {
+                    echo "hashes same!\n";
+
+                }
+
+            } else {
+
+                $feeder_class[$fkey]->insert();
+                $fexp = time() + 1 * 24 * 60 * 60;
+                
+                $fhash = new feedhashesClass(['guid' => $feeder_class[$fkey]->getguid(),
+                    'hash' => $feeder_hash[$fkey], 
+                    'feedclass' => $schemaClass,
+                    'feedid' => $feeder_class[$fkey]->getid(),
+                    'expiry' => date('Y-m-d H:i:s', $fexp)]
+                );
+                $fhash->insert();
+            }
+        }
+
     }
 }
 
@@ -1052,8 +1111,9 @@ function makesure_dir_exists($dir) {
 
         case 'feed:gen:yaml':
             if(!isset($options['name'])
-                || !isset($options['dir'])) {
-                echo "Usage: --name [feeder yaml template] --dir [yaml template dir]\n";
+                || !isset($options['dir'])
+            ) {
+                echo "Usage: --name [feeder yaml template] --dir [yaml template dir] [--key keyname,key1:key2:]\n";
                 exit;
             }
 
