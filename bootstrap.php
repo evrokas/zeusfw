@@ -16,7 +16,7 @@ if(file_exists(__DIR__ . "/ClassExFW.php")) {
 if(file_exists(__APPDIR__ . '/web/user_classes.php')) {
     include_once(__APPDIR__ . "/web/user_classes.php");
 } else
-error_log(__APPDIR__ . "/web/users_classes.php was not found\n");
+error_log(__APPDIR__ . "/web/user_classes.php was not found\n");
 
 
 require_once(__DIR__ . "/security/Permissions.php");    // security permissions classes
