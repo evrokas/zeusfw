@@ -1,0 +1,7 @@
+<div class="wrapper">
+
+    {% foreach($regions as $reg): %}
+        {{ $reg }}
+    {% endforeach %}
+
+</div>
