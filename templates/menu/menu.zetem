@@ -14,14 +14,31 @@
         {% foreach($aamenu as $menuitem): %}
             {% if(isset($menuitem['submenu'])): %}
                 <li {{attributes($menuitem)}}>
-                    {{$menuitem['text']}}
-                    <ul class="drop-menu-{{$aalevel}}">
+                    {% if(isset($menuitem['icon'])): %}
+                        {% if(isset($menuitem['icon']['class'])): %}
+                            {{ $menuitem['icon']['class'] }}
+                        {% endif %}
+                    {% endif %}
+                    {% if(isset($menuitem['text'])): %}
+                        {{$menuitem['text']}}
+                    {% endif %}
+
+                    <ul {{attributes($menuitem["drop-menu-attributes"])   }}>
                         {% show_menu($menuitem['submenu'], $aalevel+1) %}
                     </ul>
                 </li>
             {% else: %}
                 <li {{attributes($menuitem)}}>
-                    <a href="{{rel_url($menuitem['url'])}}">{{$menuitem['text']}}</a>
+                    <a href="{{(isset($menuitem['url']))?rel_url($menuitem['url']):'#';}}">
+                        {% if(isset($menuitem['icon'])): %}
+                            {% if(isset($menuitem['icon']['class'])): %}
+                                {{ $menuitem['icon']['class'] }}
+                            {% endif %}
+                        {% endif %}
+                        {% if(isset($menuitem['text'])): %}
+                            {{$menuitem['text']}}
+                        {% endif %}
+                    </a>
                 </li>
             {% endif %}
         {% endforeach %}

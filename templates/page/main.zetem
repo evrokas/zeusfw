@@ -22,6 +22,16 @@
 
 </head>
 
+    {% if(isset($fonts))foreach($fonts as $font): %}
+    <style type="text/css">
+        @font-face {
+            font-family: "{{ $font['font-family'] }}";
+            src: url( "{{ rel_url( $font['url']) }}" ) {% if(isset($font['format'])): %} format("{{$font['format'] }}") {% endif %};
+        }
+    </style>
+    {% endforeach %}
+
+  
 <body>
     {% include page.zetem %}
 </body>

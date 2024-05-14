@@ -59,3 +59,29 @@ permissions field might be
 Access permissions and roles are initialized in a different section
 
 
+Navigation menu
+===============
+
+define with:
+
+menu:
+  menuname:
+    - frist_item:
+      text: 'item text'
+      icon:
+        class: [class definition]
+      url: 'path/to/page'
+    - second_item:
+      text: 'item text'
+      submenu-class: 'some-submenu-level-?-class'
+      submenu:
+        - submenu_first_item:
+          text: 'submenu first item text'
+          url: 'path/to/page'
+
+text  is the text that it displayed on screen
+icon  can be used optionally for displaying icons with the text
+      [in the future the might be more options about displaying icons]
+url   is the route to the preferred page
+submenu   defines a submenu, with the same structure
+submenu-class   add specific menu styling

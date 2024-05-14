@@ -48,6 +48,13 @@ class mainnavigationModule extends moduleClass {
                 // ($amenu[$mitem]['submenu']['attributes'])->addClass('submenu');
 
                 $this->setupMenuAttributes($amenu[ $mitem ]['submenu'], $alevel+1);
+
+                $amenu[$mitem]['drop-menu-attributes'] = new Attributes();
+                $amenu[$mitem]['drop-menu-attributes']->addClass('drop-menu-'.$alevel+1);    //$amenu[$mitem]['submenu-class']);
+
+                if(isset($amenu[$mitem]['submenu-class'])) {
+                    $amenu[$mitem]['drop-menu-attributes']->addClass($amenu[$mitem]['submenu-class']);
+                }
             }
             // echo "<pre>"; print_r( $amenu ); echo "</pre>";
             // echo "attrs: " . $amenu[$mitem]['attributes']->getAttributes() . "<br>";
