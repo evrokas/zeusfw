@@ -138,16 +138,17 @@ class Kernel {
             $blocks = $this->getBlocksInRegion( $region );
             // print_r( $blocks );
             $blk_resp = '';
-            foreach($blocks as $block) {
-                $blk = $this->getModule( $block );
-                // echo("Calling module->render() for block " . print_r( $blk, 1). "<br/>");
-                if($blk) {
-                    $bresponse = $blk->render();
-                    // echo("Reponse from module: " .print_r( $blk, 1) . " : << $bresponse >><br/>");
-                    $blk_resp .= $bresponse;
+            if($blocks)
+                foreach($blocks as $block) {
+                    $blk = $this->getModule( $block );
+                    // echo("Calling module->render() for block " . print_r( $blk, 1). "<br/>");
+                    if($blk) {
+                        $bresponse = $blk->render();
+                        // echo("Reponse from module: " .print_r( $blk, 1) . " : << $bresponse >><br/>");
+                        $blk_resp .= $bresponse;
+                    }
                 }
-            }
-            // echo "Region response text " . $blk_resp;
+                // echo "Region response text " . $blk_resp;
             // $regions_resp[ $region ] = $blk_resp;
             $sugg = array();
             $Renderer->getTemplateSuggestions(['type' => 'region', 'name' => $region], function($args, &$suggestions) {
@@ -171,6 +172,7 @@ class Kernel {
             'title' => $this->getConfig('title'),
             'meta' => $this->getConfig('meta'),
             'css' => $this->getConfig('css'),
+            'fonts' => $this->getConfig('fonts'),
             'head_script' => $this->getConfig('head_script'),
             'foot_script' => $this->getConfig('foot_script'),
             'regions' => $regions_resp
@@ -321,11 +323,10 @@ function rel_url($p) {
 }
 
 function attributes($at) {
-    // $s = 'atrributes ' . print_r( $at, 1 ) . '<br>';
-    $s = '';
-    if(isset($at['attributes']))
-        return ($s . $at['attributes']->getAttributes());
-    else return $s;
+    if(is_object($at) && (get_class($at) === 'Attributes')) return $at->getAttributes();
+    else if(is_array($at) && isset($at['attributes']))
+        return ($at['attributes']->getAttributes());
+    else return '';
 }
 
 function guid() {
