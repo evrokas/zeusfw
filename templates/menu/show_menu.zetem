@@ -1,0 +1,35 @@
+    {% if(!function_exists('show_menu')) { %}
+      {% function show_menu($aamenu, $aalevel) { %}
+        {% foreach($aamenu as $menuitem): %}
+            {% if(isset($menuitem['submenu'])): %}
+                <li {{attributes($menuitem)}}>
+                    {% if(isset($menuitem['icon'])): %}
+                        {% if(isset($menuitem['icon']['class'])): %}
+                            {{ $menuitem['icon']['class'] }}
+                        {% endif %}
+                    {% endif %}
+                    {% if(isset($menuitem['text'])): %}
+                        {{$menuitem['text']}}
+                    {% endif %}
+
+                    <ul {{attributes($menuitem["drop-menu-attributes"])   }}>
+                        {% show_menu($menuitem['submenu'], $aalevel+1) %}
+                    </ul>
+                </li>
+            {% else: %}
+                <li {{attributes($menuitem)}}>
+                    <a href="{{(isset($menuitem['url']))?rel_url($menuitem['url']):'#';}}">
+                        {% if(isset($menuitem['icon'])): %}
+                            {% if(isset($menuitem['icon']['class'])): %}
+                                {{ $menuitem['icon']['class'] }}
+                            {% endif %}
+                        {% endif %}
+                        {% if(isset($menuitem['text'])): %}
+                            {{$menuitem['text']}}
+                        {% endif %}
+                    </a>
+                </li>
+            {% endif %}
+        {% endforeach %}
+      {% } %}
+    {% } %}

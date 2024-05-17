@@ -721,7 +721,7 @@ function generate_feed($template, $name, $key, $output = null) {
             print_r($out);
         } else $out = $arr;
         // file_put_contents($output, $s);
-        yaml_emit_file($output, $out, YAML_UTF8_ENCODING);
+        // yaml_emit_file($output, $out, YAML_UTF8_ENCODING);
         echo "output: $output\n";
     }
 }

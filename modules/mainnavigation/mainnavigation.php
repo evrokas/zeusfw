@@ -1,6 +1,6 @@
 <?php
 
-class mainnavigationModule extends moduleClass {
+class menuModule extends moduleClass {
     protected $menu;
     protected $trail = array();
 
@@ -73,9 +73,8 @@ class mainnavigationModule extends moduleClass {
     }
 }
 
-
 function register_mainnavigation_module() {
     global $kernel;
 
-    $kernel->registerModule( new mainnavigationModule(__DIR__, 'mainnavigation', 'main_navigation.zetem', $kernel->getConfig('menu')['main']));
-   }
+    $kernel->registerModule( new menuModule(__DIR__, 'mainnavigation', 'main_navigation.zetem', $kernel->getConfig('menu')['main']));
+}
