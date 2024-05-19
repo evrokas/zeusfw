@@ -651,12 +651,12 @@ function generate_content($author, $type, $name, $title, $desc, $viewmode) {
     echo(print_r($s, 1));
 }
 
-function generate_feed($template, $name, $key, $output = null) {
+function generate_feed($template, $name, $key, $output = null, $specials_list = array()) {
 
     // echo $template;
     $arr = array();
 
-    $arr += ['cmd' => implode(' ', $GLOBALS['argv'])];
+    $arr += ['cmd' => '"' . implode(' ', $GLOBALS['argv'])  . '"' ];
     $arr += ['directory' => getcwd()];
     $arr += ['createdate' => date ('d-m-Y H:i:s')];
 
@@ -674,7 +674,9 @@ function generate_feed($template, $name, $key, $output = null) {
     
     foreach($tem as $temrec) {
         if(isset($temrec['fields'])) {
+
             // print_r($temrec['fields']);
+            
             include_once( dirname(dirname(realpath($template))).'/'.$tem[0]['table'].'.php');
             $cl = new $tem[0]['class']();
             $fields = $cl->getFields();
@@ -684,19 +686,23 @@ function generate_feed($template, $name, $key, $output = null) {
                 $arr['data'][$optval] = array();
 
                 foreach($fields as $fkey => $fval) {
-                        if($fkey == 'guid') {
+                    if((isset($specials_list['guid'])) && in_array($fkey, $specials_list['guid'])) {
                             $g = guid();
-                            // $arr['data'][$name . '_' . $optval][$fkey] = $g;
                             $arr['data'][$optval] += [$fkey => $g];
-                        } else 
-                        if($fkey == $key['name']) {
-                            // $arr['data'][$name . '_' . $optval][$fkey] = $optval;
-                            $arr['data'][$optval] += [$fkey => $optval];
+                    } else
+                    if((isset($specials_list['date'])) && in_array($fkey, $specials_list['date'])) {
+                        $arr['data'][$optval] += [$fkey => date('Y-m-d H:i:s')];
+                    } else
+                    if((isset($specials_list['prefeed'])) && array_key_exists($fkey, $specials_list['prefeed'])) {
+                        echo "prepopulate $fkey\n";
+                        $arr['data'][$optval] += [$fkey => $specials_list['prefeed'][$fkey]];
+                    }
+                    if($fkey == $key['name']) {
+                        $arr['data'][$optval] += [$fkey => $optval];
 
-                        } else {
-                            // $arr['data'][$name . '_' . $optval][$fkey] = null;
-                            $arr['data'][$optval] += [$fkey => null];
-                        }
+                    } else {
+                        $arr['data'][$optval] += [$fkey => null];
+                    }
                     // }
                 }
 
@@ -705,7 +711,7 @@ function generate_feed($template, $name, $key, $output = null) {
         }
     }
 
-    print_r($arr);
+    // print_r($arr);
     // print_r( yaml_emit($arr));
 
 
@@ -717,11 +723,11 @@ function generate_feed($template, $name, $key, $output = null) {
         if(file_exists($output)) {
             $in = yaml_parse_file($output);
             $out = array_replace_recursive($arr, $in);
-            print_r($in);
-            print_r($out);
+            // print_r($in);
+            // print_r($out);
         } else $out = $arr;
         // file_put_contents($output, $s);
-        // yaml_emit_file($output, $out, YAML_UTF8_ENCODING);
+        yaml_emit_file($output, $out, YAML_UTF8_ENCODING);
         echo "output: $output\n";
     }
 }
@@ -741,12 +747,20 @@ function generate_feed_from_yaml($name, $dir) {
 
     print_r($key);
 
+    $specials_list = array();
+    $specials_keys = ['guid', 'date', 'prefeed'];
+    foreach($specials_keys as $skey) {
+        echo "prepopulate for $skey\n";
+        if(isset($yfeed[ $skey ]))$specials_list[ $skey ] = $yfeed[ $skey ];
+    }
+
     if(isset($yfeed['order'])) {
         foreach($yfeed['order'] as $feeder) {
-            echo "#Feeder $feeder ... ";
+            echo "#Feeder $feeder ... \n";
             generate_feed($ytemplate, $feeder,
             $key,
-            $yfeed['source'][0] . '/' . $feeder . '.yml');
+            $yfeed['source'][0] . '/' . $feeder . '.yml',
+            $specials_list);
         }
     }
 }
@@ -819,7 +833,7 @@ function load_feed_data($name) {
 
         foreach($yfeed['key']['value'] as $fkey) { 
             // print_r($feeder_class);
-            echo("Feeder key: $fkey  name: " . $feeder_class[$fkey]->getname() . "   GUID: " . $feeder_class[$fkey]->getguid() . " HASH: " . $feeder_hash[$fkey] . "\n");
+            // echo("Feeder key: $fkey  name: " . $feeder_class[$fkey]->getname() . "   GUID: " . $feeder_class[$fkey]->getguid() . " HASH: " . $feeder_hash[$fkey] . "\n");
         
             if(($fh=feedhashesClassEx::gethashByGuid($feeder_class[$fkey]->getguid()))) {
                 echo "GUID exists!";
@@ -837,7 +851,7 @@ function load_feed_data($name) {
                     print_r($old_feeder_class);
 
                     $fld = $feeder_class[$fkey]->getFields();
-
+                    // print_r( $fld );
 
                     $old_feeder_class->loadFields( $fld );
                     $old_feeder_class->update();
@@ -1095,19 +1109,19 @@ function makesure_dir_exists($dir) {
             content_view( $file );
             break;
 
-        case 'feed:gen':
-            // echo "options: " . print_r($cmdline_options, 1);
-            // usage: content:gen content-name title
-            if(!isset($options['template'])
-                || !isset($options['name'])
-                ) {
-                    echo "Usage: --template [yaml-template] --name [content-name] \n";
-                    exit;
-                }
+        // case 'feed:gen':
+        //     // echo "options: " . print_r($cmdline_options, 1);
+        //     // usage: content:gen content-name title
+        //     if(!isset($options['template'])
+        //         || !isset($options['name'])
+        //         ) {
+        //             echo "Usage: --template [yaml-template] --name [content-name] \n";
+        //             exit;
+        //         }
 
-            generate_feed($options['template'], $options['name'] );
-            // echo "Creating feeder " . print_r($options, 1);
-            break;
+        //     generate_feed($options['template'], $options['name'] );
+        //     // echo "Creating feeder " . print_r($options, 1);
+        //     break;
 
         case 'feed:gen:yaml':
             if(!isset($options['name'])
