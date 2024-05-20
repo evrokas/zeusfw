@@ -693,6 +693,13 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
                     if((isset($specials_list['date'])) && in_array($fkey, $specials_list['date'])) {
                         $arr['data'][$optval] += [$fkey => date('Y-m-d H:i:s')];
                     } else
+                    if((isset($specials_list['sequential'])) && in_array($fkey, $specials_list['sequential'])) {
+
+                        echo "sequential index: " . $specials_list['__index'] . "\n";
+                        
+                        // $arr['data'][$optval] += [$fkey => $specials_list['sequential'][$fkey]['seq']];
+                        $arr['data'][$optval] += [$fkey => $specials_list['__index'] ];
+                    } else
                     if((isset($specials_list['prefeed'])) && array_key_exists($fkey, $specials_list['prefeed'])) {
                         echo "prepopulate $fkey\n";
                         $arr['data'][$optval] += [$fkey => $specials_list['prefeed'][$fkey]];
@@ -748,14 +755,16 @@ function generate_feed_from_yaml($name, $dir) {
     print_r($key);
 
     $specials_list = array();
-    $specials_keys = ['guid', 'date', 'prefeed'];
+    $specials_keys = ['guid', 'date', 'prefeed', 'sequential'];
     foreach($specials_keys as $skey) {
-        echo "prepopulate for $skey\n";
+        echo "key prepopulates for $skey\n";
         if(isset($yfeed[ $skey ]))$specials_list[ $skey ] = $yfeed[ $skey ];
     }
 
+    $idx = 0;
     if(isset($yfeed['order'])) {
         foreach($yfeed['order'] as $feeder) {
+            $specials_list['__index'] = $idx++;
             echo "#Feeder $feeder ... \n";
             generate_feed($ytemplate, $feeder,
             $key,
