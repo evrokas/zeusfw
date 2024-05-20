@@ -322,6 +322,10 @@ function rel_url($p) {
     return $kernel->rel_url($p);
 }
 
+function asset($file) {
+    return rel_url('assets/' . $file);
+}
+
 function attributes($at) {
     if(is_object($at) && (get_class($at) === 'Attributes')) return $at->getAttributes();
     else if(is_array($at) && isset($at['attributes']))
