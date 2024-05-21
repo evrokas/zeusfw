@@ -312,7 +312,6 @@ class Kernel {
     }
 }
 
-
 function rel_url($p) {
     global $kernel;
 

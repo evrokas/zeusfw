@@ -49,7 +49,7 @@
         'type:', 'author:', 'title:', 'desc:', 'viewmode:',     // content fields
         'template:',        // YAML template to create feeder
         'dir:',             // YAML templates folder
-        'key:'              // feeder key field to create feed yaml files
+        'update:'           // when 'feed:gen:yaml' force updating fields field1:field2:field3:...
     );
     $options = array();
 
@@ -729,9 +729,12 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
 
         if(file_exists($output)) {
             $in = yaml_parse_file($output);
+
+            // rmeove data entries from input array, when must be forcefully updated
+
             $out = array_replace_recursive($arr, $in);
-            // print_r($in);
-            // print_r($out);
+            print_r($in);
+            print_r($out);
         } else $out = $arr;
         // file_put_contents($output, $s);
         yaml_emit_file($output, $out, YAML_UTF8_ENCODING);
@@ -739,7 +742,7 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
     }
 }
 
-function generate_feed_from_yaml($name, $dir) {
+function generate_feed_from_yaml($name, $dir, $update = array()) {
     $yfeed = yaml_parse_file($name);
     // print_r( $yfeed );
     // echo "yaml path " . $dir. "\n";
@@ -760,6 +763,8 @@ function generate_feed_from_yaml($name, $dir) {
         echo "key prepopulates for $skey\n";
         if(isset($yfeed[ $skey ]))$specials_list[ $skey ] = $yfeed[ $skey ];
     }
+
+    $specials_list['__update'] = $update;
 
     $idx = 0;
     if(isset($yfeed['order'])) {
@@ -1136,11 +1141,15 @@ function makesure_dir_exists($dir) {
             if(!isset($options['name'])
                 || !isset($options['dir'])
             ) {
-                echo "Usage: --name [feeder yaml template] --dir [yaml template dir] [--key keyname,key1:key2:]\n";
+                echo "Usage: --name [feeder yaml template] --dir [yaml template dir] [--update key1[|key2|...]]\n";
                 exit;
             }
 
-            generate_feed_from_yaml($options['name'], $options['dir']);
+            if(isset($options['update'])) {
+                $arr = explode(':', $options['update']);
+                echo "Force updating records : " . implode(' : ', $arr) . "\n";
+            }
+            generate_feed_from_yaml($options['name'], $options['dir'], $arr);
             break;
 
         case 'feed:load':
