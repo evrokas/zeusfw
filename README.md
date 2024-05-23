@@ -85,3 +85,23 @@ icon  can be used optionally for displaying icons with the text
 url   is the route to the preferred page
 submenu   defines a submenu, with the same structure
 submenu-class   add specific menu styling
+
+
+Modules
+=======
+modules:
+  path:
+    - path1
+    - path2
+  modules:
+    - module1
+    - module2
+    - module3
+
+modconf:
+  module1:
+    display: [page1, page2]
+    hide: [page1, page2]
+
+    access:
+    enable:

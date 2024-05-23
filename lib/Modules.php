@@ -43,10 +43,42 @@ class moduleClass {
     function renderTemplate($aparms = array()) {
         // helper function to render a template
         global $Renderer;
+        global $kernel;
 
-        return (
+        $mods = $kernel->getConfig('modconf');
+        if(isset($mods[$this->modulename]))
+            $modconfig = $mods[$this->modulename];
+        else $modconfig = null;
+
+        if(isset($_SESSION['route_match']) && isset($_SESSION['route_match']['_routename'])) {
+            $routename = $_SESSION['route_match']['_routename'];
+        } else $routename = ''; 
+
+        if($modconfig) {
+            // echopre( print_r( $modconfig, 1));
+            // echopre( print_r($_SESSION['route_match']['_routename'], 1));
+            if(isset($modconfig['display'])) {
+                $display = false;
+                // echopre( print_r( $modconfig[$this->modulename]['display'], 1));
+                if(array_search($routename, $modconfig['display']) !== false) {
+                    // echopre('Display');
+                    // echopre('Display');
+                    $display = true;
+                } else $display = false;
+            } else 
+            if(isset($modconfig['hide'])) {
+                $display = true;
+                if(array_search($routename, $modconfig['hide']) !== false) {
+                    $display = false;
+                }
+            } else $display = true;              
+        } else $display = true;
+
+        if($display)
+            return (
             // $this->modulename . ": renderTemplate(): " . $this->template . ": " .
             $Renderer->render($this->template, $aparms));
+        else return '';
     }
 }
 
