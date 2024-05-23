@@ -703,10 +703,13 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
                     if((isset($specials_list['prefeed'])) && array_key_exists($fkey, $specials_list['prefeed'])) {
                         echo "prepopulate $fkey\n";
                         $arr['data'][$optval] += [$fkey => $specials_list['prefeed'][$fkey]];
-                    }
-                    if($fkey == $key['name']) {
+                    } else
+                    if((isset($specials_list['name'])) && in_array($fkey, $specials_list['name'])) {
+                        echo "update name of entry $name\n";
+                        $arr['data'][$optval] += [$fkey => $name];
+                    } else
+                    if($fkey === $key['name']) {
                         $arr['data'][$optval] += [$fkey => $optval];
-
                     } else {
                         $arr['data'][$optval] += [$fkey => null];
                     }
@@ -717,8 +720,8 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
             }
         }
     }
+    // echo "DEFAULT values: ";    print_r($arr);
 
-    // print_r($arr);
     // print_r( yaml_emit($arr));
 
 
@@ -728,13 +731,31 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
     } else {
 
         if(file_exists($output)) {
-            $in = yaml_parse_file($output);
+            $inn = yaml_parse_file($output);
+            // echo "READ from $output: "; print_r($inn);
 
-            // rmeove data entries from input array, when must be forcefully updated
+            // remeove data entries from input array, when must be updated by default values
+            // echo(print_r($specials_list['__update'], 1));
+            foreach($specials_list['__update'] as $upd) {
+                echo "default update field: $upd\n";
 
-            $out = array_replace_recursive($arr, $in);
-            print_r($in);
-            print_r($out);
+                foreach($inn['data'] as $earr => $earrval) {
+                    // echo "trying to reset default value for field $earr: "; print_r($earrval);
+                    echo "value of $upd field: >>" . $earrval[$upd] . "<<\n";
+                    if(key_exists($upd, $earrval)) {
+                        echo "must remove key $upd  from array $earr\n";
+                        // echo "field : " . $inn['data'][$earr][$upd] . "\n";
+                        unset($inn['data'][$earr][$upd]);
+                    }
+                }
+                echo "unsetted force update: " . print_r($earrval, 1);
+            }
+            // print_r($inn);
+
+            $out = array_replace_recursive($arr, $inn);
+            // echo "IN: ";    print_r($inn);
+
+            echo "OUT: ";   print_r($out);
         } else $out = $arr;
         // file_put_contents($output, $s);
         yaml_emit_file($output, $out, YAML_UTF8_ENCODING);
@@ -758,7 +779,7 @@ function generate_feed_from_yaml($name, $dir, $update = array()) {
     print_r($key);
 
     $specials_list = array();
-    $specials_keys = ['guid', 'date', 'prefeed', 'sequential'];
+    $specials_keys = ['guid', 'date', 'prefeed', 'sequential', 'name'];
     foreach($specials_keys as $skey) {
         echo "key prepopulates for $skey\n";
         if(isset($yfeed[ $skey ]))$specials_list[ $skey ] = $yfeed[ $skey ];
