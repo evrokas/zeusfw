@@ -13,8 +13,6 @@
 
     {% include show_menu.zetem %}
 
-<!-- { {attributes($menu->addAttribute('menu-level-0'))}} -->
-
 <ul>
     {% show_menu($menu, 1) %}
 </ul>

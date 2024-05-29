@@ -85,7 +85,7 @@ class ZETEMTemplate {
 			$f = explode('/', $fnam);
 			// $farr[  str_replace('.zetem', '', $f[ array_key_last($f) ]) ] = $fnam;
 			if(isset( $farr [ $f[ array_key_last($f)] ])) {
-				echo "Override template name exists. (". $f[ array_key_last($f)]. " @ " . $fnam->getPathName() . ")\n";
+				// echo "Override template name exists. (". $f[ array_key_last($f)]. " @ " . $fnam->getPathName() . ")\n";
 				// echo "Duplicate template name exists. (". $f[ array_key_last($f)]. " @ " . $fnam->getPathName() . ")\n";
 				$dupl++;
 				// exit;
@@ -95,7 +95,7 @@ class ZETEMTemplate {
 		// print_r( $farr );
 		if($dupl>0) {
 			// duplicate overrides parent template, so allow it!
-			echo "Please rename the above duplicates!\n";
+			// echo "Please rename the above duplicates!\n";
 			// exit;
 		}
 	//   return ( $farr );
