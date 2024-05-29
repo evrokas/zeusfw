@@ -94,8 +94,47 @@ class Kernel {
     function getBlocksInRegion($aregion) {
         $blks = $this->config['structure'];
         // print_r( $blks[$aregion] );
-      return ($blks[$aregion]);
+        if(key_exists($aregion, $blks))
+            return $blks[$aregion];
+        else return null;
+    //   return ($blks[$aregion]);
     }
+
+
+    function findMenuKey($amenu, $menukey) {
+        // echopre("findMenuKey: $menukey");
+        // echopre(print_r($amenu, 1));
+        
+        foreach($amenu as $menuitemkey => $menuitemrecord) {
+            // echopre("== $menuitemkey : " . array_key_first($menuitemrecord));  //) print_r($menuitemrecord, 1));
+            if(key_exists($menukey, $menuitemrecord)) {
+                // echopre("** key found **");
+                // echopre(print_r($menuitemrecord, 1));
+                if(key_exists('submenu', $menuitemrecord))
+                    return $menuitemrecord['submenu'];
+                else
+                    return $menuitemrecord;
+
+            } else if(key_exists('submenu', $menuitemrecord)) {
+                $ret = $this->findMenuKey($menuitemrecord['submenu'], $menukey);
+                if($ret)return $ret;
+            }
+        }
+        return null;
+    }
+
+    function getMenu($asection = null, $alevel = 0) {
+        $config_menu = $this->getConfig('menu');
+        // echopre( print_r($config_menu,1) );
+        if(!$asection)$menu = $config_menu;
+        else {
+            if(isset($config_menu[$asection]))$menu = $config_menu[$asection];
+        }
+
+        return ($menu);
+        // echopre(print_r($menu, 1));
+    }
+
 
     function registerModule($amod ) {
         // echo "kernel: registering new module " . $amod->getName() . "<br/>";
@@ -162,9 +201,10 @@ class Kernel {
             // echopre(print_r($sugg, 1));
 
             $temp = $Renderer->getTemplate($sugg);
-            // echopre("found template: $temp");
-            $regions_resp[ $region ] = $Renderer->render($temp /*'region.zetem'*/, ['region_name' => $region, 'blocks' => $blk_resp], [$sugg, $temp]);
-//            $Renderer->view('region.zetem', ['region_name' => $region, 'blocks' => $regions_resp[ $region ]]);
+            // echopre("found template: $temp : blk_resp size (bytes) " . strlen($blk_resp));
+            
+            if(strlen($blk_resp))
+                $regions_resp[ $region ] = $Renderer->render($temp /*'region.zetem'*/, ['region_name' => $region, 'blocks' => $blk_resp], [$sugg, $temp]);
         }
 
         $Renderer->view('main.zetem', 
