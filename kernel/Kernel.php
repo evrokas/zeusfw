@@ -110,6 +110,7 @@ class Kernel {
             if(key_exists($menukey, $menuitemrecord)) {
                 // echopre("** key found **");
                 // echopre(print_r($menuitemrecord, 1));
+
                 if(key_exists('submenu', $menuitemrecord))
                     return $menuitemrecord['submenu'];
                 else
@@ -131,8 +132,8 @@ class Kernel {
             if(isset($config_menu[$asection]))$menu = $config_menu[$asection];
         }
 
-        return ($menu);
         // echopre(print_r($menu, 1));
+        return ($menu);
     }
 
 
@@ -180,10 +181,10 @@ class Kernel {
             if($blocks)
                 foreach($blocks as $block) {
                     $blk = $this->getModule( $block );
-                    // echo("Calling module->render() for block " . print_r( $blk, 1). "<br/>");
+                    // echopre("Calling module->render() for block " . print_r( $blk, 1). "<br/>");
                     if($blk) {
                         $bresponse = $blk->render();
-                        // echo("Reponse from module: " .print_r( $blk, 1) . " : << $bresponse >><br/>");
+                        // echopre("Reponse from module: " .print_r( $blk, 1) . " : << $bresponse >><br/>");
                         $blk_resp .= $bresponse;
                     }
                 }

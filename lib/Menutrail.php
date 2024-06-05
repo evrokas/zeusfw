@@ -3,34 +3,55 @@
 // provide menu tail interface
 
 class Menutrail {
-    private $menu;
+    private $menu = null;
     private $path;
 
-    function __construct($apath, $amenu) {
-        $this->path = $apath;
+    function __construct($apath, $amenu = null) {
+        // $this->path = $apath;
+        $this->setPath($apath);
+        // $this->menu = $amenu;
+        if($amenu)$this->setMenu( $amenu );
+    }
+
+    function setMenu($amenu) {
         $this->menu = $amenu;
+    }
+
+    function setPath($apath) {
+        $this->path = $apath;
     }
 
     function getTrail(&$amenutrail, $amenu = null, $level = 1) {
         // $path = explode('/', $apath);
         if(!$amenu)$amenu = $this->menu;
-        // echo "<pre>";
-        // echo "Testing trail in " . $apath[ $level ] . "  for token " . 
-        // print_r( $apath ); echo "<br>" . "level: $level<br>";
-        // print_r( $this->menu );
-        // echo "</pre>";
 
+        // echopre("Search path --- " . implode(' | ', $this->path) . " -- trail level $level and token " . $this->path[ $level ]);
+
+        if(!$amenu) {
+            $amenutrail = array();
+            return;
+        }
+
+        $found = false;
         foreach($amenu as $menuitem) {
-            // echo "test trail: " . array_key_first($menuitem) . " === " . $apath[ $level ] . "<br>";
+            // echopre("menutrail [lvl: $level]: '" . print_r($menuitem, 1) ."'");
+            // echopre("test trail: " . array_key_first($menuitem) . " === " . $apath[ $level ] . "<br>");
             if(array_key_first($menuitem) == $this->path[ $level ]) {
-                // echo "found trail " . $menuitem['text'] . "<br>" . print_r( $menuitem, 1) . "<br>";
-
+                // echopre("found trail " . $menuitem['text'] );
+                // ]. "<br>". print_r( $menuitem, 1));
+                // echopre("menuitem: " . print_r($menuitem, 1));
+                // echopre("menutrail: " . print_r($amenutrail, 1));
                 $amenutrail[] = $menuitem['text'];
+
+                $found = true;
+                // echopre("current trail: " . print_r($amenutrail, 1));
                 if(isset($menuitem['submenu'])) {
-                    // echo "Has submenu<br>";
+                    // echopre("Has submenu");
                     $this->getTrail($amenutrail, $menuitem['submenu'], $level+1);
                 }
+                return;
             }
+            if($found)break;
         }
     }
 

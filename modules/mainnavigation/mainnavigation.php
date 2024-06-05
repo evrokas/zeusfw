@@ -4,26 +4,46 @@ class menuModule extends moduleClass {
     protected $menu;
     protected $trail = array();
 
-    function __construct($adir, $amodule, $atemplate, $amenu) {
+    function __construct($adir, $amodule, $atemplate, $amenu = null) {
         global $Request;
 
         parent::__construct($adir, $amodule, $atemplate);
-        $this->menu = $amenu;
-        $pathtrail = new Menutrail($Request->getQueryRoute(), $amenu);
+        if($amenu)$this->setMenu($amenu);
+        $pathtrail = new Menutrail($Request->getQueryRoute(), $this->menu);
         $pathtrail->getTrail($this->trail);
+        // $pathtrail = new Menutrail($Request->getQueryRoute(), $this->menu);
+
+        // move the following in setMenu()
+        // $pathtrail = new Menutrail($Request->getQueryRoute(), $amenu);
+        // $pathtrail->getTrail($this->trail);
+
+
         // echo "<pre>";
         // print_r($this->menu);
         // print_r($this->trail);
         // echo "</pre>";
     }
     
+    function setMenu($amenu, $apath = null) {
+        global $Request;
+
+        $this->menu = $amenu;
+        
+        if(!$apath)$apath = $Request->getQueryRoute();
+        // echopre("Query Route: " . print_r($apath, 1));
+        // menu has changed, update Menutrail info
+        $pathtrail = new Menutrail($apath, $this->menu);
+        $pathtrail->getTrail($this->trail);
+    }
+
     function setupMenuAttributes(&$amenu, $alevel) {
         // $amenu['attributes'] = new Attributes();
         // $amenu['attributes']->addClass('menu');
         // $amenu['attributes']->addClass('menu-level-'.$alevel);
         // if(!count($amenu))return;
-
+        // echopre("menu: " . print_r($amenu, 1));
         foreach($amenu as $mitem => $mdata) {
+            // echopre("mitem: " . print_r($mdata, 1));
             // $at = new Attributes();
             $amenu[ $mitem ]['attributes'] = new Attributes();
 
@@ -42,7 +62,7 @@ class menuModule extends moduleClass {
                 $amenu[$mitem]['attributes']->addClass('in-menu-trail');
 
 
-            // echo "mdata ($alevel):" . $amenu[$mitem]['text'];
+            // echopre("mdata ($alevel):" . $amenu[$mitem]['text']);
             if(isset($amenu[$mitem]['submenu'])) {  
                 // $amenu[$mitem]['submenu']['attributes'] = new Attributes('class', 'submenu');
                 // ($amenu[$mitem]['submenu']['attributes'])->addClass('submenu');
@@ -61,7 +81,7 @@ class menuModule extends moduleClass {
         }
     }
     function render($params = array()) {
-        global $Renderer;
+        // global $Renderer;
 
         $mmenu = $this->menu;
         $this->setupMenuAttributes($mmenu, 0);
