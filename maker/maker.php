@@ -809,8 +809,12 @@ if(!defined('DB_HOST')) {
 }
 
 include(__DIR__ . '/../db/dbal.php');
-include(__FWDIR__ . '/classes/feed_hashes.php');
-include(__FWDIR__ . '/classes/feed_class.php');
+
+if(file_exists(__FWDIR__ . '/classes/feed_hashes.php'))
+  include(__FWDIR__ . '/classes/feed_hashes.php');
+
+if(file_exists(__FWDIR__ . '/classes/feed_class.php'))
+  include(__FWDIR__ . '/classes/feed_class.php');
 
 function load_feed_data($name) {
     // echo("load yaml feeds to database\n");
