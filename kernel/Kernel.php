@@ -111,9 +111,9 @@ class Kernel {
                 // echopre("** key found **");
                 // echopre(print_r($menuitemrecord, 1));
 
-                if(key_exists('submenu', $menuitemrecord))
-                    return $menuitemrecord['submenu'];
-                else
+                // if(key_exists('submenu', $menuitemrecord))
+                //     return $menuitemrecord['submenu'];
+                // else
                     return $menuitemrecord;
 
             } else if(key_exists('submenu', $menuitemrecord)) {
