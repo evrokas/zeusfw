@@ -12,6 +12,21 @@
     {% endif %}
 
 
+    {% foreach($head_links as $hlink): %}
+        <link
+            {% foreach($hlink as $elkey => $elval): %}
+                {% foreach($elval as $el_key => $el_val): %}
+                    {{ $el_key }} = 
+                    {% if($el_key === "href"): %}
+                        {{ rel_url($el_val) }}
+                    {% else: %}
+                        {{ $el_val }}
+                    {% endif %}
+                {% endforeach %}
+            {% endforeach %}
+        >
+    {% endforeach %}
+
     {% if(isset($css))foreach($css as $csss): %}
         <link rel="stylesheet" href="{{rel_url($csss['src'])."?".time()}}">
     {% endforeach %}

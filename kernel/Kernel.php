@@ -214,6 +214,7 @@ class Kernel {
             'meta' => $this->getConfig('meta'),
             'css' => $this->getConfig('css'),
             'fonts' => $this->getConfig('fonts'),
+            'head_links' => $this->getConfig('head_links'),
             'head_script' => $this->getConfig('head_script'),
             'foot_script' => $this->getConfig('foot_script'),
             'regions' => $regions_resp
