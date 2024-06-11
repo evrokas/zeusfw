@@ -28,8 +28,9 @@ class breadcrumbsModule extends moduleClass {
                 // first item
                 $pathfinal[] = [
                     'text' => '::',
-                    'attributes' => new Attributes('class', 'bradcrumb-first')
-                ]; else
+                    'attributes' => new Attributes('class', 'breadcrumb-first')
+                ]; 
+            else
                 $pathfinal[] = [
                     'text' => '/',
                     'attributes' => new Attributes('class', 'breadcrumb-separator')
