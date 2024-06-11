@@ -757,7 +757,7 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
                 unset($inn['schema']);
 
             $out = array_replace_recursive($arr, $inn);
-            echo "IN: ";    print_r($inn);
+            // echo "IN: ";    print_r($inn);
 
             echo "OUT: ";   print_r($out);
         } else $out = $arr;
