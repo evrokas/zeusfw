@@ -752,8 +752,12 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
             }
             // print_r($inn);
 
+            // unset schema to set new path for schema file
+            if(key_exists('schema', $inn))
+                unset($inn['schema']);
+
             $out = array_replace_recursive($arr, $inn);
-            // echo "IN: ";    print_r($inn);
+            echo "IN: ";    print_r($inn);
 
             echo "OUT: ";   print_r($out);
         } else $out = $arr;
