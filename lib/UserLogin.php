@@ -55,7 +55,10 @@ function login_post($params) {
         // check for account with 'username' exists, if yes, then increase wrong password counter
         // for future reference
         $us = UsersClassEx::getUserAccount( $_POST['username'] );
-
+        if($us) {
+            $us->setwrongpasscount( $us->getwrongpasscount() + 1);
+            $us->update();
+        }
 
         $kernel->addStatus('warning', 'Username and password does not match, or do not exist');
         header('location: ' . rel_url('/login'));
