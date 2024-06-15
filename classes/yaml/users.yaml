@@ -8,4 +8,5 @@
     - cdate: datetime default current_timestamp
     - active: boolean default false
     - expired: boolean default true
+    - wrongpasscount: smallint default 0
     - roles: char(36) not null
