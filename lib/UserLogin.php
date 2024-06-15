@@ -49,6 +49,10 @@ function login_post($params) {
             setup_rememberme($us->getuname());
         }
 
+        // reset wrong password counter
+        $us->setwrongpasscount(0);
+        $us->update();
+
         header('location: '.rel_url('/profile'));
         exit();
     } else {
