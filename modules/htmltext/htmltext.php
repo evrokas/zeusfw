@@ -13,7 +13,7 @@ class htmltextModule extends moduleClass {
 
     function render($params = array()) {
         // global $Renderer;
-        return($this->renderTemplate(['text' =>$this->htmltext, 'params' => $params]));
+        return($this->renderTemplate(['modulename' => $this->getName(), 'text' =>$this->htmltext, 'params' => $params]));
     }
 }
 
