@@ -2,7 +2,15 @@
 
     <ul>
         {% foreach($path as $element): %}
-            <li {{attributes($element)}}>{{$element['text']}}</li>
+            <li {{attributes($element)}}>
+                {% if(key_exists('url', $element) && ($element['url'] != null)): %}
+                    <a href="{{rel_url($element['url'])}}"">
+                        {{$element['text']}}
+                    </a>
+                {% else: %}
+                    {{$element['text']}}
+                {% endif %}
+            </li>
         {% endforeach %}
     </ul>
 

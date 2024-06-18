@@ -9,20 +9,20 @@ class breadcrumbsModule extends moduleClass {
         $ptrail = new Menutrail($Request->getQueryRoute(), $kernel->getConfig('menu')['main']);
         $path = array();
         $ptrail->getTrail($path);
-        // print_r( $path );
+        // echopre(print_r( $path, 1 ));
         if(!count($path)) {
             // menu trail could not get a path
             // try router instead, to get the current route
             $rtrail = new Routetrail();
             $rtrail->getTrail($path);
-            // print_r( $path );
         }
-
-        if(!(count($path) == 1) || !(str_starts_with(strtolower($path[0]), 'home')))
-            $path = array_merge(["Home"], $path);
-
+        
+        if(!(count($path) == 1) || !(str_starts_with(strtolower($path[0]['text']), 'home')))
+        $path = array_merge([['text' => "Home", 'url' => '/']], $path);
+    
+    // echopre(print_r( $path,1) );
         $loop=0;
-        $pathfinal = arraY();
+        $pathfinal = array();
         foreach($path as $pathitem) {
             if(!$loop)
                 // first item
@@ -37,8 +37,9 @@ class breadcrumbsModule extends moduleClass {
                 ];
 
                 $pathfinal[] = [
-                    'text' => $pathitem,
-                    'attributes' => new Attributes('class', 'breadcrumb-item')
+                    'text' => $pathitem['text'],
+                    'attributes' => new Attributes('class', 'breadcrumb-item'),
+                    'url' => $pathitem['url']
                 ];
             $loop++;
         }

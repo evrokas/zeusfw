@@ -41,7 +41,7 @@ class Menutrail {
                 // ]. "<br>". print_r( $menuitem, 1));
                 // echopre("menuitem: " . print_r($menuitem, 1));
                 // echopre("menutrail: " . print_r($amenutrail, 1));
-                $amenutrail[] = $menuitem['text'];
+                $amenutrail[] = array('text' => $menuitem['text'], 'url' => (key_exists('url', $menuitem)?$menuitem['url']:null)) ;
 
                 $found = true;
                 // echopre("current trail: " . print_r($amenutrail, 1));

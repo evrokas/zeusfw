@@ -505,3 +505,21 @@ function recursive_array_replace ($find, $replace, $array) {
     }
     return $newArray;
 }
+
+function inject_block($blockname, $content, $attrs = null) {
+    $s = "<$blockname";
+    if($attrs)
+        $s .= " " . attributes($attrs);
+    $s .= ">";
+    $s .= $content;
+    $s .= "</$blockname>";
+
+    return $s;
+}
+
+function kindex($token) {
+    $at = new Attributes("class", "index-token");
+    return inject_block("span", $token, $at);
+
+    // return "<span class=\"index\">".$token."</span>";
+}
