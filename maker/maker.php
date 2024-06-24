@@ -660,8 +660,8 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
     $arr += ['directory' => getcwd()];
     $arr += ['createdate' => date ('d-m-Y H:i:s')];
 
-    $arr += ['schema' => realpath( $template )];
-
+    // $arr += ['schema2' => realpath( $template )];
+    $arr += ['schema' => $template];
 
     $tem = yaml_parse_file($template);
     // print_r($tem);
@@ -774,7 +774,7 @@ function generate_feed_from_yaml($name, $dir, $update = array()) {
     // echo "Real path: " . realpath($name) . "\n";
     // $dir = trim($dir, " /\\");
 
-    $ytemplate = $dir . '/' . $yfeed['schema'];
+    $ytemplate = rtrim($dir, '/') . '/' . $yfeed['schema'];
 
     if(isset($yfeed['key'])) {
         $key = $yfeed['key'];
