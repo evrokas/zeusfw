@@ -756,6 +756,16 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
             if(key_exists('schema', $inn))
                 unset($inn['schema']);
 
+            // remove some deprecated keys, from older versions
+            $deprecated = ['directory', 'schema2'];
+            foreach($deprecated as $token) {
+                echo("check for deprecated key $token\n");
+                if(key_exists($token, $inn)) {
+                    echo("  removed\n");
+                    unset($inn[$token]);
+                }
+            }
+
             $out = array_replace_recursive($arr, $inn);
             // echo "IN: ";    print_r($inn);
 
