@@ -657,7 +657,7 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
     $arr = array();
 
     $arr += ['cmd' => '"' . implode(' ', $GLOBALS['argv'])  . '"' ];
-    $arr += ['directory' => getcwd()];
+    // $arr += ['directory' => getcwd()];
     $arr += ['createdate' => date ('d-m-Y H:i:s')];
 
     // $arr += ['schema2' => realpath( $template )];
