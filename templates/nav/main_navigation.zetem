@@ -3,5 +3,8 @@
     <label for="menu-check">show
         <!-- <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAATElEQVRIS2NkoDFgpLH5DKMWEAzhAQmi/wSdhV8BiqOx+YDmFlDoAVTtAxIHNPcBzeOA5hbQPIiGvgU0jwOaWzD042DUByghQPPSFABt6AYZfO/+XQAAAABJRU5ErkJggg=="/> -->
     </label>
-    {% include menu.zetem %}
+    <!-- <div class="main-menu"> -->
+        {% include menu.zetem %}
+
+    <!-- </div> -->
 </div>

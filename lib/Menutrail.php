@@ -19,6 +19,9 @@ class Menutrail {
 
     function setPath($apath) {
         $this->path = $apath;
+        if(count($this->path) == 0) {
+            $this->path = ['/'];
+        }
     }
 
     function getTrail(&$amenutrail, $amenu = null, $level = 1) {
@@ -41,7 +44,7 @@ class Menutrail {
                 // ]. "<br>". print_r( $menuitem, 1));
                 // echopre("menuitem: " . print_r($menuitem, 1));
                 // echopre("menutrail: " . print_r($amenutrail, 1));
-                $amenutrail[] = array('text' => $menuitem['text'], 'url' => (key_exists('url', $menuitem)?$menuitem['url']:null)) ;
+                $amenutrail[] = array('text' => getLangText( $menuitem['text'] ), 'url' => (key_exists('url', $menuitem)?$menuitem['url']:null)) ;
 
                 $found = true;
                 // echopre("current trail: " . print_r($amenutrail, 1));

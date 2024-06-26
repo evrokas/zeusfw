@@ -523,3 +523,22 @@ function kindex($token) {
 
     // return "<span class=\"index\">".$token."</span>";
 }
+
+
+// if $tok is string, return that string,
+// if $tok is an array, and current selected language is in array keys
+//    then return value for that key, otherwise return value of first key
+function getLangText($tok) {
+  global $kernel;
+
+    // echopre("token: " . print_r($tok, 1));
+    if(is_array($tok)) {
+        $lang = $kernel->getCurrentLanguage();
+        if(key_exists($lang, $tok))return $tok[ $lang ];
+        else return $tok[ array_key_first($tok) ];
+    }
+
+    if(is_string($tok))return $tok;
+
+    return 'nolangtext';
+}

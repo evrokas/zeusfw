@@ -3,18 +3,28 @@
         {% foreach($aamenu as $menuitem): %}
             {% if(isset($menuitem['submenu'])): %}
                 <li {{attributes($menuitem)}}>
-                    {% if(isset($menuitem['icon'])): %}
-                        {% if(isset($menuitem['icon']['class'])): %}
-                            {{ $menuitem['icon']['class'] }}
+                    {% if(isset($menuitem['url'])): %}
+                        <a href="{{(isset($menuitem['url']))?rel_url($menuitem['url']):'#';}}">
+                    {% endif %}
+
+                        {% if(isset($menuitem['icon'])): %}
+                            {% if(isset($menuitem['icon']['class'])): %}
+                                {{ $menuitem['icon']['class'] }}
+                            {% endif %}
                         {% endif %}
+                        {% if(isset($menuitem['text'])): %}
+                            {{getLangText($menuitem['text'])}}
+                        {% endif %}
+
+                    {% if(isset($menuitem['url'])): %}
+                        </a>
                     {% endif %}
-                    {% if(isset($menuitem['text'])): %}
-                        {{$menuitem['text']}}
-                    {% endif %}
+
 
                     <ul {{attributes($menuitem["drop-menu-attributes"])   }}>
                         {% show_menu($menuitem['submenu'], $aalevel+1) %}
                     </ul>
+
                 </li>
             {% else: %}
                 <li {{attributes($menuitem)}}>
@@ -25,7 +35,7 @@
                             {% endif %}
                         {% endif %}
                         {% if(isset($menuitem['text'])): %}
-                            {{$menuitem['text']}}
+                            {{getLangText($menuitem['text'])}}
                         {% endif %}
                     </a>
                 </li>

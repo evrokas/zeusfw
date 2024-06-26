@@ -17,8 +17,8 @@ class breadcrumbsModule extends moduleClass {
             $rtrail->getTrail($path);
         }
         
-        if(!(count($path) == 1) || !(str_starts_with(strtolower($path[0]['text']), 'home')))
-        $path = array_merge([['text' => "Home", 'url' => '/']], $path);
+        // if(!(count($path) == 1) || !(str_starts_with(strtolower($path[0]['text']), 'home')))
+            // $path = array_merge([['text' => getLangText(["en"=>"Home","gr"=>"Αρχική"]), 'url' => '/']], $path);
     
     // echopre(print_r( $path,1) );
         $loop=0;

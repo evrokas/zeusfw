@@ -9,7 +9,7 @@ class Routetrail {
         if(!$aroute)$aroute = $router->matchRoute( $Request );;
         // echo "<pre>Routetrail::getTrail: "; print_r( $aroute['_routedata'] ); echo "</pre>";
         if($aroute) {
-            $routetrail = array(['text' => $aroute['_routedata']['title'],
+            $routetrail = array(['text' => getLangText( $aroute['_routedata']['title'] ),
                     'url' => $aroute['_routedata']['url']]);
 
         }
