@@ -1,10 +1,14 @@
-<div class="main-navigation">
+<div class="main-navigation-area">
+    
     <input type="checkbox" name="menu-check" id="menu-check">
-    <label for="menu-check">show
+    <label for="menu-check">show</label>
+        
+    <div class="main-navigation">
         <!-- <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAATElEQVRIS2NkoDFgpLH5DKMWEAzhAQmi/wSdhV8BiqOx+YDmFlDoAVTtAxIHNPcBzeOA5hbQPIiGvgU0jwOaWzD042DUByghQPPSFABt6AYZfO/+XQAAAABJRU5ErkJggg=="/> -->
-    </label>
-    <!-- <div class="main-menu"> -->
         {% include menu.zetem %}
+    </div>
 
-    <!-- </div> -->
+    <div class="responsive-navigation">
+        {% include menu.zetem %}
+    </div>
 </div>

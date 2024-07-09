@@ -12,9 +12,12 @@
                                 {{ $menuitem['icon']['class'] }}
                             {% endif %}
                         {% endif %}
-                        {% if(isset($menuitem['text'])): %}
-                            {{getLangText($menuitem['text'])}}
-                        {% endif %}
+                        <span>
+                            {% if(isset($menuitem['text'])): %}
+                                {{getLangText($menuitem['text'])}}
+                            {% endif %}
+                            <i class="bx bx-chevron-right"></i>
+                        </span>
 
                     {% if(isset($menuitem['url'])): %}
                         </a>
@@ -34,9 +37,11 @@
                                 {{ $menuitem['icon']['class'] }}
                             {% endif %}
                         {% endif %}
-                        {% if(isset($menuitem['text'])): %}
-                            {{getLangText($menuitem['text'])}}
-                        {% endif %}
+                        <span>
+                            {% if(isset($menuitem['text'])): %}
+                                {{getLangText($menuitem['text'])}}
+                            {% endif %}
+                        </span>
                     </a>
                 </li>
             {% endif %}
