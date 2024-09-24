@@ -146,7 +146,7 @@ class Kernel {
         // echopre("SERVER: ". print_r($_SERVER, 1));
         // echopre("module dir: " . $adir);
         // echopre("pre resolve: " .  print_r($info, 1) );
-        $aadir = substr(dirname($adir), strlen($_SERVER['DOCUMENT_ROOT'])+strlen(dirname($_SERVER['PHP_SELF']))+1).'/'.$amodule;
+        $aadir = substr(dirname($adir), strlen($_SERVER['DOCUMENT_ROOT'])+strlen(dirname($_SERVER['PHP_SELF']))).'/'.$amodule;
         return ( recursive_array_replace("@", $aadir, $info) );
         // echopre("post resolve: " . print_r( $info, 1) );
     
