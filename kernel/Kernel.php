@@ -288,7 +288,7 @@ class Kernel {
 
     function loginUser($uname, $uroles) {
         session_start();
-        session_regenerate_id();
+//        session_regenerate_id();
         $_SESSION['user'] = $uname;
         $urolelist = SecurityClass::processRoles($uroles);
         if(!$urolelist) {
