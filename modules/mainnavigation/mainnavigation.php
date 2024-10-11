@@ -11,6 +11,7 @@ class menuModule extends moduleClass {
         if($amenu)$this->setMenu($amenu);
         $pathtrail = new Menutrail($Request->getQueryRoute(), $this->menu);
         $pathtrail->getTrail($this->trail);
+
         // $pathtrail = new Menutrail($Request->getQueryRoute(), $this->menu);
 
         // move the following in setMenu()
@@ -43,10 +44,10 @@ class menuModule extends moduleClass {
         // if(!count($amenu))return;
         // echopre("menu: " . print_r($amenu, 1));
         foreach($amenu as $mitem => $mdata) {
-            // echopre("mitem: " . print_r($mdata, 1));
+            // echopre("mitem: " . print_r($mdata, 1) . " ==> " . array_key_first($mdata));
             // $at = new Attributes();
             $amenu[ $mitem ]['attributes'] = new Attributes();
-
+            $amenu[ $mitem ]['key'] = array_key_first($mdata);
             if(!isset($amenu[$mitem]['submenu']))
                 $amenu[$mitem]['attributes']->addClass('menu-item');
             else {

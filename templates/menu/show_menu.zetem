@@ -12,12 +12,16 @@
                                 {{ $menuitem['icon']['class'] }}
                             {% endif %}
                         {% endif %}
-                        <span>
-                            {% if(isset($menuitem['text'])): %}
-                                {{getLangText($menuitem['text'])}}
-                            {% endif %}
-                            <i class="bx bx-chevron-right"></i>
-                        </span>
+                        <!-- <span> -->
+                            <input type="checkbox" id="btn-{{$menuitem['key']}}">
+                            <label for="btn-{{$menuitem['key']}}" class="show">
+
+                                {% if(isset($menuitem['text'])): %}
+                                    {{getLangText($menuitem['text'])}}
+                                {% endif %}
+                                <i class="bx bx-chevron-right"></i>
+                            </label>
+                        <!-- </span> -->
 
                     {% if(isset($menuitem['url'])): %}
                         </a>

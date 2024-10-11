@@ -4,11 +4,19 @@
     <label for="menu-check">show</label>
         
     <div class="main-navigation">
-        <!-- <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAATElEQVRIS2NkoDFgpLH5DKMWEAzhAQmi/wSdhV8BiqOx+YDmFlDoAVTtAxIHNPcBzeOA5hbQPIiGvgU0jwOaWzD042DUByghQPPSFABt6AYZfO/+XQAAAABJRU5ErkJggg=="/> -->
+
+        <input type="checkbox" name="menu-open" id="menu-open">
+        <label for="menu-open">
+            <i class="bx bx-menu"></i>
+            <!-- <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAATElEQVRIS2NkoDFgpLH5DKMWEAzhAQmi/wSdhV8BiqOx+YDmFlDoAVTtAxIHNPcBzeOA5hbQPIiGvgU0jwOaWzD042DUByghQPPSFABt6AYZfO/+XQAAAABJRU5ErkJggg=="/> -->
+        </label>
+        <label for="menu-open" name="menu-close">
+            <i class="bx bx-x"></i>
+            <!-- <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAABHUlEQVRIS+2UzwoBURTGZ7ZKNgplIQnPIFLYymuw5V3Y2PIA8gT+rZAtyZolT+A7daZutzv33FGTzUz9mtvp3u8755s/vhfz5ces7yUGYsJ/j2iMFpfgGdJqDfUWmIeNYptghENTcGcR3aSC+hbkwQCsTCY2AzpIAiSkm5RRO4AcuIA2+EQ1oP0mk5SrOAm4POQC9m14kivuGTY+4d4F77D8XQ1oX5HjKrGYNRbV0GUC2k9ZU+aUPV1n0JG6d52AxHcc0Y0jotoR9CQTaQK18wfEGiDNcdELIE5iMzCJvzgi9RuwmtgMhhCbAYqF3nP9Q6uitgdZ0Adr9eEGaymiCTYuDOLB+ToWTfDTr8LUUOSaNEFkQf1AYiBGGHtEXxiQNBlV+luQAAAAAElFTkSuQmCC"/> -->
+        </label>
+
+
         {% include menu.zetem %}
     </div>
 
-    <div class="responsive-navigation">
-        {% include menu.zetem %}
-    </div>
 </div>

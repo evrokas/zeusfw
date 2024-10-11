@@ -287,6 +287,7 @@ class Kernel {
     }
 
     function loginUser($uname, $uroles) {
+        session_destroy();
         session_start();
 //        session_regenerate_id();
         $_SESSION['user'] = $uname;
@@ -317,7 +318,7 @@ class Kernel {
         // prelog('Trying to get user info from cookie');
 
         $token = filter_input(INPUT_COOKIE, 'zeusfwrememberme', FILTER_SANITIZE_STRING);
-        // prelog("token from cookie: " . print_r($token, 1));
+        prelog("token from cookie: " . print_r($token, 1));
         if($token && userTokensClassEx::token_is_valid($token)) {
             prelog("Found valid token in DB, token: " . print_r($token, 1));
 
@@ -334,6 +335,7 @@ class Kernel {
         }
         return false;
     }
+
     function isAjaxRequest() {
         if(key_exists('HTTP_X_REQUESTED_WITH', $_SERVER))
             if($_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest')
@@ -341,8 +343,6 @@ class Kernel {
 
         return false;
     }
-
-
 
     function setCurrentLanguage($curlang) {
         $_SESSION['CURRENT_LANGUAGE'] = $curlang;
