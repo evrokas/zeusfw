@@ -17,9 +17,10 @@ class userTokensClassEx extends userTokensClass {
         return null;
     }
     
-    static function insert_user_token(string $uname, string $selector, string $validator, string $expiry): bool {
+    static function insert_user_token($create, string $uname, string $selector, string $validator, string $expiry): bool {
         $tok = new userTokensClass(
-            ['selector' => $selector, 
+            ['cdate' => $create,
+                'selector' => $selector, 
                 "validator" => $validator, 
                 'uname' => $uname, 
                 'expiry' => $expiry

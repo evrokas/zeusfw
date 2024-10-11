@@ -23,9 +23,10 @@
     $expired_seconds = time() + 60 * 60 * 24 * $days;
     $hash_validator = password_hash($validator, PASSWORD_DEFAULT);
     $expiry = date('Y-m-d H:i:s', $expired_seconds);
+    $create = getDBtime();
     // prelog("expiry: $expiry\texpired_seconds: $expired_seconds");
 
-    if(userTokensClassEx::insert_user_token($uname, $selector, $hash_validator, $expiry)) {
+    if(userTokensClassEx::insert_user_token($create, $uname, $selector, $hash_validator, $expiry)) {
         setcookie('zeusfwrememberme', $token, $expired_seconds);
         // prelog("setup cookie for future!");
     }
