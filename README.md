@@ -42,7 +42,11 @@ routes:
   homepage:
     title: "Homepage"
     name: homepage
+
     url: "/"
+-- or --
+    url: ["/", "some_other_route"]
+
     handler: homepage
   admin:
     title: "Administration"
