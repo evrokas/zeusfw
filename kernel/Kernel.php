@@ -317,7 +317,7 @@ class Kernel {
 
         // prelog('Trying to get user info from cookie');
 
-        $token = filter_input(INPUT_COOKIE, 'zeusfwrememberme', FILTER_SANITIZE_STRING);
+        $token = filter_input(INPUT_COOKIE, 'zeusfwrememberme');    //, FILTER_SANITIZE_STRING);
         prelog("token from cookie: " . print_r($token, 1));
         if($token && userTokensClassEx::token_is_valid($token)) {
             prelog("Found valid token in DB, token: " . print_r($token, 1));
