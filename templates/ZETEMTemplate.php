@@ -64,6 +64,13 @@ class ZETEMTemplate {
 		
 		return $buffer;
 	}
+
+	/* return true if template file exists, false otherwise */
+	static function existsTemplate($tname) {
+		if(array_key_exists( $tname, self::$template_files)) {
+			return true;
+		} else return false;
+	}
 	
 	/* return recursively all templates in $apth */
 	static function findTemplates($apath, &$farr) {
