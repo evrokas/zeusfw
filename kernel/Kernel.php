@@ -542,3 +542,13 @@ function getLangText($tok) {
 
     return 'nolangtext';
 }
+
+function getConf($atok) {
+  global $kernel;
+ 
+      if(array_key_exists('config', $kernel->getConfig())) {
+          if(array_key_exists($atok, $kernel->getConfig('config'))) {
+              return $kernel->getConfig('config')[$atok];
+          } else return null;
+      } else return null;
+}

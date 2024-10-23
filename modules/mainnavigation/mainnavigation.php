@@ -48,6 +48,12 @@ class menuModule extends moduleClass {
             // $at = new Attributes();
             $amenu[ $mitem ]['attributes'] = new Attributes();
             $amenu[ $mitem ]['key'] = array_key_first($mdata);
+            if(key_exists('published', $mdata)) {
+                $amenu[ $mitem ]['attributes']->addClass($mdata['published']?'menu-item-published':'menu-item-unpublished');
+            } else
+                $amenu[ $mitem ]['attributes']->addClass('menu-item-published');
+            
+
             if(!isset($amenu[$mitem]['submenu']))
                 $amenu[$mitem]['attributes']->addClass('menu-item');
             else {
