@@ -664,7 +664,7 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
     $arr += ['schema' => $template];
 
     $tem = yaml_parse_file($template);
-    // print_r($tem);
+    print_r($tem);
 
     if(!isset($key)){
         $key = array('name' => 'default', 'value' => array('default'));
@@ -778,6 +778,7 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
 }
 
 function generate_feed_from_yaml($name, $dir, $update = array()) {
+    // print_r($name);
     $yfeed = yaml_parse_file($name);
     // print_r( $yfeed );
     // echo "yaml path " . $dir. "\n";
@@ -867,6 +868,15 @@ function load_feed_data($name) {
 
         $feeder_class = array();
         $feeder_hash = array();
+
+        if(array_key_exists('key', $yfeed)) {
+            if(!array_key_exists('value', $yfeed['key'])) {
+                $yfeed['key']['value'] = array('default');
+            } 
+        } else {
+            $yfeed['key'] = ['value'=>array('default')];
+        }
+        // print_r($yfeed);
 
         foreach($yfeed['key']['value'] as $fkey) { 
             
@@ -1183,7 +1193,7 @@ function makesure_dir_exists($dir) {
                 echo "Usage: --name [feeder yaml template] --dir [yaml template dir] [--update key1[|key2|...]]\n";
                 exit;
             }
-
+            $arr = array();
             if(isset($options['update'])) {
                 $arr = explode(':', $options['update']);
                 echo "Force updating records : " . implode(' : ', $arr) . "\n";
