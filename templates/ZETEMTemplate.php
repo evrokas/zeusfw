@@ -65,6 +65,16 @@ class ZETEMTemplate {
 		return $buffer;
 	}
 
+	
+	// render a template only if the corresponding template exists, otherwise
+	// return 404 content
+	static function renderSafe($file, $data = array(), $stemplated = null) {
+		if(self::existsTemplate($file))
+			return self::render($file, $data, $stemplate);
+		else
+			return error_404();
+	}
+
 	/* return true if template file exists, false otherwise */
 	static function existsTemplate($tname) {
 		if(array_key_exists( $tname, self::$template_files)) {
@@ -74,7 +84,7 @@ class ZETEMTemplate {
 	
 	/* return recursively all templates in $apth */
 	static function findTemplates($apath, &$farr) {
-		$files = glob($apath . '*.zetem');
+		// $files = glob($apath . '*.zetem');
 
 		// $dir  = new RecursiveDirectoryIterator($apath, RecursiveDirectoryIterator::SKIP_DOTS);
 		// $files = new RecursiveIteratorIterator($dir, RecursiveIteratorIterator::SELF_FIRST);
