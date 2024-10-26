@@ -1,6 +1,0 @@
-- table: feed_class
-  class: feedClass
-  fields:
-    - guid: char(36) not null
-#    - lang: char(8)
-#    - hash: char(65) not null
