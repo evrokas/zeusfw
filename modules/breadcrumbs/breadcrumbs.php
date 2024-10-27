@@ -2,7 +2,6 @@
 
 class breadcrumbsModule extends moduleClass {
     function render($params = array()) {
-        global $Renderer;
         global $Request;
         global $kernel;
 
@@ -46,7 +45,7 @@ class breadcrumbsModule extends moduleClass {
 
         return ($this->renderTemplate( ["path" => $pathfinal] ));
         // return ($this->renderTemplate( ["path" => ["home", "view", "test"]] ));
-        // return ($Renderer->render("breadcrumbs.zetem", ["path" => ["home", "view", "test"]]));
+        // return (Renderer::render("breadcrumbs.zetem", ["path" => ["home", "view", "test"]]));
     }
 }
 

@@ -165,11 +165,10 @@ class Kernel {
     }
 
     function renderPage() {
-        // $Renderer->view("main.zetem", $kernel->getConfig() );
+        // Renderer::view("main.zetem", $kernel->getConfig() );
         // registerModules();
         
         $regions_resp = array();
-        global $Renderer;
 
         // $cont = new ContentClass('content/homepage.html');
 
@@ -191,7 +190,7 @@ class Kernel {
                 // echo "Region response text " . $blk_resp;
             // $regions_resp[ $region ] = $blk_resp;
             $sugg = array();
-            $Renderer->getTemplateSuggestions(['type' => 'region', 'name' => $region], function($args, &$suggestions) {
+            Renderer::getTemplateSuggestions(['type' => 'region', 'name' => $region], function($args, &$suggestions) {
                 // echopre(print_r($args, 1));
                 if($args['type'] == 'region') {
                     $suggestions[] = 'region';
@@ -201,14 +200,14 @@ class Kernel {
 
             // echopre(print_r($sugg, 1));
 
-            $temp = $Renderer->getTemplate($sugg);
+            $temp = Renderer::getTemplate($sugg);
             // echopre("found template: $temp : blk_resp size (bytes) " . strlen($blk_resp));
             
             if(strlen($blk_resp))
-                $regions_resp[ $region ] = $Renderer->render($temp /*'region.zetem'*/, ['region_name' => $region, 'blocks' => $blk_resp], [$sugg, $temp]);
+                $regions_resp[ $region ] = Renderer::render($temp /*'region.zetem'*/, ['region_name' => $region, 'blocks' => $blk_resp], [$sugg, $temp]);
         }
 
-        $Renderer->view('main.zetem', 
+        Renderer::view('main.zetem', 
         [
             'title' => $this->getConfig('title'),
             'meta' => $this->getConfig('meta'),

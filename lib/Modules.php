@@ -20,7 +20,7 @@ class moduleClass {
         // echo "render module " . $this->modulename;
         return $this->renderTemplate( $params );
 
-        // return $Renderer->render( $this->template, $params ); 
+        // return Renderer::render( $this->template, $params ); 
     }
 
     function getName() {
@@ -42,7 +42,6 @@ class moduleClass {
     }
     function renderTemplate($aparms = array()) {
         // helper function to render a template
-        global $Renderer;
         global $kernel;
 
         $mods = $kernel->getConfig('modconf');
@@ -77,7 +76,7 @@ class moduleClass {
         if($display)
             return (
             // $this->modulename . ": renderTemplate(): " . $this->template . ": " .
-            $Renderer->render($this->template, $aparms));
+            Renderer::render($this->template, $aparms));
         else return '';
     }
 }

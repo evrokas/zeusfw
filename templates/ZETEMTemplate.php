@@ -10,7 +10,7 @@
  *   so to allow for more folders to be searched for templates
  */
 
-class ZETEMTemplate {
+class Renderer {
 	static $blocks = array();
 	static $template_path = array();
 	static $cache_path = 'cache/';
@@ -24,7 +24,7 @@ class ZETEMTemplate {
 	 * $cache_path can be FALSE (to disable cache), if it is a string then cache_path is set
 	 *             to that string, if it is TRUE then cache_path set to the default 'cache/'
 	 * $enable_comments can TRUE or FALSE */
-	function __construct($template_path, $cache_path = null, $enable_comments = null) {
+	static function init($template_path, $cache_path = null, $enable_comments = null) {
 		// $template_path can be string or array of strings, but self::$template_path
 		// should be an array
 		if(isset($template_path)) {
@@ -118,11 +118,11 @@ class ZETEMTemplate {
 	//   return ( $farr );
 	}
 
-	function getTemplateSuggestions($args, callable $callback, &$tsuggestions) {
+	static function getTemplateSuggestions($args, callable $callback, &$tsuggestions) {
 		$callback($args, $tsuggestions);
 	}
 	
-	function getTemplate($suggestions) {
+	static function getTemplate($suggestions) {
 		// echo self::emmitComment('Template suggestions: ' . implode(' * ', $suggestions));
 		foreach(array_reverse($suggestions) as $s) {
 			// echopre("checking template $s");

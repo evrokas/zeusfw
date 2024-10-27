@@ -1,7 +1,6 @@
 <?php
 class contentModule extends moduleClass {
     function render($params = array()) {
-        global $Renderer;
         global $kernel;
         global $Request;
         global $content_response;
