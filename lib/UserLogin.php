@@ -33,9 +33,7 @@
 }
 
 function login($params) {
-    global $Renderer;
-
-    return ($Renderer->render("login.zetem", ['action' => 'login']));
+    return (Renderer::render("login.zetem", ['action' => 'login']));
 }
 
 function login_post($params) {

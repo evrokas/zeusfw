@@ -88,7 +88,6 @@ class menuModule extends moduleClass {
         }
     }
     function render($params = array()) {
-        // global $Renderer;
 
         $mmenu = $this->menu;
         $this->setupMenuAttributes($mmenu, 0);

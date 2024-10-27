@@ -37,10 +37,7 @@ class ContentClass {
     }
 
     function render() {
-        global $Renderer;
-
-
-        return $Renderer->render($this->template, $this->meta);
+        return Renderer::render($this->template, $this->meta);
         // return $this->content;
     }
 }
