@@ -52,5 +52,13 @@
 </body>
 
     {% if(isset($foot_script))foreach($foot_script as $scrpt): %}
-        <script type="{{$scrpt['type']}}" src="{{rel_url($scrpt['src'])}}"></script>
+        <script 
+            {% if(array_key_exists('type', $scrpt)):%}
+                    type="{{$scrpt['type']}}" 
+            {% endif %}
+            src="{{rel_url($scrpt['src'])}}" 
+            {% if(array_key_exists('defer', $scrpt)): %}
+                defer
+            {% endif %}
+        ></script>
     {% endforeach; %}
