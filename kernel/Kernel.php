@@ -393,6 +393,10 @@ function formatDate($str) {
     return (date("d-m-Y", strtotime($str)));
 }
 
+function formatBrowserDate($str) {
+    return (date("Y-m-d", strtotime($str)));
+}
+
 function randomChar($str) {
     $len = strlen($str);
     return ($str[ random_int(1, $len-1)]);
