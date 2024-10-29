@@ -178,8 +178,20 @@ class RouterClass {
     }
 
     static function routerCallFunction($match_route) {
+        global $kernel;
+        
+        $hasAnalytics = class_exists("analyticsClass");
+        if($hasAnalytics && $kernel->safeGetConfig('analytics')) {
+            $ips = $kernel->safeGetConfigValue('analytics', 'ignore_ips');
+            error_log('ignore IPs: ' . print_r($ips, 1));
 
-        if(class_exists("analyticsClass")) {
+            if(in_array($_SERVER['REMOTE_ADDR'], $ips)) {
+                $hasAnalytics = false;
+            }
+        }
+        error_log("hasAnalytics: " . $hasAnalytics);
+
+        if($hasAnalytics) {
             $acl = new analyticsClass([
                 'cdate' => getDBtime(),
                 'page' => ($match_route && $match_route['_routename'])?$match_route['_routename']:"n/a",
@@ -189,7 +201,7 @@ class RouterClass {
             ]);
         }
         if(!$match_route) {
-            if(class_exists("analyticsClass")) {
+            if($hasAnalytics) {
                 $acl->setserved(0);
                 $acl->insert();
             }
@@ -215,14 +227,14 @@ class RouterClass {
             // if there is no page match, search for modules match
             $fexe = $match_route['_routedata']['module'];
             if(!$fexe) {
-                if(class_exists("analyticsClass")) {
+                if($hasAnalytics) {
                     $acl->setserved(0);
                     $acl->insert();
                 }
                 return (error_404());
             }
 
-            if(class_exists("analyticsClass")) {
+            if($hasAnalytics) {
                 $acl->setserved(1);
                 $acl->insert();
             }
@@ -236,7 +248,7 @@ class RouterClass {
         $fexe = $match_route['_routedata']['handler'];
         $params = $match_route['_params'];
 
-        if(class_exists("analyticsClass")) {
+        if($hasAnalytics) {
             $acl->setserved(1);
             $acl->insert();
         }
