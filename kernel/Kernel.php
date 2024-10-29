@@ -35,27 +35,6 @@ class Kernel {
         date_default_timezone_set( $this->safeGetConfig('tz') );
     }
 
-    function safeGetConfig($key) {
-        if(isset($this->config[ $key ]))return $this->config[ $key ];
-        else return '';
-    }
-
-     function getrootpath() {
-        return ($this->rootpath);
-    }
-     function getbasepath() {
-        return ($this->basepath);
-    }
-
-     function rel_url($apath) {
-        if($apath == '/')
-            $apath = '';
-
-        $apath = str_replace('//', '/', $this->rootpath . $apath);
-
-      return ( $apath);
-    }
-
     function getConfig($section=null) {
         if($section) {
             if(isset($this->config[$section]))
@@ -63,6 +42,35 @@ class Kernel {
             else return array();
         } else
             return ($this->config);
+    }
+
+    function safeGetConfig($section) {
+        if(isset($this->config[ $section ]))return $this->config[ $section ];
+        else return '';
+    }
+
+    function safeGetConfigValue($section, $key) {
+        if((isset($this->config[$section])) &&
+        (array_key_exists($key, $this->config[$section]))) {
+            return ($this->config[$section][$key]);
+        } else return '';
+    }
+
+    function getrootpath() {
+        return ($this->rootpath);
+    }
+
+    function getbasepath() {
+        return ($this->basepath);
+    }
+
+    function rel_url($apath) {
+        if($apath == '/')
+            $apath = '';
+
+        $apath = str_replace('//', '/', $this->rootpath . $apath);
+
+      return ( $apath);
     }
 
     function addConfig($section) {
