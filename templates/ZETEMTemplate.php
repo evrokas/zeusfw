@@ -139,7 +139,7 @@ class Renderer {
 		// echo "Template: ". self::$template_files[ $file ] . "\n";
 	    if (!self::$cache_enabled || !file_exists($cached_file) || filemtime($cached_file) < filemtime($file)) {
 			
-			if($stemplates != null) {
+			if($stemplates != null && self::$enable_comments) {
 				$code = "<!--- template suggestions: ---!>";
 				foreach($stemplates[0] as $sugg) {
 					$code .= "<!--- ";
