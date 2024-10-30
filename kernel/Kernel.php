@@ -18,21 +18,45 @@ function prelog(string $msg) {
 class Kernel {
     protected $rootpath = null;     // root directory relative to the webserver
     protected $basepath = null;     // base directory relative to the filesystem
-    protected $config = null;
-
+    protected $config = null;       // framework configuration
+    protected $siteconf = null;     // site configuration
     protected $modules = array();
 
-    function __construct($asrv, $ainfofile) {
+    function __construct($asrv, $configdir) {
         $this->rootpath= substr($asrv['PHP_SELF'],0,strrpos($asrv['PHP_SELF'],'/')+1);
         $this->basepath= substr($asrv['SCRIPT_FILENAME'],0,strrpos($asrv['SCRIPT_FILENAME'],'/')+1);
 
+        $configdir = rtrim($configdir, '/');
+
         // echo "<pre>basepath: " . $this->basepath . "</pre>";
-        $this->config = yaml_parse_file($ainfofile);
+        if(!file_exists($configdir . '/zeusconf.info.yaml')) {
+            echopre("Configuration file does not exist. Please contact administrator.");
+            ob_flush();
+            exit();
+        }
+        $this->config = yaml_parse_file($configdir . '/zeusconf.info.yaml');
+        
+        if(file_exists($configdir . '/site.info.yaml')) {
+            $this->siteconf = yaml_parse_file($configdir . '/site.info.yaml');
+            // echopre(print_r($c=$this->getSiteConfig(), 1));
+        } else {
+            $this->siteconf = array();
+        }
+        
         // echo "<pre>";
         // print_r( $this->config );
         // echo "</pre>";
 
         date_default_timezone_set( $this->safeGetConfig('tz') );
+    }
+
+    function getSiteConfig($section=null) {
+        if($section) {
+            if(isset($this->siteconf[$section]))
+              return $this->siteconf[$section];
+            else return array();
+        } else
+            return ($this->siteconf);
     }
 
     function getConfig($section=null) {
