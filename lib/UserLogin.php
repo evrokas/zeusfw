@@ -42,6 +42,9 @@ function login_post($params) {
     $us = UsersClassEx::getUser($_POST['username'], hash('sha256', $_POST['password']));
     // prelog("User: " . print_r( $us, 1 ));
     if($us) {
+
+        echopre("try to login user ". $us->getuname() . " with rules: " . print_r($us->getroles()));
+        
         $kernel->loginUser($us->getuname(), $us->getroles());
 
         if(isset($_POST['rememberme'])) {
