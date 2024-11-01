@@ -67,7 +67,9 @@ function login_post($params) {
         }
 
         $kernel->addStatus('warning', 'Username and password does not match, or do not exist');
+        error_log('login failed for ' . $_POST["username"]);
         header('location: ' . rel_url('/login'));
+        exit();
     }
 }
 
@@ -81,7 +83,7 @@ function logout($params) {
         userTokensClassEx::delete_user_token($_SESSION['user']);
         if(isset($_COOKIE['zeusfwrememberme'])) {
             unset($_COOKIE['zeusfwrememberme']);
-            setcookie('zeusfwrememberme', null, -1);
+            setcookie('zeusfwrememberme', '', -1);
         }
 
         $kernel->logoutUser();
