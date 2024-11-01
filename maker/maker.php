@@ -243,6 +243,22 @@ class Database {
 
             mlog("      return \$resp;\n}\n");
 
+            mlog("function getAllFields() {
+              \$resp = array();
+              \$resp = array_merge(\$resp, parent::getAllFields());");
+
+
+            foreach($this->fields as $fld) {
+                if($fld['name'] != 'id') {
+                    mlog("              \$resp = array_merge(\$resp, ['" .$fld['name']. "' => \$this->".$fld['name']."]);");
+                }
+            }
+            // foreach($this->fields as $fld) {
+                // mlog("      if(isset(\$adata['".$fld['name']."']))\$this->".$fld['name']." = \$adata['".$fld['name']."'];");
+            // }
+
+            mlog("      return \$resp;\n}\n");
+
 
 
 
