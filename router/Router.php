@@ -181,6 +181,8 @@ class RouterClass {
         global $kernel;
         
         $hasAnalytics = class_exists("analyticsClass");
+        $hasPageAnalytics = class_exists("pageAnalyticsClass");
+
         if($hasAnalytics && $kernel->safeGetConfig('analytics')) {
             $ips = $kernel->safeGetConfigValue('analytics', 'ignore_ips');
             error_log('ignore IPs: ' . print_r($ips, 1));
@@ -189,13 +191,19 @@ class RouterClass {
                 $hasAnalytics = false;
             }
         }
-        error_log("hasAnalytics: " . $hasAnalytics);
+        // error_log("hasAnalytics: " . $hasAnalytics);
+        // error_log("hasPageAnalytics: " . $hasPageAnalytics);
+        $page = ($match_route && $match_route['_routename'])?$match_route['_routename']:"n/a";
+        $url = $_SERVER['QUERY_STRING'];
+        
+        // if $url is empty then just call it '/'
+        if(!strlen($url))$url = '/';
 
         if($hasAnalytics) {
             $acl = new analyticsClass([
                 'cdate' => getDBtime(),
-                'page' => ($match_route && $match_route['_routename'])?$match_route['_routename']:"n/a",
-                'url' => $_SERVER['QUERY_STRING'], //print_r($match_route['_request'], 1),
+                'page' => $page,
+                'url' => $url,
                 'remote_ip' => $_SERVER['REMOTE_ADDR'],
                 'user_agent' => $_SERVER['HTTP_USER_AGENT']
             ]);
@@ -222,6 +230,25 @@ class RouterClass {
         }
         http_response_code(200);
 
+        if($hasPageAnalytics) {
+            $pan = pageAnalyticsClassEx::getPageByURL( $url );
+            if($pan) {
+                // echopre("pageAnalytics found [page: $page]: " . print_r($pan, 1));
+                $pane = new pageAnalyticsClassEx( $pan->getAllFields() );
+            } else {
+                $pane = new pageAnalyticsClassEx([
+                    'cdate' => getDBtime(),
+                    'page' => $page,
+                    'url' => $url,
+                    'total_count' => 0,
+                    'week_count' => 0,
+                    'month_count' => 0
+                ]);
+
+                echopre("page analytics not found [page: $page, url: $url]");
+            }
+        }
+
         if(!isset($match_route['_routedata']['handler'])) {
 
             // if there is no page match, search for modules match
@@ -234,11 +261,19 @@ class RouterClass {
                 return (error_404());
             }
 
+            // update analytics table
             if($hasAnalytics) {
                 $acl->setserved(1);
                 $acl->insert();
             }
-    
+
+            // update page statistics table
+            if($hasPageAnalytics) {
+                $pane->increase();
+                if(!$pan)$pane->insert();
+                else $pane->update();
+            }
+
             $params = $match_route['_params'];
             return (self::call_module_func($fexe, $params) );
 
@@ -248,11 +283,19 @@ class RouterClass {
         $fexe = $match_route['_routedata']['handler'];
         $params = $match_route['_params'];
 
+        // update analytics table
         if($hasAnalytics) {
             $acl->setserved(1);
             $acl->insert();
         }
 
+        // update page statistics table
+        if($hasPageAnalytics) {
+            $pane->increase();
+            if(!$pan)$pane->insert();
+            else $pane->update();
+        }
+        
         return ( call_user_func($fexe, $params) );
     }
 

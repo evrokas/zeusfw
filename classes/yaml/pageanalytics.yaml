@@ -1,0 +1,10 @@
+- table: pageanalytics
+  class: pageAnalyticsClass
+  extention: __FWDIR__ . '/pageAnalyticsClassEx.php'
+  fields:
+    - cdate: datetime default current_timestamp
+    - page: text
+    - url: text
+    - total_count: bigint
+    - week_count: int
+    - month_count: int
