@@ -59,11 +59,17 @@ abstract class dbAbstractEntityClass {
 
     function getFields() {
         $resp = array();
-//        $resp = array_merge($resp, ['id' => $this->id]);
 
         return $resp;
     }
 
+    function getAllFields() {
+        $resp = array();
+        $resp = array_merge($resp, ['id' => $this->id]);
+
+        return $resp;
+    }
+    
     function getConnection() { return $GLOBALS['AppDBConnection']; }
 
     function getById(int $aid) {
