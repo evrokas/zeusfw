@@ -233,7 +233,9 @@ class RouterClass {
         if($hasPageAnalytics) {
             $pan = pageAnalyticsClassEx::getPageByURL( $url );
             if($pan) {
+
                 // echopre("pageAnalytics found [page: $page]: " . print_r($pan, 1));
+                
                 $pane = new pageAnalyticsClassEx( $pan->getAllFields() );
             } else {
                 $pane = new pageAnalyticsClassEx([
@@ -245,7 +247,7 @@ class RouterClass {
                     'month_count' => 0
                 ]);
 
-                echopre("page analytics not found [page: $page, url: $url]");
+                // echopre("page analytics not found [page: $page, url: $url]");
             }
         }
 
