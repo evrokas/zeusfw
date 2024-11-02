@@ -43,7 +43,7 @@ class Kernel {
 
 
         // echo "<pre>basepath: " . $this->basepath . "</pre>";
-        if(!file_exists($configdir . '/zeusconf.info.yaml')) {
+        if(!file_exists($configdir . '/settings.info.yaml')) {
             echopre("Configuration file does not exist. Please contact administrator.");
             ob_flush();
             exit();
