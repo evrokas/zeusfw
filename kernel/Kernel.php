@@ -48,7 +48,7 @@ class Kernel {
             ob_flush();
             exit();
         }
-        $conf = yaml_parse_file($configdir . '/zeusconf.info.yaml');
+        $conf = yaml_parse_file($configdir . '/settings.info.yaml');
         
         // merge project configuration
         $this->addConfig( $conf );
