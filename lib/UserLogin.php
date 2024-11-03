@@ -17,7 +17,11 @@
     prelog("Setup selector:validator");
     [$selector, $validator, $token] = userTokensClassEx::generate_tokens();
     prelog("Tokens: $selector:$validator");
-    userTokensClassEx::delete_user_token($uname);
+
+    $remoteip = $_SERVER['REMOTE_ADDR'];
+    $useragent = $_SERVER['HTTP_USER_AGENT'];
+    
+    userTokensClassEx::delete_user_token($uname, $remoteip, $useragent);
 
     $days = 10;
     $expired_seconds = time() + 60 * 60 * 24 * $days;
@@ -26,7 +30,7 @@
     $create = getDBtime();
     // prelog("expiry: $expiry\texpired_seconds: $expired_seconds");
 
-    if(userTokensClassEx::insert_user_token($create, $uname, $selector, $hash_validator, $expiry)) {
+    if(userTokensClassEx::insert_user_token($create, $uname, $selector, $hash_validator, $remoteip, $useragent, $expiry)) {
         setcookie('zeusfwrememberme', $token, $expired_seconds);
         // prelog("setup cookie for future!");
     }
@@ -39,12 +43,14 @@ function login($params) {
 function login_post($params) {
     global $kernel;
 
+
     $us = UsersClassEx::getUser($_POST['username'], hash('sha256', $_POST['password']));
     // prelog("User: " . print_r( $us, 1 ));
     if($us) {
-
+        // user exists
         echopre("try to login user ". $us->getuname() . " with rules: " . print_r($us->getroles()));
         
+        // ask kernel to login user
         $kernel->loginUser($us->getuname(), $us->getroles());
 
         if(isset($_POST['rememberme'])) {
@@ -80,7 +86,10 @@ function logout($params) {
 
     $us = $kernel->getUserName();
     if($us) {
-        userTokensClassEx::delete_user_token($_SESSION['user']);
+        $remoteip = $_SERVER['REMOTE_ADDR'];
+        $useragent = $_SERVER['HTTP_USER_AGENT'];
+    
+        userTokensClassEx::delete_user_token($_SESSION['user'], $remoteip, $useragent);
         if(isset($_COOKIE['zeusfwrememberme'])) {
             unset($_COOKIE['zeusfwrememberme']);
             setcookie('zeusfwrememberme', '', -1);

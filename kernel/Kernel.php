@@ -354,7 +354,10 @@ class Kernel {
         if($token && userTokensClassEx::token_is_valid($token)) {
             prelog("Found valid token in DB, token: " . print_r($token, 1));
 
-            $user = userTokensClassEx::getUserByToken($token);
+            $remoteip = $_SERVER['REMOTE_ADDR'];
+            $useragent = $_SERVER['HTTP_USER_AGENT'];
+        
+            $user = userTokensClassEx::getUserByToken($token, $remoteip, $useragent);
             if($user) {
                 $us = usersClassEx::getUserAccount( $user->getuname());
                 prelog("Found user: " . print_r($user, 1) . " user record: " . print_r($us, 1));

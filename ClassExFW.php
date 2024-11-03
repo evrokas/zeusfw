@@ -17,12 +17,14 @@ class userTokensClassEx extends userTokensClass {
         return null;
     }
     
-    static function insert_user_token($create, string $uname, string $selector, string $validator, string $expiry): bool {
+    static function insert_user_token($create, string $uname, string $selector, string $validator, string $remoteip, string $useragent, string $expiry): bool {
         $tok = new userTokensClass(
             ['cdate' => $create,
                 'selector' => $selector, 
                 "validator" => $validator, 
                 'uname' => $uname, 
+                'remoteip' => $remoteip,
+                'useragent' => $useragent,
                 'expiry' => $expiry
             ]);
         $tok->insert();
@@ -55,7 +57,7 @@ class userTokensClassEx extends userTokensClass {
     }
 
 
-    static function delete_user_token(string $uname): bool {
+    static function delete_user_token(string $uname, string $remoteip, string $useragent): bool {
         global $AppDBConnection;
 
         if(!$AppDBConnection->isConnected()) {
@@ -65,14 +67,16 @@ class userTokensClassEx extends userTokensClass {
             }
         }
 
-        $sql = "DELETE FROM user_tokens WHERE uname=:uname";
+        $sql = "DELETE FROM user_tokens WHERE uname=:uname AND remoteip=:remoteip AND useragent=:useragent";
         $st = $AppDBConnection->getConnection()->prepare( $sql );
         $st->bindValue(":uname", $uname, PDO::PARAM_STR);
+        $st->bindValue(":remoteip", $remoteip, PDO::PARAM_STR);
+        $st->bindValue(":useragent", $useragent, PDO::PARAM_STR);
 
         return $st->execute();
     }
 
-    static function getUserByToken(string $token) {
+    static function getUserByToken(string $token, string $remoteip, string $useragent) {
         global $AppDBConnection;
         global $kernel;
 
@@ -86,9 +90,11 @@ class userTokensClassEx extends userTokensClass {
         $tokens = userTokensClassEx::parse_token($token);
         prelog("getUserByToken: $token, $tokens[0]");
 
-        $sql = "SELECT * FROM users INNER JOIN user_tokens ON user_tokens.uname=users.uname WHERE selector=:selector AND expiry > now() LIMIT 1";
+        $sql = "SELECT * FROM users INNER JOIN user_tokens ON user_tokens.uname=users.uname WHERE selector=:selector AND remoteip=:remoteip AND useragent=:useragent AND expiry > now() LIMIT 1";
         $st = $AppDBConnection->getConnection()->prepare( $sql );
         $st->bindValue(":selector", $tokens[0], PDO::PARAM_STR);
+        $st->bindValue(":remoteip", $remoteip, PDO::PARAM_STR);
+        $st->bindValue(":useragent", $useragent, PDO::PARAM_STR);
         $st->execute();
         $row = $st->fetch();
 
@@ -116,7 +122,6 @@ class userTokensClassEx extends userTokensClass {
         
         return password_verify($validator, $tokens->getvalidator());
     }
-
     
 }
 
