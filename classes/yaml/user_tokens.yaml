@@ -5,4 +5,6 @@
     - selector: varchar(255) not null
     - validator: varchar(255) not null
     - uname: varchar(32) not null
+    - remoteip: varchar(25) not null
+    - useragent: varchar(255) not null
     - expiry: datetime not null
