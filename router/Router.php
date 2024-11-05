@@ -244,7 +244,10 @@ class RouterClass {
                     'url' => $url,
                     'total_count' => 0,
                     'week_count' => 0,
-                    'month_count' => 0
+                    'last_week_count' => 0,
+
+                    'month_count' => 0,
+                    'last_month_count' => 0,
                 ]);
 
                 // echopre("page analytics not found [page: $page, url: $url]");
