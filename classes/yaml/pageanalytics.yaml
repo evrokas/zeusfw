@@ -5,6 +5,10 @@
     - cdate: datetime default current_timestamp
     - page: text
     - url: text
-    - total_count: bigint
-    - week_count: int
-    - month_count: int
+    - total_count: bigint default 0
+    - week_count: int default 0
+    - last_week_count: int default 0
+    - month_count: int default 0
+    - last_month_count: int default 0
+
+  
