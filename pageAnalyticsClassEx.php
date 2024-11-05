@@ -71,5 +71,28 @@ class pageAnalyticsClassEx extends pageAnalyticsClass {
         $this->reset_week_count();
         $this->reset_month_count();
     }
-    
+
+
+    static function initializePageAnalyticsRecord() {
+        $stat = pageAnalyticsClassEx::getPageByName('__system_statistics');
+        if(!$stat) {
+            $stat = new pageAnalyticsClass([
+                'cdate' => getDBtime(),
+                'page' => '__system_statistics',
+                'url' => '__system_statistics',
+                'total_count' => 0,
+                'week_count' => 0,
+                'last_week_count' => 0,
+
+                'month_count' => 0,
+                'last_month_count' => 0,
+            ]);
+            $stat->insert();
+
+        } else {
+            $stat->setcdate(getDBtime());
+            $stat->update();
+        }
+    }
+
 }
