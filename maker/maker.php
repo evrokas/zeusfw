@@ -1005,6 +1005,164 @@ function content_view($afile) {
 }
 
 
+// $dir can be fw/ or web/
+function tables_action($action, $target = null) {
+    if(!defined('__APPDIR__'))require_option('app-dir');
+    $cwd = posix_getcwd();
+    // echo "Current dir: $cwd\n";
+    
+    chdir(__APPDIR__);
+    // echo "Current dir: " . posix_getcwd() . "\n";
+
+
+    $args = "| grep CREATE - | cut -d\` -f2 -";
+    $cmd = "./sql/msqldump.sh " . $args;
+    // echo "$cmd\n";
+    $res = shell_exec( $cmd );
+
+    $tables0 = explode("\n", $res);
+    $tables = array();
+    foreach($tables0 as $el)
+        if(strlen($el))$tables[] = $el;
+    // print_r($tables);
+
+
+    $fw_sql0 = glob('./fw/classes/sql/*.sql');
+    $web_sql0 = glob('./web/classes/sql/*.sql');
+
+    // print_r($fw_sql0);
+    // print_r($web_sql0);
+    
+    $fw_sql = array();
+    array_walk($fw_sql0, function(&$v, $k)  {
+        // print_r($v);
+        if(strlen($v)) {
+            $t = explode('/', $v);
+            // print_r($t);
+            $tt = $t[array_key_last($t)];
+            $ttt = explode('.', $tt);
+            // print_r($ttt);
+            if(count($ttt)>0)
+                $v = $ttt[0];
+            // explode('.', $tt)[0];
+        }
+        // return explode('.', $tt)[0];
+    });
+    // print_r($fw_sql0);
+
+    $web_sql = array();
+    array_walk($web_sql0, function(&$v, $k)  {
+        // print_r($v);
+        if(strlen($v)) {
+            $t = explode('/', $v);
+            // print_r($t);
+            $tt = $t[array_key_last($t)];
+            $ttt = explode('.', $tt);
+            // print_r($ttt);
+            if(count($ttt)>0)
+                $v = $ttt[0];
+            // explode('.', $tt)[0];
+        }
+        // return explode('.', $tt)[0];
+    });
+    // print_r($web_sql0);
+    // echo "tables in database\n";
+    // print_r($tables);
+
+    // echo "tables in fw\n";
+    // print_r($fw_sql0);
+
+    $tables1 = array_diff($tables, $fw_sql0);
+    $fw_sql1 = array_intersect($tables, $fw_sql0);
+    $fw_sql2 = array_diff($fw_sql0, $fw_sql1);
+    
+    // echo "table list after removing fw tables\n";
+    // print_r($tables1);
+
+    // echo "tables remained in fw\n";
+    // print_r($fw_sql2);
+    
+    
+
+    // echo "tables in database after removing fw\n";
+    // print_r(array_values($tables1));
+    $tables1 = array_values($tables1);
+    // print_r($tables1);
+    // echo "tables in web\n";
+    // $web_sql0 = array_flip($web_sql0);
+    // print_r($web_sql0);
+    
+    $tables2 = array_diff($tables1, $web_sql0);
+    // $tables2 = $tables1 - $web_sql0;
+    $web_sql1 = array_intersect($tables1, $web_sql0);
+
+    $web_sql2 = array_diff($web_sql0, $web_sql1);
+    // echo "common tables in database and web\n";
+    // print_r($web_sql1);
+    
+    // echo "tables in database after removing web\n";
+    // print_r($tables2);
+
+    // echo "tables remained in web\n";
+    // print_r($web_sql2);
+    
+    // $fw_sql = array_flip($fw_sql0);
+    // print_r($fw_sql);
+    // foreach($fw_sql0 as $val) {
+    //     print_r( array_pop(explode('/', $val)));
+    //     array
+    // }
+    // print_r($tables);
+
+    switch($action) {
+        case 'list':
+            switch($target) {
+                case 'fw':
+                    foreach($fw_sql0 as $el)echo("$el\n");
+                    break;
+                case 'web':
+                    foreach($web_sql0 as $el)echo("$el\n");
+                    break;
+                case 'all':
+                    foreach($fw_sql0 as $el)echo("$el\n");
+                    foreach($web_sql0 as $el)echo("$el\n");
+                    break;
+            }
+            break;
+        case 'new':
+            switch($target) {
+                case 'fw':
+                    foreach($fw_sql2 as $el)echo("$el\n");
+                    break;
+                case 'web':
+                    foreach($web_sql2 as $el)echo("$el\n");
+                    break;
+                case 'all':
+                    foreach($fw_sql2 as $el)echo("$el\n");
+                    foreach($web_sql2 as $el)echo("$el\n");
+                    break;
+            }
+            break;
+        case 'missing':
+            foreach($tables2 as $el)echo("$el\n");
+            break;
+
+    }
+
+    // echo("Tables to be added in database from fw\n");
+    // print_r($fw_sql2);
+
+    // echo("Tables to be added in database from web\n");
+    // print_r($web_sql2);
+
+    // echo("Tables to be dropped from database\n");
+    // print_r($tables2);
+
+    chdir($cwd);
+}
+
+
+
 function makesure_dir_exists($dir) {
     if(!file_exists($dir)) {
         mkdir($dir);
@@ -1062,7 +1220,7 @@ function makesure_dir_exists($dir) {
                 'list:yaml' => 'list YAML files in the yaml folder',
                 'list:sql' => 'list SQL files in the SQL folder',
                 'spill:sql' => 'spill SQL code for specific YAML file',
-                'spill:sql:all' => 'spill SQL code for all YAML files in yaml folder',
+                'spill:sql: chall' => 'spill SQL code for all YAML files in yaml folder',
                 'spill:class' => 'spill PHP CLASS code for specific YAML file',
                 'spill:class:all' => 'spill PHP CLASS code for all YAML files in yaml folder',
                 'update:bootstrap' => 'update bootstrap for classes PHP file',
@@ -1074,7 +1232,17 @@ function makesure_dir_exists($dir) {
                 'feed:gen' => 'generate feeder template',
                 'feed:gen:yaml' => 'generate feed templates from yaml file', 
                 'feed:view' => 'show feed data',
-                'feed:load' => 'load feed data to database'
+                'feed:load' => 'load feed data to database',
+                'tables:list:fw' => 'dump database tables fw',
+                'tables:list:web' => 'dump database tables web',
+                'tables:list:all' => 'dump database tables from fw & web',
+                // not yet implemented
+                'tables:new:fw' => '[n/a] show tables from fw that have not been added to database, yet',
+                'tables:new:web' => '[n/a] show tables from web that have not been added to database, yet',
+                'tables:new:all' => '[n/a] show tables from fw & web that have not been added to database, yet',
+
+                'tables:missing' => '[n/a] show database tables that are missing .yaml representation'
+                
             ];
 
             foreach($commands as $key => $value) {
@@ -1232,6 +1400,28 @@ function makesure_dir_exists($dir) {
             makesure_dir_exists( $data_dir );
             $file =  $optparams[1];
             export_data($file);
+            break;
+
+        case 'tables:list:fw':
+            tables_action('list', 'fw');
+            break;
+        case 'tables:list:web':
+            tables_action('list', 'web');
+            break;
+        case 'tables:list:all':
+            tables_action('list', 'all');
+            break;
+        case 'tables:new:fw':
+            tables_action('new', 'fw');
+            break;
+        case 'tables:new:web':
+            tables_action('new', 'web');
+            break;
+        case 'tables:new:all':
+            tables_action('new', 'all');
+            break;
+        case 'tables:missing':
+            tables_action('missing');
             break;
 
         default:
