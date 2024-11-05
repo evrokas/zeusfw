@@ -58,6 +58,10 @@ class Kernel {
         // echo "</pre>";
 
         date_default_timezone_set( $this->safeGetConfig('tz') );
+
+        if(class_exists('pageAnalyticsClassEx')) {
+            pageAnalyticsClassEx::initializePageAnalyticsRecord();
+        }
     }
 
     function getConfig($section=null) {
