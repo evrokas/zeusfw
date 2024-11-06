@@ -80,6 +80,7 @@ class pageAnalyticsClassEx extends pageAnalyticsClass {
                 'cdate' => getDBtime(),
                 'page' => '__system_statistics',
                 'url' => '__system_statistics',
+                'rule' => '@',
                 'total_count' => 0,
                 'week_count' => 0,
                 'last_week_count' => 0,
