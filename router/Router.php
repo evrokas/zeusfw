@@ -89,6 +89,7 @@ class RouterClass {
         $req = explode('/', $req);
         // print_r( $req );
         $match_collection = array();
+        $rule = '';
 
         foreach($this->route_table as $routename => $routedata) {
             
@@ -103,7 +104,11 @@ class RouterClass {
                     
                     $params = array();
                     $match = $this->matchRoutePaths($req, $rpath, $params);
-                    if($match)break;
+                    if($match) {
+                        
+                        $rule = $routeurl;
+                        break;
+                    }
                 }
             } else {
                 $rpath = explode('/', trim($routedata['url'], '/'));
@@ -113,6 +118,7 @@ class RouterClass {
                 
                 $params = array();
                 $match = $this->matchRoutePaths($req, $rpath, $params);
+                $rule = $routedata['url'];
             }
             if($match) {
 
@@ -150,6 +156,7 @@ class RouterClass {
                         "_routedata" => $routedata, 
                         "_params" => $params, 
                         "_fit" => $match,
+                        "_rule" => $rule,
                         "_request" => $areq->getQueryString()
                     ];
                     // echo "<pre>Route match: " . $arequest . " === " . $routedata['title'] . " = " . $routedata['url'] . " method: " . $routedata['method'] . "</pre>";
@@ -242,6 +249,7 @@ class RouterClass {
                     'cdate' => getDBtime(),
                     'page' => $page,
                     'url' => $url,
+                    'rule' => $match_route['_rule'],
                     'total_count' => 0,
                     'week_count' => 0,
                     'last_week_count' => 0,
