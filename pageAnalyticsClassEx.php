@@ -96,4 +96,22 @@ class pageAnalyticsClassEx extends pageAnalyticsClass {
         }
     }
 
+
+    static function newWeek() {
+        $pages = pageAnalyticsClassEx::sgetAll();
+        foreach($pages as $pag) {
+            $pag->setlast_week_count( $pag->getweek_count() );
+            $pag->setweek_count( 0 );
+            $pag->update();
+        }
+    }
+    static function newMonth() {
+        $pages = pageAnalyticsClassEx::sgetAll();
+        foreach($pages as $pag) {
+            $pag->setlast_month_count( $pag->getmonth_count() );
+            $pag->setmonth_count( 0 );
+            $pag->update();
+        }
+    }
+
 }
