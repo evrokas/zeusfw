@@ -5,6 +5,7 @@
     - cdate: datetime default current_timestamp
     - page: text
     - url: text
+    - rule: text
     - total_count: bigint default 0
     - week_count: int default 0
     - last_week_count: int default 0
