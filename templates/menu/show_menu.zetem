@@ -2,7 +2,9 @@
       {% function show_menu($aamenu, $aalevel) { %}
         {% foreach($aamenu as $menuitem): %}
             {% if(!isset($menuitem['disabled']) || (!$menuitem['disabled'])): %}
-                {% if(isset($menuitem['submenu'])): %}
+                {% if(isset($menuitem['submenu']) && 
+                    (!isset($menuitem['submenu-visibility']) || 
+                        (isset($menuitem['submenu-visibility']) && $menuitem['submenu-visibility'] != "hide")) ): %}
                     <li {{attributes($menuitem)}}>
                         {% if(isset($menuitem['url'])): %}
                             <a href="{{(isset($menuitem['url']))?rel_url($menuitem['url']):'#';}}">
@@ -13,16 +15,19 @@
                                     {{ $menuitem['icon']['class'] }}
                                 {% endif %}
                             {% endif %}
-                            <!-- <span> -->
                                 <input type="checkbox" id="btn-{{$menuitem['key']}}">
-                                <label for="btn-{{$menuitem['key']}}" class="show">
+                                <!-- <input type="radio" name="radio-level-{{$aalevel}}" id="btn-{{$menuitem['key']}}"> -->
 
-                                    {% if(isset($menuitem['text'])): %}
-                                        {{getLangText($menuitem['text'])}}
-                                    {% endif %}
-                                    <i class="bx bx-chevron-right"></i>
+                                <label for="btn-{{$menuitem['key']}}" class="show">
+                                    <span>
+
+                                        {% if(isset($menuitem['text'])): %}
+                                            {{getLangText($menuitem['text'])}}
+                                        {% endif %}
+                                        <i class="bx bx-chevron-right"></i>
+                                    </span>
+
                                 </label>
-                            <!-- </span> -->
 
                         {% if(isset($menuitem['url'])): %}
                             </a>
