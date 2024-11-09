@@ -20,6 +20,8 @@ class Renderer {
 	// static $enable_comments = FALSE;
 	static $template_files = array();
 
+	static $filterCallbackArray = array();	// filter callbacks
+
 	// $template_path is the path for the template files
 	static function init($template_path) {
 		// $template_path can be string or array of strings, but self::$template_path
@@ -63,6 +65,11 @@ class Renderer {
 			// add templates to template_files
 			self::findTemplates($tpath, self::$template_files);
 		}
+
+		self::filterRegister('asset', 'Renderer::filter_asset');
+		self::filterRegister('upper', 'Renderer::filter_uppercase');
+
+
 	}
 	static function view($file, $data = array(), $stemplate = null) {
 		$cached_file = self::cache($file, $stemplate);
@@ -244,53 +251,92 @@ class Renderer {
 		// {{ $variable | t | raw }}
 
 		$ret = preg_replace_callback("~\{{\s*(.+?)\s*\}}~is",
-			function ($matches) {
+			function ($matches0) {
 
-				$parts = preg_split('/\s*\|\s*(?=(?:[^\'"]|\'[^\']*\'|"[^"]*")*$)/', $matches[1]);
+				$parts = preg_split('/\s*\|\s*(?=(?:[^\'"]|\'[^\']*\'|"[^"]*")*$)/', $matches0[1]);
 
-
-				// $parts = array_map("trim", explode('|', $matches[1]));
-
-				$mainContent = $parts[1]; // Content before `|`
+				$mainContent = $parts[0]; // Content before `|`
 		
 				$filterPart = array_slice($parts, 1);
 
 				$filterFuncs = array();
-				if(count($filterPart)) {
-					foreach($filterPart as $filter) {
-						$filterFunc = preg_replace_callback(
-							"~\b(\w+)\s*\(\s*([^,()]+(?:\s*,\s*[^,()]+)*)\s*\)~is",
-							function ($matches) {
-								// $matches[1] is the function name
-								$functionName = $matches[1];
-						
+				foreach($filterPart as $filter) {
+					$filterFunc = preg_replace_callback(
+						// "~\b(\w+)\s*\(\s*([^,()]+(?:\s*,\s*[^,()]+)*)\s*\)~is",
+						"~\b(\w+)\s*(\(([^,()]*?(?:\s*,\s*[^,()]*?)*)\))?~is",
+						function ($matches) {
+							// $matches[1] is the function name
+							$functionName = $matches[1];
+					
+							// $matches[2] are the arguments, if exists
+							if(isset($matches[2]) && $matches[3] !== '') {
 								// Split the arguments by commas and trim any whitespace around each
-								$args = array_map('trim', explode(',', $matches[2]));
+								$args = array_map('trim', explode(',', $matches[3]));
 						
 								// Format as a single array argument for the new function call
 								// $argsArray = "['" . implode("', '", $args) . "']";
-								$argsArray = "[" . implode(", ", $args) . "]";
-						
-								// Return the transformed function call
-								return "template_filters['$functionName']($argsArray)";
-							},
-							$filter);
-						$filterFuncs[] = $filterFunc;
-					}
+								// $argsArray = "[" . implode(", ", $args) . "]";
+							} else 
+							// $argsArray = "[]";
+							$args = array();
+
+							// Return the transformed function call
+							return serialize([
+								"filter"=> $functionName, 
+								"args" => $args ]);
+								// "args" => serialize($argsArray) ]);
+						},
+						$filter);
+					$filterFuncs[] = $filterFunc;
 				}
-				// // Join the captured parts for demonstration or further processing
-				$additionalContent = implode(', ', $filterFuncs);
-				// $tx = print_r($additionalParts, 1);
-				$tx = print_r($additionalContent, 1);
-				// // $extraContent = isset($matches[2]) ? $matches[2] : ''; // Content after `|`, if it exists
-		
+
+				$tf = array();
+				foreach($filterFuncs as $ff) {
+					$tf[] = unserialize($ff);
+				}
+				$ttf = self::filterCallback($mainContent, $tf);
+				// $tx = print_r($ttf, 1);
+				$tx = $ttf;
 				// Replace logic using both `$mainContent` and `$extraContent`
-				return "<?php echo $parts[0];	 /* $tx */ ?>";
+				// return "<?php echo $parts[0]; ";
+				return "<?php echo $tx ?>";
 			},
 			$code
 		);
 		return $ret;
 		return preg_replace('~\{{\s*(.+?)\s*\}}~is', '<?php echo $1 ?>', $code);
+	}
+
+	// call recursively filters in $filters in reverse order with initial input $token
+	static function filterCallback(string $token, array $filters) {
+		// $filters = array_reverse($filters);
+		if(count($filters)>0) {
+			$ret = '';
+			foreach($filters as $filt) {
+				$ret = 'call_user_func( self::$filterCallbackArray[ "'.$filt['filter'] . '" ] ';
+				//  . $token;
+				if(isset($filt['args']) && count($filt['args'])>0)$ret .= ", " . 
+												"[" . $token . ',' .  implode(", ", $filt['args']) . "]";
+				// $filt['args'];	
+				$ret .= " )";
+				$token = $ret;
+			}
+		} else return $token;
+
+		return $ret;
+	}
+
+	static function filter_asset($token, $args = array() ) {
+		return asset( $token );
+	}
+
+
+	static function filter_uppercase($token, $argsh = array() ) {
+		return strtoupper($token);
+	}
+
+	static function filterRegister(string $name, string $cback) {
+		self::$filterCallbackArray[ $name ] = $cback;
 	}
 
 	static function compileEscapedEchos($code) {
