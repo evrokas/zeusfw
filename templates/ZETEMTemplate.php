@@ -233,6 +233,16 @@ class Renderer {
 		return preg_replace('~\{{\s*(.+?)\s*\}}~is', '<?php echo $1 ?>', $code);
 	}
 	static function compileEchos($code) {
+		// inside {{ }} there can be a number of options
+		// logic added on Nov 2024, with the help of ChatGPT which provided the regex patterns,
+		// and some of the underlying logic, heailty modified by Evangelos Rokas
+
+		// cases:
+		// {{ $variable }}
+		// {{ $variable | raw }}
+		// {{ $variable | t('gr') }}
+		// {{ $variable | t | raw }}
+
 		$ret = preg_replace_callback("~\{{\s*(.+?)\s*\}}~is",
 			function ($matches) {
 
