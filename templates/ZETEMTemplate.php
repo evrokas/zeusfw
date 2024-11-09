@@ -313,10 +313,10 @@ class Renderer {
 		if(count($filters)>0) {
 			$ret = '';
 			foreach($filters as $filt) {
-				$ret = 'call_user_func( self::$filterCallbackArray[ "'.$filt['filter'] . '" ] ';
+				$ret = 'call_user_func( self::$filterCallbackArray[ "'.$filt['filter'] . '" ], ' . $token ;
 				//  . $token;
 				if(isset($filt['args']) && count($filt['args'])>0)$ret .= ", " . 
-												"[" . $token . ',' .  implode(", ", $filt['args']) . "]";
+												'[ ' . implode(", ", $filt['args'] ) . ' ]';
 				// $filt['args'];	
 				$ret .= " )";
 				$token = $ret;
@@ -331,7 +331,7 @@ class Renderer {
 	}
 
 
-	static function filter_uppercase($token, $argsh = array() ) {
+	static function filter_uppercase($token, $args = array() ) {
 		return strtoupper($token);
 	}
 
