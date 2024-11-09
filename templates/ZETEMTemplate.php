@@ -229,7 +229,57 @@ class Renderer {
 		return preg_replace('~\{%\s*(.+?)\s*\%}~is', '<?php $1 ?>', $code);
 	}
 
+	static function compileEchos0($code) {
+		return preg_replace('~\{{\s*(.+?)\s*\}}~is', '<?php echo $1 ?>', $code);
+	}
 	static function compileEchos($code) {
+		$ret = preg_replace_callback("~\{{\s*(.+?)\s*\}}~is",
+			function ($matches) {
+
+				$parts = preg_split('/\s*\|\s*(?=(?:[^\'"]|\'[^\']*\'|"[^"]*")*$)/', $matches[1]);
+
+
+				// $parts = array_map("trim", explode('|', $matches[1]));
+
+				$mainContent = $parts[1]; // Content before `|`
+		
+				$filterPart = array_slice($parts, 1);
+
+				$filterFuncs = array();
+				if(count($filterPart)) {
+					foreach($filterPart as $filter) {
+						$filterFunc = preg_replace_callback(
+							"~\b(\w+)\s*\(\s*([^,()]+(?:\s*,\s*[^,()]+)*)\s*\)~is",
+							function ($matches) {
+								// $matches[1] is the function name
+								$functionName = $matches[1];
+						
+								// Split the arguments by commas and trim any whitespace around each
+								$args = array_map('trim', explode(',', $matches[2]));
+						
+								// Format as a single array argument for the new function call
+								// $argsArray = "['" . implode("', '", $args) . "']";
+								$argsArray = "[" . implode(", ", $args) . "]";
+						
+								// Return the transformed function call
+								return "template_filters['$functionName']($argsArray)";
+							},
+							$filter);
+						$filterFuncs[] = $filterFunc;
+					}
+				}
+				// // Join the captured parts for demonstration or further processing
+				$additionalContent = implode(', ', $filterFuncs);
+				// $tx = print_r($additionalParts, 1);
+				$tx = print_r($additionalContent, 1);
+				// // $extraContent = isset($matches[2]) ? $matches[2] : ''; // Content after `|`, if it exists
+		
+				// Replace logic using both `$mainContent` and `$extraContent`
+				return "<?php echo $parts[0];	 /* $tx */ ?>";
+			},
+			$code
+		);
+		return $ret;
 		return preg_replace('~\{{\s*(.+?)\s*\}}~is', '<?php echo $1 ?>', $code);
 	}
 
