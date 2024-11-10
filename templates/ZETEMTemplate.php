@@ -315,7 +315,7 @@ class Renderer {
 			foreach($filters as $filt) {
 				$ret = 'call_user_func( self::$filterCallbackArray[ "'.$filt['filter'] . '" ], ' . $token ;
 				//  . $token;
-				if(isset($filt['args']) && count($filt['args'])>0)$ret .= ", " . 
+				if(count($filt['args'])>0)$ret .= ", " . 
 												'[ ' . implode(", ", $filt['args'] ) . ' ]';
 				// $filt['args'];	
 				$ret .= " )";
