@@ -68,6 +68,7 @@ class Renderer {
 
 		self::filterRegister('asset', 'Renderer::filter_asset');
 		self::filterRegister('upper', 'Renderer::filter_uppercase');
+		self::filterRegister('cache_asset', 'Renderer::filter_cache_asset');
 
 
 	}
@@ -328,6 +329,10 @@ class Renderer {
 
 	static function filter_asset($token, $args = array() ) {
 		return asset( $token );
+	}
+	static function filter_cache_asset($token, $args = array() ) {
+		$token = trim($token, '/ ', );
+		return rel_url( '/cache/' . $token );
 	}
 
 
