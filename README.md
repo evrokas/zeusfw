@@ -1,5 +1,11 @@
 Zeus Framework
 
+[13-11-2024]
+Must implement theming on the framework, so each project has its own styling
+and templating, along with different menu implementations.
+Thoughts!
+
+
 [25/04/2024] Framework folders have been split, to framework and webpage projects
 
 In the main index PHP script,
