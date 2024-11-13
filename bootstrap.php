@@ -1,6 +1,9 @@
 <?php
 
 include_once(__DIR__ . "/kernel/Kernel.php");       // include Kernel class
+
+require_once(__DIR__ . "/kernel/utils.php");
+
 require_once(__DIR__ . "/db/dbal.php");            // load database abstract classes
 
 
