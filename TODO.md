@@ -1,3 +1,6 @@
+[17-11-24] add firewall module
+[17-11-24] add user login protection (count login tries,expire password etc)
+
 [10-10-24] make modules self contained with their own .yaml file etc
 [10-10-24] make login safer with challenge question
 [10-10-24] add Google ReCaptcha v3
