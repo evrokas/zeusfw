@@ -1,3 +1,4 @@
 classes/sql/*
 classes/*.php
 test
+symlinks/
