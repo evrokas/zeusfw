@@ -69,6 +69,7 @@ class Renderer {
 		self::filterRegister('asset', 'Renderer::filter_asset');
 		self::filterRegister('upper', 'Renderer::filter_uppercase');
 		self::filterRegister('cache_asset', 'Renderer::filter_cache_asset');
+		self::filterRegister('date', 'Renderer::filter_date');
 
 
 	}
@@ -335,9 +336,15 @@ class Renderer {
 		return rel_url( '/cache/' . $token );
 	}
 
-
 	static function filter_uppercase($token, $args = array() ) {
 		return strtoupper($token);
+	}
+
+	static function filter_date($token, $args = array() ) {
+		// echopre("token : $token, args: " . print_r($args, 1));
+		$dt = new DateTime($token);
+		if(count($args)>0)return $dt->format($args[0]);
+		else return $dt;
 	}
 
 	static function filterRegister(string $name, string $cback) {
