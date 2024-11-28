@@ -1,0 +1,16 @@
+routes:
+  adminmodule:
+    title: 'Administration'
+    name: admin
+    url: /admin
+    module: admin
+    # method: get
+
+libraries:
+  admin-library:
+    css:
+      - admin:
+        src: '@/css/admin.css'
+#    foot_script:
+#      - admin:
+#        src: '@/js/admin.js'
