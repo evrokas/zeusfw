@@ -124,6 +124,28 @@ function module($astr, $params) {
     return ( $mod->run( $params ) );
 }
 
+function remove_header_duplicates($list) {
+    // echopre(print_r($list, 1));
+
+    $final = array();
+    foreach($list as $lk => $l) {
+        $duplicate = 0;
+        // echopre("scanning for: " . $l['src']);
+        foreach($list as $rk => $r) {
+
+            // test for items following the current $l item
+            if(($rk > $lk) && ($r['src'] === $l['src'])) {
+                // echopre("found duplicate: " . $r['src']);
+                $duplicate++;
+            }
+        }
+        // echopre("duplicate: $duplicate");
+        
+        if(!$duplicate)$final[] = $l;
+    }
+    // echopre("Final list: " . print_r($final, 1));
+    return ($final);
+}
 
 function attach_library_helper($libname) {
     global $kernel;

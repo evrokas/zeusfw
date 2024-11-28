@@ -108,20 +108,7 @@ class Kernel {
         } else
             $addsection = $section;
 
-        // echo "<pre>addConfig: " . print_r( $addsection, 1) . "</pre>";
-        // echo "<pre>addConfig: " . print_r( $this->config, 1) . "</pre>";
-
         $this->config = array_merge_recursive($this->config, $addsection);
-
-        // foreach($addsection as $sectionkey => $sectionval) {
-        //     if(!isset($this->config[ $sectionkey ])) {
-        //         $this->config[ $sectionkey ] = array();
-        //     } 
-        //     foreach($sectionval as $valkey => $valval) {
-        //         $this->config[ $sectionkey ][ $valkey ] = $valval;
-        //     }
-        // }
-        // echo "<pre>addConfig: " . print_r( $this->config, 1) . "</pre>";        
     }
 
     function getRoutes() {
@@ -243,15 +230,17 @@ class Kernel {
                 $regions_resp[ $region ] = Renderer::render($temp /*'region.zetem'*/, ['region_name' => $region, 'blocks' => $blk_resp], [$sugg, $temp]);
         }
 
+        // echopre(print_r($this->getConfig('foot_script'), 1));
+
         Renderer::view('main.zetem', 
         [
             'title' => $this->getConfig('title'),
             'meta' => $this->getConfig('meta'),
-            'css' => $this->getConfig('css'),
+            'css' => remove_header_duplicates($this->getConfig('css')),
             'fonts' => $this->getConfig('fonts'),
-            'head_links' => $this->getConfig('head_links'),
-            'head_script' => $this->getConfig('head_script'),
-            'foot_script' => $this->getConfig('foot_script'),
+            'head_links' => remove_header_duplicates($this->getConfig('head_links')),
+            'head_script' => remove_header_duplicates($this->getConfig('head_script')),
+            'foot_script' => remove_header_duplicates($this->getConfig('foot_script')),
             'regions' => $regions_resp
         ]);
     
