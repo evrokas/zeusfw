@@ -9,7 +9,7 @@
         if(file_exists($dir . '/config')) {
             // echo "$dir/config exists!";
             define('__APPDIR__', $dir);
-            define('__FWDIR__', $dir . '/fw');
+            define('__FWDIR__', $dir . '/web/core');
             break;
         } else
         if(file_exists($dir . '/bootstrap.php')) {
@@ -1027,7 +1027,7 @@ function tables_action($action, $target = null) {
     // print_r($tables);
 
 
-    $fw_sql0 = glob('./fw/classes/sql/*.sql');
+    $fw_sql0 = glob('./web/core/classes/sql/*.sql');
     $web_sql0 = glob('./web/classes/sql/*.sql');
 
     // print_r($fw_sql0);
