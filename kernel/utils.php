@@ -118,9 +118,9 @@ function echopre($str) {
 function module($astr, $params) {
     global $kernel;
 
-    // echopre("Calling module: $astr");
+    echopre("Calling module: $astr");
     $mod = $kernel->getModule( $astr );
-    // echopre(print_r($mod, 1));
+    echopre(print_r($mod, 1));
     return ( $mod->run( $params ) );
 }
 

@@ -167,22 +167,27 @@ class Kernel {
     }
 
     function resolveModuleDir($info, $adir, $amodule) {
-        // echopre("SERVER: ". print_r($_SERVER, 1));
-        // echopre("module dir: " . $adir);
-        // echopre("pre resolve: " .  print_r($info, 1) );
+        echopre("SERVER: ". print_r($_SERVER['DOCUMENT_ROOT'], 1));
+        echopre("PHP_SELF: ". print_r($_SERVER['PHP_SELF'], 1));
+        echopre("dirname(PHP_SELF): ". print_r(dirname($_SERVER['PHP_SELF']), 1));
+        echopre("module dir: " . $adir);
+        echopre("pre resolve: " .  print_r($info, 1) );
         $aadir = substr(dirname($adir), strlen($_SERVER['DOCUMENT_ROOT'])+strlen(dirname($_SERVER['PHP_SELF']))).'/'.$amodule;
-        return ( recursive_array_replace("@", $aadir, $info) );
-        // echopre("post resolve: " . print_r( $info, 1) );
+        echopre('aadir: ' , $aadir);
+        $rinfo = recursive_array_replace("@", $aadir, $info);
+
+        echopre("post resolve: " . print_r( $rinfo, 1) );
+        return ( $rinfo );
     }
 
     function getModule($amodulename) {
-        // echo "requesting module with name " . $amodulename;
+        echopre("requesting module with name " . $amodulename);
         if(isset($this->modules[ $amodulename ])) {
-            // echo " Found!\n";
+            echopre("Found!");
             return( $this->modules[ $amodulename ] );
         }
         else {
-            // echo " Not found!\n";
+            echopre("Not found!");
             return null;
         }
     }
