@@ -1,3 +1,6 @@
+[28-11-24] add administration module
+[28-11-24] add oauth2-like authorization system/module
+
 [17-11-24] add firewall module
 [17-11-24] add user login protection (count login tries,expire password etc)
 
