@@ -1220,7 +1220,7 @@ function makesure_dir_exists($dir) {
                 'list:yaml' => 'list YAML files in the yaml folder',
                 'list:sql' => 'list SQL files in the SQL folder',
                 'spill:sql' => 'spill SQL code for specific YAML file',
-                'spill:sql: chall' => 'spill SQL code for all YAML files in yaml folder',
+                'spill:sql:all' => 'spill SQL code for all YAML files in yaml folder',
                 'spill:class' => 'spill PHP CLASS code for specific YAML file',
                 'spill:class:all' => 'spill PHP CLASS code for all YAML files in yaml folder',
                 'update:bootstrap' => 'update bootstrap for classes PHP file',
