@@ -1,7 +1,7 @@
 routes:
   adminmodule:
     title: 'Administration'
-    name: admin
+    name: admin_handler
     url: /admin
     module: admin
     # method: get
@@ -10,7 +10,7 @@ libraries:
   admin-library:
     css:
       - admin:
-        src: '@/css/admin.css'
+        src: '@core/css/admin.css'
 #    foot_script:
 #      - admin:
-#        src: '@/js/admin.js'
+#        src: '@core/js/admin.js'

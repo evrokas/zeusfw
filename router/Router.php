@@ -313,6 +313,7 @@ class RouterClass {
     }
 
     static function call_module_func($amodule, $params) {
+        echopre("router call_module_func for module $amodule and params: " . print_r($params, 1));
         return (module( $amodule, $params ) );
     }
 }

@@ -161,33 +161,80 @@ class Kernel {
     }
 
 
-    function registerModule($amod ) {
-        // echo "kernel: registering new module " . $amod->getName() . "<br/>";
+    function registerModule($amod) {
+        echopre("kernel: registering new module " . print_r($amod, 1));
         $this->modules[$amod->getName()] = $amod;
     }
 
     function resolveModuleDir($info, $adir, $amodule) {
-        echopre("SERVER: ". print_r($_SERVER['DOCUMENT_ROOT'], 1));
-        echopre("PHP_SELF: ". print_r($_SERVER['PHP_SELF'], 1));
-        echopre("dirname(PHP_SELF): ". print_r(dirname($_SERVER['PHP_SELF']), 1));
-        echopre("module dir: " . $adir);
-        echopre("pre resolve: " .  print_r($info, 1) );
-        $aadir = substr(dirname($adir), strlen($_SERVER['DOCUMENT_ROOT'])+strlen(dirname($_SERVER['PHP_SELF']))).'/'.$amodule;
-        echopre('aadir: ' , $aadir);
-        $rinfo = recursive_array_replace("@", $aadir, $info);
+        // echopre("DOCUMENT_ROOT: ". print_r($_SERVER['DOCUMENT_ROOT'], 1));
+        // echopre("PHP_SELF: ". print_r($_SERVER['PHP_SELF'], 1));
+        // echopre("dirname(PHP_SELF): ". print_r(dirname($_SERVER['PHP_SELF']), 1));
 
-        echopre("post resolve: " . print_r( $rinfo, 1) );
-        return ( $rinfo );
+        // echopre("APP_DIR: " . __APPDIR__);
+        // echopre("FW_DIR: " . __FWDIR__);
+        // echopre("BOOTSTRAP_DIR: " . __BOOTSTRAP_DIR__);
+        // echopre("module dir: " . $adir);
+        // echopre("<hr>");
+
+        $bootstrap_len = strlen(__BOOTSTRAP_DIR__);
+        $app_len = strlen(__APPDIR__ . '/web');
+
+        $root_dir = dirname($_SERVER['PHP_SELF']);
+        // echopre("root_dir: $root_dir");
+
+        $core_dir = substr(__FWDIR__, strlen($_SERVER['DOCUMENT_ROOT']));
+        // echopre("core dir: $core_dir");
+
+        // echopre("bootstrap_len: $bootstrap_len");
+        // echopre("app_len: $app_len");
+
+        $core_module_dir = substr($adir, $bootstrap_len);
+        // echopre("core module rel dir: $core_module_dir");
+
+        $app_module_dir = substr($adir, $app_len);
+        // echopre("APP dir: $app_module_dir");
+
+
+
+
+        // echopre("<hr>");
+
+        $final_core_module_dir = /*$core_dir . */'/core' . $core_module_dir; /*. '/' . $amodule;*/
+        echopre("final_core_module_dir: $final_core_module_dir");
+
+        $final_app_module_dir = /*$root_dir . */$app_module_dir; /* . '/' . $amodule;*/
+        echopre("final_app_module_dir: $final_app_module_dir");
+
+        // echopre("<hr>");
+
+        // echopre("pre resolve: " .  print_r($info, 1) );
+
+        // $aadir = substr(dirname($adir), strlen($_SERVER['DOCUMENT_ROOT'])+strlen(dirname($_SERVER['PHP_SELF']))).'/'.$amodule;
+        // echopre('aadir: ' , $aadir);
+
+        // $aaadir = substr(dirname($adir), strlen(__BOOTSTRAP_DIR__)).'/'.$amodule;
+        // echopre('aaadir: ' , $aaadir);
+
+        $rinfo = recursive_array_replace("@core", $final_core_module_dir, $info);
+        // echopre("\$rinfo: " . print_r($rinfo, 1));
+        $rrinfo = recursive_array_replace("@app", $final_app_module_dir, $rinfo);
+        // echopre("\$rrinfo: " . print_r($rrinfo, 1));
+
+        // echopre("post resolve: " . print_r( $rrinfo, 1) );
+        return ( $rrinfo );
     }
 
     function getModule($amodulename) {
-        echopre("requesting module with name " . $amodulename);
+        // echopre("requesting module with name " . $amodulename);
+        echopre("modules list " . print_r($this->modules, 1));
+
         if(isset($this->modules[ $amodulename ])) {
-            echopre("Found!");
+            // echopre("Found!");
             return( $this->modules[ $amodulename ] );
         }
         else {
-            echopre("Not found!");
+            // echopre("Not found!");
             return null;
         }
     }
