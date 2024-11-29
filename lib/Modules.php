@@ -9,7 +9,7 @@ class moduleClass {
     private $template;       // template associateed wi
 
     function __construct($adir, $amodule, $atemplate) {
-        echopre("moduleClass __construct($adir, $amodule, " . print_r($atemplate,1));
+        // echopre("moduleClass __construct($adir, $amodule, " . print_r($atemplate,1));
         $this->moduledir = $adir;
         $this->modulename = $amodule;
         $this->template = $atemplate;
@@ -95,26 +95,26 @@ function registerModules() {
         // $modpath = $mpath;
 
         foreach($mods['modules'] as $mod) {
-            echopre("module: $modpath => $mod");
+            // echopre("module: $modpath => $mod");
             $yfile = $modpath . $mod . '/' . $mod . '.info.yaml';
-            echopre("Testing yfile: $yfile");
+            // echopre("Testing yfile: $yfile");
             if(file_exists($yfile)) {
-                echopre("Module exists");
+                // echopre("Module exists");
                 $yinfo = file_get_contents($yfile);
-                echopre("yfile-contents: " . print_r($yinfo, 1));
+                // echopre("yfile-contents: " . print_r($yinfo, 1));
 
                 $module_class = 
                 $modpath . 
                 $mod . '/' . $mod . '.php';
 
                 // include module source
-                echopre("module class: $module_class");
+                // echopre("module class: $module_class");
                 require( $module_class );
                 
                 $module_register_callback = 'register_' . $mod . '_module';
-                echo "<pre>register function: $module_register_callback</pre>";
+                // echo "<pre>register function: $module_register_callback</pre>";
                 if(function_exists($module_register_callback)) {
-                    echo "<pre>Function <b>$module_register_callback</b> exists</pre>";
+                    // echo "<pre>Function <b>$module_register_callback</b> exists</pre>";
                     call_user_func( $module_register_callback );
                 }
             }

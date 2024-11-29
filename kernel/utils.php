@@ -118,9 +118,12 @@ function echopre($str) {
 function module($astr, $params) {
     global $kernel;
 
-    echopre("Calling module: $astr");
+    // echopre("Calling module: $astr");
     $mod = $kernel->getModule( $astr );
-    echopre(print_r($mod, 1));
+    // echopre("Found module: " . print_r($mod, 1));
+    if(!$mod) {
+        return (error_404());
+    }
     return ( $mod->run( $params ) );
 }
 
@@ -178,12 +181,13 @@ function attach_library($libname) {
 
 function recursive_array_replace ($find, $replace, $array) {
     if (!is_array($array)) {
-        return str_replace($find, $replace, $array);
+        if(is_null($array))return null;
+        else return str_replace($find, $replace, $array);
     }
 
     $newArray = [];
     foreach ($array as $key => $value) {
-        $newArray[$key] = recursive_array_replace($find, $replace, $value);
+            $newArray[$key] = recursive_array_replace($find, $replace, $value);
     }
     return $newArray;
 }

@@ -162,7 +162,7 @@ class Kernel {
 
 
     function registerModule($amod) {
-        echopre("kernel: registering new module " . print_r($amod, 1));
+        // echopre("kernel: registering new module <b>" . print_r($amod->getName(), 1) . "</b>");
         $this->modules[$amod->getName()] = $amod;
     }
 
@@ -201,10 +201,10 @@ class Kernel {
         // echopre("<hr>");
 
         $final_core_module_dir = /*$core_dir . */'/core' . $core_module_dir; /*. '/' . $amodule;*/
-        echopre("final_core_module_dir: $final_core_module_dir");
+        // echopre("final_core_module_dir: $final_core_module_dir");
 
         $final_app_module_dir = /*$root_dir . */$app_module_dir; /* . '/' . $amodule;*/
-        echopre("final_app_module_dir: $final_app_module_dir");
+        // echopre("final_app_module_dir: $final_app_module_dir");
 
         // echopre("<hr>");
 
@@ -216,6 +216,7 @@ class Kernel {
         // $aaadir = substr(dirname($adir), strlen(__BOOTSTRAP_DIR__)).'/'.$amodule;
         // echopre('aaadir: ' , $aaadir);
 
+        // echopre("\$info: " . print_r($info, 1));
         $rinfo = recursive_array_replace("@core", $final_core_module_dir, $info);
         // echopre("\$rinfo: " . print_r($rinfo, 1));
         $rrinfo = recursive_array_replace("@app", $final_app_module_dir, $rinfo);
@@ -227,7 +228,7 @@ class Kernel {
 
     function getModule($amodulename) {
         // echopre("requesting module with name " . $amodulename);
-        echopre("modules list " . print_r($this->modules, 1));
+        // echopre("modules list " . print_r($this->modules, 1));
 
         if(isset($this->modules[ $amodulename ])) {
             // echopre("Found!");
