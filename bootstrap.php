@@ -1,9 +1,11 @@
 <?php
 
+if(!defined('__BOOTSTRAP_DIR__'))
+    define("__BOOTSTRAP_DIR__", __DIR__);
+
+
 include_once(__DIR__ . "/kernel/Kernel.php");       // include Kernel class
-
 require_once(__DIR__ . "/kernel/utils.php");
-
 require_once(__DIR__ . "/db/dbal.php");            // load database abstract classes
 
 
