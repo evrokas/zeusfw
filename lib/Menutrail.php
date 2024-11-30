@@ -38,8 +38,8 @@ class Menutrail {
         $found = false;
         foreach($amenu as $menuitem) {
             // echopre("menutrail [lvl: $level]: '" . print_r($menuitem, 1) ."'");
-            // echopre("test trail: " . array_key_first($menuitem) . " === " . $apath[ $level ] . "<br>");
-            if(array_key_first($menuitem) == $this->path[ $level ]) {
+            // echopre("test trail: " . array_key_first($menuitem) . " === " . $this->path[ $level ] . "<br>");
+            if(isset($this->path[$level]) && (array_key_first($menuitem) == $this->path[ $level ])) {
                 // echopre("found trail " . $menuitem['text'] );
                 // ]. "<br>". print_r( $menuitem, 1));
                 // echopre("menuitem: " . print_r($menuitem, 1));
