@@ -1,5 +1,4 @@
-classes/sql/*
-classes/*.php
-test
-symlinks/*
-!symlinks/README
+core/classes/sql/*
+core/classes/*.php
+core/symlinks/*
+!core/symlinks/README
