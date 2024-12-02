@@ -540,13 +540,18 @@ class Database {
 
 }
 
-function get_dir_files($dir) {
+function get_dir_files($dir, $ext = null) {
     // echo "# Listing of ".$dir . '/' . " folder.\n";
     // list YAML files
     $folder= scandir($dir . '/');
+    // $folder= glob($dir . '/' . '*.' . $ext); 
+        // scandir($dir . '/');
     $files = array();
     foreach($folder as $f)
-        if($f[0] != '.')$files[] = $f;
+        if(($f[0] != '.') &&
+           (!empty($ext) && pathinfo($f, PATHINFO_EXTENSION) === $ext))
+           $files[] = $f;
+
     // foreach($files as $f)
         // echo "$f\n";
 
@@ -554,7 +559,7 @@ function get_dir_files($dir) {
 }
 
 function get_yaml_files($ydir) {
-    $yaml_files = get_dir_files( $ydir );
+    $yaml_files = get_dir_files( $ydir, 'yaml' );
     // foreach($yaml_files as $f)
         // echo "$f\n";
 
@@ -562,7 +567,7 @@ function get_yaml_files($ydir) {
 }
 
 function get_sql_files($sqdir) {
-    $sql_files = get_dir_files( $sqdir );
+    $sql_files = get_dir_files( $sqdir, 'sql' );
     // foreach($sql_files as $f)
         // echo "$f\n";
 
