@@ -2,25 +2,33 @@
 
 echo Update Zeus installtion
 
-MAKER="../../fw/maker/maker.php"
+if [ ! -f web/core/bootstrap.php ]; then
+    echo "Please execute this script from the installation root folder"
+    exit;
+fi
+
+#MAKER="../web/core/maker/maker.php"
 BASEDIR=`pwd`
+MAKER=$BASEDIR"/web/core/maker/maker.php"
+
+
 
 
 # update classes in framework
-pushd fw/classes
+pushd ./web/core/classes
 
-echo "fw -> spill:sql:all"
-php ../maker/maker.php spill:sql:all
+echo "core -> spill:sql:all"
+php $MAKER spill:sql:all
 
-echo "fw -> spill:class:all"
-php ../maker/maker.php spill:class:all
+echo "core -> spill:class:all"
+php $MAKER spill:class:all
 
-echo "fw -> update:bootstrap"
-php ../maker/maker.php update:bootstrap
+echo "core -> update:bootstrap"
+php $MAKER update:bootstrap
 
 tfile="$(mktemp /tmp/sql-temp.XXXXXXXX)" || exit 1
 
-php ../maker/maker.php --app-dir=$BASEDIR diff:sql:all > $tfile
+php $MAKER --app-dir=$BASEDIR diff:sql:all > $tfile
 cat $tfile
 echo "Do you want to apply the above chnages in the database? (y/n) (Ctrl-C to exit)"
 read answer
@@ -30,6 +38,8 @@ popd
 if [[ $answer == [yY] ]]; then
     echo "Updating database"
     sql/msql.sh < $tfile
+else
+  rm $tfile
 fi
 
 
@@ -55,6 +65,8 @@ popd
 if [[ $answer == [yY] ]]; then
     echo "Updating database";
     sql/msql.sh < $tfile
+else
+    rm $tfile
 fi
 
 
@@ -74,4 +86,3 @@ if [[ $answer == [yY] ]]; then
 
     popd
 fi
-
