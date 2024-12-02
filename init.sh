@@ -48,17 +48,34 @@ read -e -s -i "$password_in" -p "Please enter database user password: [$password
 # echo "User: " $username
 # echo "Pass: " $password
 
-cat $ifile | sed -s "s/<<host>>/$host/g" - | sed -s "s/<<user>>/$username/g" - | sed -s "s/<<pass>>/$password/g" - | sed -s "s/<<db>>/$database/g" - > $ofile
-#cat $ofile
-echo $ofile created succesfully!
+ready -e -p "Do you want to update $ofile? [y/N] " adminupdate
+
+if [[ $adminupdate == [yY] ]]; then
+    cat $ifile | sed -s "s/<<host>>/$host/g" - | sed -s "s/<<user>>/$username/g" - | sed -s "s/<<pass>>/$password/g" - | sed -s "s/<<db>>/$database/g" - > $ofile
+    #cat $ofile
+    echo $ofile created succesfully!
+fi
+
 
 cd ../config
 
 ifile="db.php.in"
 ofile="db.php"
 
-cat $ifile | sed -s "s/<<host>>/$host/g" - | sed -s "s/<<user>>/$username/g" - | sed -s "s/<<pass>>/$password/g" - | sed -s "s/<<db>>/$database/g" - > $ofile
-# cat $ofile
-echo $ofile created succesfully!
+read -e -p "Do you want to update $ofile? [y/N] " dbupdate
+
+if [[ $dbupdate == [yY] ]]; then
+    cat $ifile | sed -s "s/<<host>>/$host/g" - | sed -s "s/<<user>>/$username/g" - | sed -s "s/<<pass>>/$password/g" - | sed -s "s/<<db>>/$database/g" - > $ofile
+    # cat $ofile
+    echo $ofile created succesfully!
+fi
 
 cd ..
+
+read -e -p "Do you want to create the database? [y/N] " createdb
+
+if [[ $createdb == [yY] ]]; then
+    echo -n Creating the database ...
+    ./sql/msql.sh < admin.sql
+    echo OK
+fi
