@@ -42,13 +42,14 @@ read -e -i "$host_in" -p "Please enter the database host: [$host_in] " host
 read -e -i "$database_in" -p "Please enter database: [$database_in] " database
 read -e -i "$username_in" -p "Please enter database user name: [$username_in] " username
 read -e -s -i "$password_in" -p "Please enter database user password: [$password_in] " password
+echo "\n"		# new line to correct password input
 
 # echo "Host: " $host
 # echo "DB: " $database
 # echo "User: " $username
 # echo "Pass: " $password
 
-ready -e -p "Do you want to update $ofile? [y/N] " adminupdate
+read -e -p "Do you want to update $ofile? [y/N] " adminupdate
 
 if [[ $adminupdate == [yY] ]]; then
     cat $ifile | sed -s "s/<<host>>/$host/g" - | sed -s "s/<<user>>/$username/g" - | sed -s "s/<<pass>>/$password/g" - | sed -s "s/<<db>>/$database/g" - > $ofile
@@ -70,12 +71,19 @@ if [[ $dbupdate == [yY] ]]; then
     echo $ofile created succesfully!
 fi
 
-cd ..
+cd ../sql
 
 read -e -p "Do you want to create the database? [y/N] " createdb
 
 if [[ $createdb == [yY] ]]; then
-    echo -n Creating the database ...
-    ./sql/msql.sh < admin.sql
-    echo OK
+    echo Creating the database using the root credentials ...
+    sudo mysql -u root -p  < admin.sql
+    if [ $? -eq 0 ]; then
+	    echo User and database created succesfully.
+    else
+    	echo User and databases creation failed.
+    fi
 fi
+
+cd ..
+
