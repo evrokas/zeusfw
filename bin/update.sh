@@ -39,7 +39,7 @@ if [[ ! -z $db_new_fw_tables ]]; then
     read -p "Do you want to import the above tables? [y/N] " import
     if [[ $import == [yY] ]]; then
         for temp in $db_new_fw_tables; do
-            sqlfile="web/core/classes/sql/$temp.sql";
+            sqlfile="$BASEDIR/web/core/classes/sql/$temp.sql";
             if [ -f $sqlfile ]; then
                 echo "Importing table $temp from $sqlfile"
                 ./sql/msql.sh < $sqlfile
@@ -134,13 +134,13 @@ fi
 echo "Do you want to update content? (y/N) (Ctrl-C to exit)"
 read answer
 if [[ $answer == [yY] ]]; then
-    
+
     echo "Updating database content"
     # update userspace content
     pushd web/content
 
-    for temp in `ls *.feeder.yaml`; do 
-	    echo Update feeder $temp; 
+    for temp in `ls *.feeder.yaml`; do
+	    echo Update feeder $temp;
 	    php $MAKER --name $temp --dir ../classes/yaml feed:gen:yaml
 	    php $MAKER --name $temp --dir ../classes/yaml feed:load
     done
