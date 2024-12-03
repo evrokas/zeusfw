@@ -42,7 +42,7 @@ if [[ ! -z $db_new_fw_tables ]]; then
             sqlfile="$BASEDIR/web/core/classes/sql/$temp.sql";
             if [ -f $sqlfile ]; then
                 echo "Importing table $temp from $sqlfile"
-                ./sql/msql.sh < $sqlfile
+                $BASEDIR/sql/msql.sh < $sqlfile
                 if [ $? -eq 0 ]; then
                     echo "Import was successful"
                 else
@@ -71,7 +71,7 @@ popd
 
 if [[ $answer == [yY] ]]; then
     echo "Updating database"
-    sql/msql.sh < $tfile
+    $BASEDIR/sql/msql.sh < $tfile
 else
   rm $tfile
 fi
@@ -93,15 +93,15 @@ php $MAKER  update:bootstrap
 db_new_web_tables=`php $MAKER --app-dir=$BASEDIR tables:new:web`
 
 # if web tables is not empty, try to create the table
-if [ ! -z $db_new_web_tables ]; then
+if [[ ! -z $db_new_web_tables ]]; then
     echo "Trying to create web tables $db_new_web_tables"
     read -p "Do you want to import the above tables? [y/N] " import
     if [[ $import == [yY] ]]; then
         for temp in $db_new_web_tables; do
-            sqlfile="web/classes/sql/$temp.sql";
+            sqlfile="$BASEDIR/web/classes/sql/$temp.sql";
             if [ -f $sqlfile ]; then
                 echo "Importing table $temp from $sqlfile"
-                ./sql/msql.sh < $sqlfile
+                $BASEDIR/sql/msql.sh < $sqlfile
                 if [ $? -eq 0 ]; then
                     echo "Import was successful"
                 else
@@ -125,7 +125,7 @@ popd
 
 if [[ $answer == [yY] ]]; then
     echo "Updating database";
-    sql/msql.sh < $tfile
+    $BASEDIR/sql/msql.sh < $tfile
 else
     rm $tfile
 fi
@@ -137,7 +137,7 @@ if [[ $answer == [yY] ]]; then
 
     echo "Updating database content"
     # update userspace content
-    pushd web/content
+    pushd $BASEDIR/web/content
 
     for temp in `ls *.feeder.yaml`; do
 	    echo Update feeder $temp;
