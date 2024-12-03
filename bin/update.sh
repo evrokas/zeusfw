@@ -12,8 +12,6 @@ BASEDIR=`pwd`
 MAKER=$BASEDIR"/web/core/maker/maker.php"
 
 
-
-
 # update classes in framework
 pushd ./web/core/classes
 
@@ -26,11 +24,47 @@ php $MAKER spill:class:all
 echo "core -> update:bootstrap"
 php $MAKER update:bootstrap
 
+# now table structures are in correct places
+
+# try to make tables if they do not exist in the database
+## TODO
+db_new_fw_tables=`php $MAKER --app-dir=$BASEDIR tables:new:fw`
+
+# echo "New tables in database (fw): " $db_new_fw_tables
+# echo "New tables in database (web): " $db_new_web_tables
+
+# if fw tables is not empty, try to create the table
+if [[ ! -z $db_new_fw_tables ]]; then
+    echo "Trying to create core tables $db_new_fw_tables"
+    read -p "Do you want to import the above tables? [y/N] " import
+    if [[ $import == [yY] ]]; then
+        for temp in $db_new_fw_tables; do
+            sqlfile="web/core/classes/sql/$temp.sql";
+            if [ -f $sqlfile ]; then
+                echo "Importing table $temp from $sqlfile"
+                ./sql/msql.sh < $sqlfile
+                if [ $? -eq 0 ]; then
+                    echo "Import was successful"
+                else
+                    echo "Import failed"
+                fi
+            else
+                echo "Could not find SQL file for table $temp in file $sqlfile"
+            fi
+        done
+    fi
+fi
+
+
+# try to remove tables if they do not exist in the file structure
+## TODO
+
+
 tfile="$(mktemp /tmp/sql-temp.XXXXXXXX)" || exit 1
 
 php $MAKER --app-dir=$BASEDIR diff:sql:all > $tfile
 cat $tfile
-echo "Do you want to apply the above chnages in the database? (y/n) (Ctrl-C to exit)"
+echo "Do you want to apply the above chnages in the database? (y/N) (Ctrl-C to exit)"
 read answer
 
 popd
@@ -55,9 +89,36 @@ php $MAKER spill:class:all
 echo "web -> update:bootstrap"
 php $MAKER  update:bootstrap
 
+
+db_new_web_tables=`php $MAKER --app-dir=$BASEDIR tables:new:web`
+
+# if web tables is not empty, try to create the table
+if [ ! -z $db_new_web_tables ]; then
+    echo "Trying to create web tables $db_new_web_tables"
+    read -p "Do you want to import the above tables? [y/N] " import
+    if [[ $import == [yY] ]]; then
+        for temp in $db_new_web_tables; do
+            sqlfile="web/classes/sql/$temp.sql";
+            if [ -f $sqlfile ]; then
+                echo "Importing table $temp from $sqlfile"
+                ./sql/msql.sh < $sqlfile
+                if [ $? -eq 0 ]; then
+                    echo "Import was successful"
+                else
+                    echo "Import failed"
+                fi
+
+            else
+                echo "Could not find SQL file for table $temp in file $sqlfile"
+            fi
+        done
+    fi
+fi
+
+
 php $MAKER  diff:sql:all > $tfile
 cat $tfile
-echo "Do you want to apply the above chnages in the database? (y/n) (Ctrl-C to exit)"
+echo "Do you want to apply the above chnages in the database? (y/N) (Ctrl-C to exit)"
 read answer
 
 popd
@@ -70,7 +131,7 @@ else
 fi
 
 
-echo "Do you want to update content? (y/n) (Ctrl-C to exit)"
+echo "Do you want to update content? (y/N) (Ctrl-C to exit)"
 read answer
 if [[ $answer == [yY] ]]; then
     
