@@ -24,7 +24,7 @@ if(file_exists(__APPDIR__ . '/web/user_classes.php')) {
 error_log(__APPDIR__ . "/web/user_classes.php was not found\n");
 
 
-require_once(__DIR__ . "/security/Permissions.php");    // security permissions classes
+//require_once(__DIR__ . "/security/Permissions.php");    // security permissions classes
 
 require_once(__DIR__ . "/router/Router.php");      // load router classes
 require_once(__DIR__ . "/router/Request.php");      // load router classes
