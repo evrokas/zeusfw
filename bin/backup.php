@@ -57,7 +57,7 @@ $exportGroup = $options['exportGroup'] ?? null;
 
 // Validate selected group
 if (!$exportGroup || !array_key_exists($exportGroup, $exportGroups)) {
-    echo "Error: Invalid or missing exclude group. Available groups: " . implode(', ', array_keys($exportGroups)) . "\n";
+    echo "Error: Invalid or missing export group. Available groups: " . implode(', ', array_keys($exportGroups)) . "\n";
     exit(1);
 }
 
