@@ -549,7 +549,8 @@ function get_dir_files($dir, $ext = null) {
     $files = array();
     foreach($folder as $f)
         if(($f[0] != '.') &&
-           (!empty($ext) && pathinfo($f, PATHINFO_EXTENSION) === $ext))
+           ((($ext!=null) && pathinfo($f, PATHINFO_EXTENSION) === $ext))
+            || ($ext === null))
            $files[] = $f;
 
     // foreach($files as $f)
