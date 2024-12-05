@@ -42,6 +42,16 @@ class Kernel {
         $this->addConfig( $conf );
 
 
+        // setup error displaying for site
+        if($t=$this->getConfig('php_display_errors'))
+            ini_set('display_errors', $t);
+
+        if($t=$this->getConfig('php_display_startup_errors'))
+            ini_set('display_startup_errors', $t);
+
+        error_reporting(E_ALL);
+        
+
         // echo "<pre>basepath: " . $this->basepath . "</pre>";
         if(!file_exists($configdir . '/settings.info.yaml')) {
             echopre("Configuration file does not exist. Please contact administrator.");
