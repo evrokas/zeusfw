@@ -70,12 +70,21 @@ foreach ($exportGroups[$exportGroup] as $table) {
     $exportTables .= " $table";
 }
 
-// Ensure backup directory exists
+// Ensure backup directory exists"
 if (!is_dir($backupDir)) {
     mkdir($backupDir, 0755, true);
 }
 
-$mysqldump_options = "--no-tablespaces --skip-opt --skip-extended-insert";
+$dbcommand = "mysqldump -y -h $dbHost -u $dbUser -p$dbPass $dbName | grep 'CREATE TABLE' - | cut -d\` -f2 -";
+exec($dbcommand, $output, $result);
+
+$diff = array_diff($output, $exportGroups[$exportGroup]);
+echo "Different in tables database - exportGroup: " . print_r($diff, 1) . "\n";
+// Database tables: " . print_r($output, 1) . "\n";
+// exit(-1);
+
+
+$mysqldump_options = "--no-tablespaces --skip-opt --skip-extended-insert --add-drop-table";
 // Command to dump the database
 $command = "mysqldump $mysqldump_options -h $dbHost -u $dbUser -p$dbPass $dbName $exportTables > $backupFile";
 
