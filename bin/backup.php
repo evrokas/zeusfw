@@ -50,18 +50,41 @@ foreach($exportGroups as $grp) {
 
 $exportGroups['all'] = $alltables;
 
+// --exportGroup=group  --> export group in file backup???.group.sql
+// group:
+// - static
+// - fixed
+// - dynamic
+// - volatile
+// - all (all of the above)
+
+// --single     --> export all tables in separate files
+
 // Parse command-line argument
-$options = getopt("", ["exportGroup:"]);
+$options = getopt("", ["exportGroup:", "single", "git"]);
 $exportGroup = $options['exportGroup'] ?? null;
 
+// export each table in separate file
+$single = isset($options['single'])?1:null;
 
+// export tables in repo directory, implies --single
+$git = isset($options['git'])?1:null;
+
+
+if($git) {
+    $backupDir .= '/repo';
+    $single=1;
+}
+
+
+
+echo("Command arguments: " . print_r($exportGroup, 1) . '\n' . print_r($single, 1));
 // Validate selected group
 if (!$exportGroup || !array_key_exists($exportGroup, $exportGroups)) {
     echo "Error: Invalid or missing export group. Available groups: " . implode(', ', array_keys($exportGroups)) . "\n";
     exit(1);
 }
 
-$backupFile = $backupDir . '/backup_' . date('Y-m-d_H-i-s') . '.' . $exportGroup . '.sql';
 
 // Build --ignore-table options
 $exportTables = '';
@@ -76,9 +99,10 @@ if (!is_dir($backupDir)) {
 }
 
 $dbcommand = "mysqldump -y -h $dbHost -u $dbUser -p$dbPass $dbName | grep 'CREATE TABLE' - | cut -d\` -f2 -";
-exec($dbcommand, $output, $result);
+exec($dbcommand, $alltables, $result);
+echo("All database tables: " . print_r($alltables, 1));
 
-$diff = array_diff($output, $exportGroups[$exportGroup]);
+$diff = array_diff($alltables, $exportGroups[$exportGroup]);
 echo "Different in tables database - exportGroup: " . print_r($diff, 1) . "\n";
 // Database tables: " . print_r($output, 1) . "\n";
 // exit(-1);
@@ -86,12 +110,28 @@ echo "Different in tables database - exportGroup: " . print_r($diff, 1) . "\n";
 
 $mysqldump_options = "--no-tablespaces --skip-opt --skip-extended-insert --add-drop-table";
 // Command to dump the database
-$command = "mysqldump $mysqldump_options -h $dbHost -u $dbUser -p$dbPass $dbName $exportTables > $backupFile";
 
-echo "Command: $command\n";
+if($git) {
+    $dateStr = "";
+} else {
+    $dateStr = "_" . date('Y-m-d_H-i');
+}
 
-// Execute the command
-exec($command, $output, $result);
+
+if($single) {
+    foreach($exportGroups[$exportGroup] as $table) {
+        $backupFile = $backupDir . '/backup' . $dateStr . '.' . $table . '.sql';
+        $command = "mysqldump $mysqldump_options -h $dbHost -u $dbUser -p$dbPass $dbName $table > $backupFile";
+        echo "Command: $command\n";
+        exec($command, $output, $result);
+    }
+} else {
+    $backupFile = $backupDir . '/backup' . $dateStr . '.' . $exportGroup . '.sql';
+    
+    $command = "mysqldump $mysqldump_options -h $dbHost -u $dbUser -p$dbPass $dbName $exportTables > $backupFile";
+    echo "Command: $command\n";
+    exec($command, $output, $result);
+}
 
 // Check if the backup was successful
 if ($result === 0) {
