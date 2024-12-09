@@ -35,21 +35,26 @@ db_new_fw_tables=`php $MAKER --app-dir=$BASEDIR tables:new:fw`
 
 # if fw tables is not empty, try to create the table
 if [[ ! -z $db_new_fw_tables ]]; then
-    echo "Trying to create core tables $db_new_fw_tables"
+    echo "The following core tables are missing from the database: " $db_new_fw_tables
+    
     read -p "Do you want to import the above tables? [y/N] " import
     if [[ $import == [yY] ]]; then
         for temp in $db_new_fw_tables; do
             sqlfile="$BASEDIR/web/core/classes/sql/$temp.sql";
-            if [ -f $sqlfile ]; then
-                echo "Importing table $temp from $sqlfile"
-                $BASEDIR/sql/msql.sh < $sqlfile
-                if [ $? -eq 0 ]; then
-                    echo "Import was successful"
+
+            read -p "Do you want to import table $temp? [y/N] " tableimport
+            if [[ $tableimport == [yY] ]]; then
+                if [ -f $sqlfile ]; then
+                    echo "Importing table $temp from $sqlfile"
+                    $BASEDIR/sql/msql.sh < $sqlfile
+                    if [ $? -eq 0 ]; then
+                        echo "Import was successful"
+                    else
+                        echo "Import failed"
+                    fi
                 else
-                    echo "Import failed"
+                    echo "Could not find SQL file for table $temp in file $sqlfile"
                 fi
-            else
-                echo "Could not find SQL file for table $temp in file $sqlfile"
             fi
         done
     fi
@@ -94,22 +99,27 @@ db_new_web_tables=`php $MAKER --app-dir=$BASEDIR tables:new:web`
 
 # if web tables is not empty, try to create the table
 if [[ ! -z $db_new_web_tables ]]; then
-    echo "Trying to create web tables $db_new_web_tables"
+    echo "The following tables are missing from the database: " $db_new_web_tables
+
     read -p "Do you want to import the above tables? [y/N] " import
     if [[ $import == [yY] ]]; then
         for temp in $db_new_web_tables; do
             sqlfile="$BASEDIR/web/classes/sql/$temp.sql";
-            if [ -f $sqlfile ]; then
-                echo "Importing table $temp from $sqlfile"
-                $BASEDIR/sql/msql.sh < $sqlfile
-                if [ $? -eq 0 ]; then
-                    echo "Import was successful"
-                else
-                    echo "Import failed"
-                fi
 
-            else
-                echo "Could not find SQL file for table $temp in file $sqlfile"
+            read -p "Do you want to import table $temp? [y/N] " tableimport
+            if [[ $tableimport == [yY] ]]; then
+                if [ -f $sqlfile ]; then
+                    echo "Importing table $temp from $sqlfile"
+                    $BASEDIR/sql/msql.sh < $sqlfile
+                    if [ $? -eq 0 ]; then
+                        echo "Import was successful"
+                    else
+                        echo "Import failed"
+                    fi
+
+                else
+                    echo "Could not find SQL file for table $temp in file $sqlfile"
+                fi
             fi
         done
     fi
