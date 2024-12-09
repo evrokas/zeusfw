@@ -238,3 +238,60 @@ function getConf($atok) {
           } else return null;
       } else return null;
 }
+
+function core_get_temp_filename(string $prefix) {
+    global $kernel;
+
+    // $file_dir = tempnam()
+}
+
+/**
+ * string $filename     file name to return path to
+ * string $module       prefix folder to add to file path
+ * return               file path in lib path, prefixed with module
+ */
+function core_get_file_in_lib(string $filename, string $module = null) {
+    global $kernel;
+
+    // get library path from configuration
+    $output = $kernel->getConfig('libpath');
+    if(!$output) {
+        echopre("ERROR: libpath is not set in configuration");
+        exit;
+    }
+
+    $output = trim($output);
+    $output = trim($output, '/');
+
+    $output =  __APPDIR__ . '/web/' . $output;
+
+
+    // test if lib path exists
+    if(!is_dir($output)) {
+        echopre("Create folder: $output");
+        $msk = umask();
+        umask(0022);
+        mkdir($output, 0777, true);
+        umask($msk);
+    }
+
+    if($module) {
+        $output .= '/' . $module;
+    
+        // test if module path exists
+        if(!is_dir($output)) {
+            echopre("Create folder: $output");
+            $msk = umask();
+            umask(0022);
+            mkdir($output, 0777, true);
+            umask($msk);
+        }
+    }
+
+    // so, everything is in order
+    $output .= '/' . $filename;
+
+    // echopre("lib path: $output");
+
+  return ($output);
+}
