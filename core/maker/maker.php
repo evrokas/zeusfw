@@ -585,11 +585,22 @@ function get_class_files($classdir, $ydir) {
     });
     
     array_walk($yaml_files, function(&$value, $key) {
-        $value = explode('.', $value)[0];
+        // echo("processing yaml file: $value\t");
+        $y = yaml_parse_file("yaml/$value");
+        // echo("table: " . $y[0]['table'] . "\n");
+
+        // the following sets the .php file name to the same as the
+        // yaml file
+        // $value = explode('.', $value)[0];
+
+        // but sometimes the table name in the yaml file can be
+        // different from the name of the yaml file, so name the .php
+        // file as the table name plus .php
+        $value = $y[0]['table'];
     });
 
-    print_r( $class_files);
-    print_r( $yaml_files );
+    // echo("class files: " . print_r( $class_files, 1));
+    // echo("YAML files: " . print_r( $yaml_files, 1));
 
     $files = array_intersect($class_files, $yaml_files );
 
@@ -1315,7 +1326,7 @@ function makesure_dir_exists($dir) {
             $files = get_class_files( $class_dir, $yaml_dir );
             $s = spill_bootstrap( $files );
 
-            echo "Updating bootstrap file " . $bootstrap_file . "\n";
+            echo "Updating bootstrap file $bootstrap_file";
             file_put_contents($bootstrap_file, $s);
             break;
 
