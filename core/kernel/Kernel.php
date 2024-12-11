@@ -313,7 +313,11 @@ class Kernel {
     function addStatus($level, $statusMessage) {
         if(!isset($_SESSION[ $level ]))
             $_SESSION[ $level ] = array();
-        $_SESSION[ $level ][] = $statusMessage;
+        if(is_array($statusMessage)) {
+            foreach($statusMessage as $msg)
+                $_SESSION[ $level ][] = $msg;
+        } else
+            $_SESSION[ $level ][] = $statusMessage;
         error_log("\nSet status: [$level]: $statusMessage\n");
     }
 
