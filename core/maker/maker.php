@@ -1326,7 +1326,7 @@ function makesure_dir_exists($dir) {
             $files = get_class_files( $class_dir, $yaml_dir );
             $s = spill_bootstrap( $files );
 
-            echo "Updating bootstrap file $bootstrap_file";
+            echo "Updating bootstrap file $bootstrap_file\n";
             file_put_contents($bootstrap_file, $s);
             break;
 
