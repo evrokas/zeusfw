@@ -257,6 +257,8 @@ function core_get_file_in_lib(string $filename, string $module = null) {
     $output = $kernel->getConfig('libpath');
     if(!$output) {
         echopre("ERROR: libpath is not set in configuration");
+        $kernel->addStatus('error', 'KERNEL ERROR: libpath is not set in configuration');
+
         exit;
     }
 
