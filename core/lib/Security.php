@@ -21,6 +21,11 @@ class SecurityClass {
         }
     }
 
+    static function userLoggedIn() {
+        if(isset($_SESSION) && isset($_SESSION['user']))return true;
+        else return false;
+    }
+
     static function processRoles($arole) {
         // validates if roles are ok and returns an array of them
         $arole = trim( $arole );
@@ -70,6 +75,10 @@ class SecurityClass {
         // echo "<pre>User can pass $pass</pre>";
         return ($pass);
     }
+
+    // checks user roles with permission $aperm,
+    // return null if user is validated, otherwise
+    // return error message to show
     static function require($aperm) {
         global $kernel;
         // check to see if a particular user has the necessery premissions
@@ -77,14 +86,20 @@ class SecurityClass {
         $uroles = $kernel->getUserRoles();
         // echo "<pre>Roles " . print_r( $uroles, 1 ) . " for permissions " . print_r( self::$roles,1 ) . "</pre>";
         $pass = 0;
-        foreach($uroles as $urole) {
-            if(in_array($aperm, self::$roles[ $urole]))$pass++;
+        if(!empty($uroles)) {
+            foreach($uroles as $urole) {
+                if(in_array($aperm, self::$roles[ $urole]))$pass++;
+            }
+        } else {
+            // echopre("Empty roles for user");
+        }
+        if(!$pass) {
+            // echo error_401();
+            return error_401();
+            // exit();
         }
 
-        if(!$pass) {
-            echo error_401();
-            exit();
-        }
+        return null;
         // echo "<pre>User can pass $pass</pre>";
     }
 }
