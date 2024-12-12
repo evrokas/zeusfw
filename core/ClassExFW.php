@@ -78,7 +78,6 @@ class userTokensClassEx extends userTokensClass {
 
     static function getUserByToken(string $token, string $remoteip, string $useragent) {
         global $AppDBConnection;
-        global $kernel;
 
         if(!$AppDBConnection->isConnected()) {
             if(!$AppDBConnection->Connect()) {
@@ -90,10 +89,13 @@ class userTokensClassEx extends userTokensClass {
         $tokens = userTokensClassEx::parse_token($token);
         prelog("getUserByToken: $token, $tokens[0]");
 
-        $sql = "SELECT * FROM users INNER JOIN user_tokens ON user_tokens.uname=users.uname WHERE selector=:selector AND remoteip=:remoteip AND useragent=:useragent AND expiry > now() LIMIT 1";
+        // $sql = "SELECT * FROM users INNER JOIN user_tokens ON user_tokens.uname=users.uname WHERE selector=:selector AND remoteip=:remoteip AND useragent=:useragent AND expiry > now() LIMIT 1";
+        
+        // stop using ip for logging in
+        $sql = "SELECT * FROM users INNER JOIN user_tokens ON user_tokens.uname=users.uname WHERE selector=:selector AND useragent=:useragent AND expiry > now() LIMIT 1";
         $st = $AppDBConnection->getConnection()->prepare( $sql );
         $st->bindValue(":selector", $tokens[0], PDO::PARAM_STR);
-        $st->bindValue(":remoteip", $remoteip, PDO::PARAM_STR);
+        // $st->bindValue(":remoteip", $remoteip, PDO::PARAM_STR);
         $st->bindValue(":useragent", $useragent, PDO::PARAM_STR);
         $st->execute();
         $row = $st->fetch();
