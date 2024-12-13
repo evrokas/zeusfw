@@ -1,10 +1,22 @@
-- table: analytics
+table: 
+  name: analytics
   class: analyticsClass
   fields:
-    - cdate: datetime default current_timestamp
-    - page: text
-    - url: text
-    - remote_ip: text
-    - user_agent: text
-    - served: boolean
+    - name: "cdate"
+      type: "@cdate"
+
+    - name: "page"
+      type: text
+
+    - name: "url"
+      type: text
+
+    - name: "remote_ip"
+      type: text
+
+    - name: "user_agent"
+      type: text
+
+    - name: "served"
+      type: boolean
     

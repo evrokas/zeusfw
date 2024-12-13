@@ -1,8 +1,14 @@
-- table: permissions
+table: 
+  name: permissions
   class: permissionsClass
   fields:
-    - guid: char(36) not null
-    - text: char(32) not null
+    - name: "guid"
+      type: char(36)
+      required: true
+
+    - name: "text"
+      type: char(32)
+      required: true
 
 # guid is the GUID of the permission
 # text is the name of the permission

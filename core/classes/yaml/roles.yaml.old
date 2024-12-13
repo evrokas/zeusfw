@@ -1,8 +1,13 @@
-- table: roles
+table:
+  name: roles
   class: rolesClass
   fields:
-    - guid: char(36) not null
-    - text: char(32) not null
+    - name: "guid"
+      type: char(36)
+      db_required: true
+    - name: "text"
+      type: char(32)
+      db_required: true
 
 # guid is the GUID of the role
 # text is the name of the role
