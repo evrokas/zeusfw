@@ -1,5 +1,7 @@
 <?php
-    // include( getcwd() . "/../../config/db.php");
+
+
+// include( getcwd() . "/../../config/db.php");
     // echo "cwd(): " . getcwd() . "\n";
     $dnames = explode('/' , getcwd());
     // print_r( $dnames );
@@ -23,10 +25,13 @@
 
 
     if(defined('__APPDIR__')) {
-        // echo __APPDIR__ . '/config/db.php' . "\n";
-        include(__APPDIR__ . '/config/db.php');
+        // echo(">>>" . __APPDIR__ . '/config/db.php' . "\n");
+        include_once(__APPDIR__ . '/config/db.php');
     }
     
+
+    require('functions.php');
+
 
     function mlog($s, $nl = true, $li=false) {
         if($li)echo __FILE__."(".__FUNCTION__."):".__LINE__.": ";
@@ -83,19 +88,37 @@ class Database {
     private $extends;
     private $fields;
 
-    function __construct($ayaml) {
-        foreach($ayaml as $table) {
-            if(isset($table)) {
+    function __construct($ayaml, $ayaml_file) {
+        // print_r($ayaml);
+
+        // load table structure from .yaml file
+        if(array_key_exists('table', $ayaml)) {
+            $table = $ayaml['table'];
+
                 // mlog("table set");
                 
-                $this->name = $table['table'];
+                // $this->name = $table['table'];
+                if(!array_key_exists('name', $table)) {
+                    echo("`name` of table is not set in $ayaml_file\n");
+                    exit();
+                }
+                $this->name = $table['name'];
                 // mlog("table name: " . $this->name);
                 
+                if(!array_key_exists('class', $table)) {
+                    echo("`class` name for table handling is not set in $ayaml_file\n");
+                    exit();
+                }
                 $this->classname = $table['class'];
+
                 if(isset($table['extends']))
                     $this->extends = $table['extends'];
                 else $this->extends = null;
 
+                if(!array_key_exists('fields', $table)) {
+                    echo("`fields` is not set for table in $ayaml_file\n");
+                    exit();
+                }
                 if(isset($table['fields'])) {
                     // mlog("Fields set");
                     
@@ -114,7 +137,9 @@ class Database {
                         }
                     }
                 }
-            }
+        } else {
+            echo "`table` is not set in file $ayaml_file\n";
+            exit();
         }
     }
 
@@ -581,6 +606,7 @@ function get_class_files($classdir, $ydir) {
 
 
     array_walk($class_files, function(&$value, $key) {
+        echo("value: $value\n");
         $value = explode('.', $value)[0];
     });
     
@@ -596,7 +622,7 @@ function get_class_files($classdir, $ydir) {
         // but sometimes the table name in the yaml file can be
         // different from the name of the yaml file, so name the .php
         // file as the table name plus .php
-        $value = $y[0]['table'];
+        $value = $y['table']['name'];
     });
 
     // echo("class files: " . print_r( $class_files, 1));
@@ -618,12 +644,16 @@ function spill_sql($ymlfile, $sqldir) {
         
     // print_r( $dbinfo );
 
-    $db = new Database( $dbinfo );
-    $s = $db->emitDescription();
+    // $db = new Database( $dbinfo );
+    // $s = $db->emitDescription();
     
-    // echo $s;
-    // echo "emit SQL data in ". $sqldir . '/' . $dbinfo[0]['table']. ".sql\n";
-    file_put_contents($sqldir . '/' . $dbinfo[0]['table'].'.sql',$s);
+    $s = generateSQLTable($dbinfo);
+
+
+
+    echo "$s\n";
+    echo "emit SQL data in ". $sqldir . '/' . $dbinfo['table']['name']. ".sql\n";
+    file_put_contents($sqldir . '/' . $dbinfo['table']['name'].'.sql',$s);
 }
 
 
@@ -631,16 +661,18 @@ function spill_class($sqlfile, $classdir) {
     $dbinfo = yaml_parse_file( $sqlfile );
     // print_r( $dbinfo );
 
-    $db = new Database( $dbinfo );
-    $s = $db->emitClass();
+    // $db = new Database( $dbinfo );
+    // $s = $db->emitClass();
 
-    if(isset($dbinfo[0]['extention'])) {
+    $s = generateClassCode($dbinfo);
+
+    if(isset($dbinfo['table']['extention'])) {
         $s .= "\n\n";
-        $s .= "require_once( " . $dbinfo[0]['extention'] . " );\n";
+        $s .= "require_once( " . $dbinfo['table']['extention'] . " );\n";
     }
         
     // echo "emit CLASS data in ". $classdir . '/' . $dbinfo[0]['table']. ".php\n";
-    file_put_contents($classdir . '/' . $dbinfo[0]['table'].'.php', $s);
+    file_put_contents($classdir . '/' . $dbinfo['table']['name'].'.php', $s);
 
 }
 
@@ -660,10 +692,26 @@ function diff_sql($file) {
 
     $tableinfo =  yaml_parse_file( $file );
     
-    $db = new Database($tableinfo);
-    $s = $db->emitSqlDiff();
+    // $db = new Database($tableinfo);
+    // $s = $db->emitSqlDiff();
 
-    echo $s;
+    include_once(__APPDIR__ . '/config/db.php');
+    
+    $host = DB_HOST;
+    $dbname = DB_NAME;
+    $user = DB_USER;
+    $pass = DB_PASS;
+
+    try {
+        $pdo = new PDO("mysql:host=$host;dbname=$dbname", $user, $pass);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    } catch (PDOException $e) {
+        die("Database connection failed: " . $e->getMessage());
+    }
+
+    $s = syncTableWithYAML($tableinfo, $pdo);
+
+    if(!empty($s))echo("$s\n");
 }
 
 function generate_content($author, $type, $name, $title, $desc, $viewmode) {
@@ -848,13 +896,15 @@ function generate_feed_from_yaml($name, $dir, $update = array()) {
     }
 }
 
-if(!defined('DB_HOST')) {
+// if(!defined('__APPDIR__')) {
+// if(!defined('DB_HOST')) {
     // define some dummy constants
-    define('DB_HOST', '');
-    define('DB_USER', '');
-    define('DB_PASS', '');
-    define('DB_NAME', '');
-}
+    // define('DB_HOST', '');
+    // define('DB_USER', '');
+    // define('DB_PASS', '');
+    // define('DB_NAME', '');
+// }
+// }
 
 include(__DIR__ . '/../db/dbal.php');
 
@@ -1334,7 +1384,7 @@ function makesure_dir_exists($dir) {
         case 'diff:sql':
             $file = $optparams[1];
             // echo "Processing file: $file\n";
-            diff_sql( $file );
+            diff_sql( $yaml_dir . '/' . $file );
             break;
 
         case 'diff:sql:all':
