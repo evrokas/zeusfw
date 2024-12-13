@@ -37,8 +37,9 @@ class dbConnection {
 
 // configuration is included from parent script
 // require_once(__DIR__ . '/../../config/db.php');
-
-$AppDBConnection = new dbConnection(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+if(defined('DB_HOST')) {
+    $AppDBConnection = new dbConnection(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+}
 
 abstract class dbAbstractEntityClass {
     protected $_table;
