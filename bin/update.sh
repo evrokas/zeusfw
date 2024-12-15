@@ -38,6 +38,8 @@ if [[ ! -z $db_new_fw_tables ]]; then
     echo "The following core tables are missing from the database: " $db_new_fw_tables
     
     read -p "Do you want to import the above tables? [y/N] " import
+    echo
+
     if [[ $import == [yY] ]]; then
         for temp in $db_new_fw_tables; do
             sqlfile="$BASEDIR/web/core/classes/sql/$temp.sql";
@@ -69,10 +71,9 @@ tfile="$(mktemp /tmp/sql-temp.XXXXXXXX)" || exit 1
 
 php $MAKER --app-dir=$BASEDIR diff:sql:all > $tfile
 cat $tfile
-echo "Do you want to apply the above chnages in the database? (y/N) (Ctrl-C to exit)"
+echo "Do you want to apply the above changes in the database? (y/N) (Ctrl-C to exit)"
 read answer
 
-popd
 
 if [[ $answer == [yY] ]]; then
     echo "Updating database"
@@ -81,6 +82,7 @@ else
   rm $tfile
 fi
 
+popd
 
 # update classes in userspace
 pushd web/classes
@@ -102,6 +104,8 @@ if [[ ! -z $db_new_web_tables ]]; then
     echo "The following tables are missing from the database: " $db_new_web_tables
 
     read -p "Do you want to import the above tables? [y/N] " import
+    echo
+    
     if [[ $import == [yY] ]]; then
         for temp in $db_new_web_tables; do
             sqlfile="$BASEDIR/web/classes/sql/$temp.sql";
@@ -128,7 +132,7 @@ fi
 
 php $MAKER  diff:sql:all > $tfile
 cat $tfile
-echo "Do you want to apply the above chnages in the database? (y/N) (Ctrl-C to exit)"
+echo "Do you want to apply the above changes in the database? (y/N) (Ctrl-C to exit)"
 read answer
 
 popd

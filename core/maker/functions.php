@@ -96,6 +96,8 @@ function generateHTMLForm($yamlData) {
 // echo generateHTMLForm($yamlData);
 
 function generateSQLTable($yamlData) {
+    // echo("generating table for: " . print_r($yamlData, 1));
+
     $tableName = $yamlData['table']['name'] ?? 'default_table';
     $columns = [];
 
@@ -153,7 +155,17 @@ function syncTableWithYAML($yamlData, $pdo) {
 
     // Fetch existing table structure
     $existingColumns = [];
-    $stmt = $pdo->query("DESCRIBE `$tableName`");
+    $noexist = 0;
+    try {
+        $stmt = $pdo->query("DESCRIBE `$tableName`");
+
+    } catch (PDOException $e){
+        echo("/* Table `$tableName` does not exist in database */\n");
+        if($e->errorInfo[1] === 1146)$noexist = 1;
+    }
+
+    if($noexist)return [];
+
     if ($stmt) {
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $existingColumns[$row['Field']] = $row;
@@ -224,12 +236,14 @@ function syncTableWithYAML($yamlData, $pdo) {
             if (strtolower(trim($existingDefinition)) !== strtolower(trim($columnDefinition))) {
                 // Alter column
                 // $pdo->exec("ALTER TABLE `$tableName` MODIFY `$name` $columnDefinition");
-                $sql[] = "ALTER TABLE `$tableName` MODIFY `$name` $columnDefinition";
+                $sql[] = "/* old definition $existingDefinition */";
+                $sql[] = "/* new definition $columnDefinition */";
+                $sql[] = "ALTER TABLE `$tableName` MODIFY `$name` $columnDefinition;";
             }
         } else {
             // Add new column
             // $pdo->exec("ALTER TABLE `$tableName` ADD `$name` $columnDefinition");
-            $sql[] = "ALTER TABLE `$tableName` ADD `$name` $columnDefinition";
+            $sql[] = "ALTER TABLE `$tableName` ADD `$name` $columnDefinition;";
         }
     }
 
@@ -245,10 +259,10 @@ function syncTableWithYAML($yamlData, $pdo) {
 
         if (!$found && ($existingName !== 'id')) {
             // $pdo->exec("ALTER TABLE `$tableName` DROP `$existingName`");
-            $sql[] = "ALTER TABLE `$tableName` DROP `$existingName`";
+            $sql[] = "ALTER TABLE `$tableName` DROP `$existingName`;";
         }
     }
-    return implode("\n", $sql);
+    return implode(";\n", $sql);
 }
 
 function generateClassCode($yamlData) {

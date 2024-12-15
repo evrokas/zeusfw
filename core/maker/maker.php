@@ -606,7 +606,7 @@ function get_class_files($classdir, $ydir) {
 
 
     array_walk($class_files, function(&$value, $key) {
-        echo("value: $value\n");
+        // echo("value: $value\n");
         $value = explode('.', $value)[0];
     });
     
@@ -641,7 +641,8 @@ function get_class_files($classdir, $ydir) {
 
 function spill_sql($ymlfile, $sqldir) {
     $dbinfo = yaml_parse_file( $ymlfile );
-        
+    
+    // echo("spill_sql(): $sqldir / $ymlfile");
     // print_r( $dbinfo );
 
     // $db = new Database( $dbinfo );
@@ -651,8 +652,8 @@ function spill_sql($ymlfile, $sqldir) {
 
 
 
-    echo "$s\n";
-    echo "emit SQL data in ". $sqldir . '/' . $dbinfo['table']['name']. ".sql\n";
+    // echo "$s\n";
+    // echo "emit SQL data in ". $sqldir . '/' . $dbinfo['table']['name']. ".sql\n";
     file_put_contents($sqldir . '/' . $dbinfo['table']['name'].'.sql',$s);
 }
 
@@ -758,8 +759,8 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
 
             // print_r($temrec['fields']);
             
-            include_once( dirname(dirname(realpath($template))).'/'.$tem[0]['table'].'.php');
-            $cl = new $tem[0]['class']();
+            include_once( dirname(dirname(realpath($template))).'/'.$tem['table']['name'].'.php');
+            $cl = new $tem['table']['class']();
             $fields = $cl->getFields();
             // print_r($fields);
 
@@ -937,7 +938,7 @@ function load_feed_data($name) {
         // print_r($ydata);
         // print_r($ydata['data']);
         // print_r( pathinfo($ydata['schema']));
-        $yschema = yaml_parse_file( $ydata['schema'])[0];
+        $yschema = yaml_parse_file( $ydata['schema'])['table'];
         $schemaClass = $yschema['class'];
 
         // echo('schema y-file: '. print_r($yschema, 1));
@@ -1091,6 +1092,7 @@ function tables_action($action, $target = null) {
     $tables = array();
     foreach($tables0 as $el)
         if(strlen($el))$tables[] = $el;
+
     // print_r($tables);
 
 
@@ -1278,7 +1280,9 @@ function makesure_dir_exists($dir) {
     // $bootstrap_file = 'bootstrap_classes.php';
 
 
-    if(isset($options['app-dir']))define('__APPDIR__', $options['app-dir']);
+    if(isset($options['app-dir'])) {
+        define('__APPDIR__', $options['app-dir']);
+    }
 
     switch($optparams[0]) {
         case 'help':
