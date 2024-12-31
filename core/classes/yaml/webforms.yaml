@@ -1,0 +1,23 @@
+---
+table:
+  name: webforms
+  class: webFormsClass
+
+  fields:
+  - name: guid
+    type: '@guid'
+
+  - name: cdate
+    type: '@cdate'
+
+  - name: cuser
+    type: '@cuser'
+
+  - name: form_name
+    type: char(64)
+    required: true
+
+  - name: class_name
+    type: char(64)
+    required: true
+...
