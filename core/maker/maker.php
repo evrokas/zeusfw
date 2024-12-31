@@ -32,14 +32,13 @@
 
     require('functions.php');
 
-
     function mlog($s, $nl = true, $li=false) {
         if($li)echo __FILE__."(".__FUNCTION__."):".__LINE__.": ";
         echo $s . ($nl?"\n":"");
     }
 
 
-    function guid() {
+    function mguid() {
         return (trim(file_get_contents('/proc/sys/kernel/random/uuid')));
     }
     
@@ -718,7 +717,7 @@ function diff_sql($file) {
 function generate_content($author, $type, $name, $title, $desc, $viewmode) {
 
     $s = '';
-    $s .= "guid: " . guid() . "\n";
+    $s .= "guid: " . mguid() . "\n";
     $s .= "name: $name\n";
     $s .= "contenttype: $type\n";
     $s .= "title: $title\n";
@@ -769,7 +768,7 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
 
                 foreach($fields as $fkey => $fval) {
                     if((isset($specials_list['guid'])) && in_array($fkey, $specials_list['guid'])) {
-                            $g = guid();
+                            $g = mguid();
                             $arr['data'][$optval] += [$fkey => $g];
                     } else
                     if((isset($specials_list['date'])) && in_array($fkey, $specials_list['date'])) {
@@ -1294,6 +1293,8 @@ function makesure_dir_exists($dir) {
                 'spill:sql:all' => 'spill SQL code for all YAML files in yaml folder',
                 'spill:class' => 'spill PHP CLASS code for specific YAML file',
                 'spill:class:all' => 'spill PHP CLASS code for all YAML files in yaml folder',
+                'gen:form' => 'spill FORM templates',
+                'gen:form:all' => 'generate FORM all templates',
                 'update:bootstrap' => 'update bootstrap for classes PHP file',
                 'diff:sql' => 'show differences between YAML files and MySQL tables',
                 'diff:sql:all' => 'show differences for all YAML files',
@@ -1307,6 +1308,7 @@ function makesure_dir_exists($dir) {
                 'tables:list:fw' => 'dump database tables fw',
                 'tables:list:web' => 'dump database tables web',
                 'tables:list:all' => 'dump database tables from fw & web',
+
                 // not yet implemented
                 'tables:new:fw' => '[n/a] show tables from fw that have not been added to database, yet',
                 'tables:new:web' => '[n/a] show tables from web that have not been added to database, yet',
@@ -1493,6 +1495,60 @@ function makesure_dir_exists($dir) {
             break;
         case 'tables:missing':
             tables_action('missing');
+            break;
+
+        case 'gen:form:array':
+            if(!$optparams[1]) {
+                mlog('Usage: ' . $argv[0] . ' db-schema.yaml  file-to-process');
+                exit;
+            }
+            $file = $optparams[1];
+            if(!file_exists($file)) {
+                echo("File $file does not exist!");
+                exit(-1);
+            }
+
+            $yamlData = yaml_parse_file( $file);
+            if(isset($yamlData['form'])) {
+                // $form = generateHTMLForm( $yamlData );
+                // $form = generateHTMLForm0( $yamlData );
+                $formarray = generateHTMLFormArray( $yamlData );
+                print_r( $formarray );
+
+            } else echo ('No form data'. PHP_EOL);
+
+            break;
+
+        case 'gen:form:html':
+
+            // include webform sources
+            require_once(__FWDIR__ . "/bootstrap.php");
+
+            $kernel = new Kernel(['PHP_SELF' => __FILE__, 'SCRIPT_FILENAME' => __FILE__], __APPDIR__ . "/config/");
+            Renderer::init([__FWDIR__ . '/templates']);
+            Renderer::$enable_comments = true;
+
+            if(!$optparams[1]) {
+                mlog('Usage: ' . $argv[0] . ' db-schema.yaml  file-to-process');
+                exit;
+            }
+            $file = $optparams[1];
+            if(!file_exists($file)) {
+                echo("File $file does not exist!");
+                exit(-1);
+            }
+            $yamlData = yaml_parse_file( $file);
+            if(isset($yamlData['form'])) {
+                $formarray = generateHTMLFormArray( $yamlData );
+                // echo("<!-- "); print_r( $formarray ); echo(" --!>");
+                $form = generateHTMLForm( $formarray );
+                print_r( $form );
+
+            } else echo ('No form data'. PHP_EOL);
+
+            break;
+
+        case 'gen:form:all':
             break;
 
         default:
