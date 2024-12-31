@@ -43,6 +43,8 @@ require_once(__DIR__ . "/lib/Security.php");
 require_once(__DIR__ . "/lib/UserLogin.php");
 require_once(__DIR__ . "/lib/Feeders.php");
 
+require_once(__DIR__ . "/lib/FormElement.php");
+
 // moved to ../src/
 // if(file_exists('../src/ClassesEx.php'))
 // require_once(__DIR__ . "/lib/ClassesEx.php");
