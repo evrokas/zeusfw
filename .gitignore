@@ -1,4 +1,7 @@
 core/classes/sql/*
 core/classes/*.php
+core/classes/yaml/old/*
+core/classes/yaml/test/*
+
 core/symlinks/*
 !core/symlinks/README
