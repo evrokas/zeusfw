@@ -29,6 +29,12 @@ class Kernel {
         $configdir = rtrim($configdir, '/');
         $this->config = array();
 
+        // read framework configuration
+        if(file_exists(__FWDIR__ . '/zeusfw.info.yaml')) {
+            $conf = yaml_parse_file(__FWDIR__ . '/zeusfw.info.yaml');
+        } else $conf = array();
+
+        $this->addConfig( $conf );
 
         // read site-wide configuration
         if(file_exists($configdir . '/site.info.yaml')) {
