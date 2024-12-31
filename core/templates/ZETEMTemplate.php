@@ -96,7 +96,7 @@ class Renderer {
 	// return 404 content
 	static function renderSafe($file, $data = array(), $stemplated = null) {
 		if(self::existsTemplate($file))
-			return self::render($file, $data, $stemplate);
+			return self::render($file, $data, $stemplated);
 		else
 			return error_404();
 	}
@@ -119,8 +119,8 @@ class Renderer {
 			new RecursiveDirectoryIterator($apath, RecursiveDirectoryIterator::SKIP_DOTS),
 			RecursiveIteratorIterator::LEAVES_ONLY);
 
-		// print_r( $files );
-		// $farr = array();
+		// echopre(print_r( $files, 1 ));
+		$farr = array();
 		// echo "Template files in path: $apath\n";
 
 		$dupl=0;
@@ -151,8 +151,11 @@ class Renderer {
 	static function getTemplate($suggestions) {
 		// echo self::emmitComment('Template suggestions: ' . implode(' * ', $suggestions));
 		foreach(array_reverse($suggestions) as $s) {
-			// echopre("checking template $s");
-			if(isset(self::$template_files[ $s.'.zetem' ]))return $s.'.zetem';
+			// echopre("checking template $s\n");
+			if(array_key_exists("$s.zetem", self::$template_files)) {
+				// echopre("found template $s\n");
+				return "$s.zetem";
+			}
 		}
 	}
 
@@ -168,6 +171,7 @@ class Renderer {
 	    if (!self::$cache_enabled || !file_exists($cached_file) || filemtime($cached_file) < filemtime(self::$template_files[ $file ])) {
 			
 			if($stemplates != null && self::$enable_comments) {
+				// echo("generating template from beginning\n");
 				$code = "<!--- template suggestions: ---!>";
 				foreach($stemplates[0] as $sugg) {
 					$code .= "<!--- ";
@@ -225,7 +229,7 @@ class Renderer {
 			$code = str_replace($value[0], self::includeFiles($value[2]), $code);
 		}
 		$code = preg_replace('/{% ?(extends|include) ?\'?(.*?)\'? ?%}/i', '', $code);
-		$code = self::emmitComment(" end include file : $file ", $code, false);
+		$code = self::emmitComment(" end include file : $file", $code, true);
 
 		return $code;
 	}
