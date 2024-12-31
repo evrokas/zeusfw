@@ -1,0 +1,15 @@
+{% attach_library('webform') %}
+
+<form {% foreach($attributes as $attr => $value): %}{{ $attr }}="{{ $value }}" {% endforeach %}>
+    <div class="form_elements">
+        {% foreach($elements as $element): %}
+            {{ $element }}
+        {% endforeach %}
+    </div>
+
+    <div class="form_controls">
+        {% foreach($controls as $control): %}
+            {{ $control }}
+        {% endforeach %}
+    </div>
+</form>
