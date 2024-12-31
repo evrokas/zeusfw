@@ -1,22 +1,24 @@
-table: 
+---
+table:
   name: analytics
   class: analyticsClass
+
   fields:
-    - name: "cdate"
-      type: "@cdate"
+  - name: cdate
+    type: '@cdate'
 
-    - name: "page"
-      type: text
+  - name: page
+    type: text
 
-    - name: "url"
-      type: text
+  - name: url
+    type: text
 
-    - name: "remote_ip"
-      type: text
+  - name: remote_ip
+    type: text
 
-    - name: "user_agent"
-      type: text
+  - name: user_agent
+    type: text
 
-    - name: "served"
-      type: boolean
-    
+  - name: served
+    type: boolean
+...

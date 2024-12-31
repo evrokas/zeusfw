@@ -1,36 +1,39 @@
+---
 table:
-  name: "pageanalytics"
+  name: pageanalytics
   class: pageAnalyticsClass
   extention: __FWDIR__ . '/pageAnalyticsClassEx.php'
+
   fields:
-    - name: "cdate"
-      type: "@cdate"
+  - name: cdate
+    type: '@cdate'
 
-    - name: "page"
-      type: text
+  - name: page
+    type: text
 
-    - name: "url"
-      type: text
+  - name: url
+    type: text
 
-    - name: "rule"
-      type: text
+  - name: rule
+    type: text
 
-    - name: "total_count"
-      type: bigint
-      db_default: 0
+  - name: total_count
+    type: bigint
+    default: 0
 
-    - name: "week_count"
-      type: int
-      db_default: 0
+  - name: week_count
+    type: int
+    default: 0
 
-    - name: "last_week_count"
-      type: int
-      db_default: 0
+  - name: last_week_count
+    type: int
+    default: 0
 
-    - name: "month_count"
-      type: int
-      db_default: 0
+  - name: month_count
+    type: int
+    default: 0
 
-    - name: "last_month_count"
-      type: int
-      db_default: 0
+  - name: last_month_count
+    type: int
+    default: 0
+...

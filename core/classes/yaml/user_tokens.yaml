@@ -1,29 +1,32 @@
-table: 
+---
+table:
   name: user_tokens
   class: userTokensClass
+
   fields:
-    - name: "cdate"
-      type: "@cdate"
+  - name: cdate
+    type: '@cdate'
 
-    - name: "selector"
-      type: varchar(255)
-      db_required: true
+  - name: selector
+    type: varchar(255)
+    required: true
 
-    - name: "validator"
-      type: varchar(255)
-      db_required: true
+  - name: validator
+    type: varchar(255)
+    required: true
 
-    - name: uname
-      type: "@cuser"
+  - name: uname
+    type: '@cuser'
 
-    - name: "remoteip"
-      type: varchar(25)
-      db_required: true
+  - name: remoteip
+    type: varchar(25)
+    required: true
 
-    - name: "useragent"
-      type: varchar(255)
-      db_required: true
+  - name: useragent
+    type: varchar(255)
+    required: true
 
-    - name: "expiry"
-      type: datetime
-      db_required: true
+  - name: expiry
+    type: datetime
+    required: true
+...

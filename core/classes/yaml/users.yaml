@@ -1,37 +1,39 @@
-table: 
+---
+table:
   name: users
   class: usersClass
+
   fields:
-    - name: "name"
-      type: varchar(64)
-      db_required: true
+  - name: name
+    type: varchar(64)
+    required: true
 
-    - name: "email"
-      type: varchar(128)
-      db_required: true
+  - name: email
+    type: varchar(128)
+    required: true
 
-    - name: "uname"
-      type: "@cuser"
+  - name: uname
+    type: '@cuser'
 
-    - name: "upass"
-      type: varchar(65)
-      db_required: true
+  - name: upass
+    type: varchar(65)
+    required: true
 
-    - name: "cdate"
-      type: "@cdate"
+  - name: cdate
+    type: '@cdate'
 
-    - name: "active"
-      type: boolean
-      db_default: false
+  - name: active
+    type: boolean
+    default: false
 
-    - name: "expired"
-      type: boolean
-      db_default: true
+  - name: expired
+    type: boolean
+    default: true
 
-    - name: "wrongpasscount"
-      type: smallint
-      db_default: 0
+  - name: wrongpasscount
+    type: smallint
+    default: 0
 
-    - name: "roles"
-      type: "@guid"
-  
+  - name: roles
+    type: '@guid'
+...

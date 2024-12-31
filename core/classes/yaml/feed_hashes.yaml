@@ -1,24 +1,26 @@
-# feed hashes tables
+---
 table:
   name: feed_hashes
   class: feedhashesClass
   extention: __FWDIR__ . '/feedhashesClassEx.php'
+
   fields:
-    - name: "guid"
-      type: "@guid"
+  - name: guid
+    type: '@guid'
 
-    - name: "hash"
-      type: char(65)
-      db_required: true
+  - name: hash
+    type: char(65)
+    required: true
 
-    - name: "feedclass"
-      type: text
-      db_required: true
+  - name: feedclass
+    type: text
+    required: true
 
-    - name: "feedid"
-      type: int
-      db_required: true
+  - name: feedid
+    type: int
+    required: true
 
-    - name: "expiry"
-      type: timestamp
-      db_required: true
+  - name: expiry
+    type: timestamp
+    required: true
+...
