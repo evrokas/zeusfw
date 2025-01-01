@@ -1295,6 +1295,7 @@ function makesure_dir_exists($dir) {
                 'spill:class:all' => 'spill PHP CLASS code for all YAML files in yaml folder',
                 'gen:form' => 'spill FORM templates',
                 'gen:form:all' => 'generate FORM all templates',
+                'form:load' => 'load form data to database',
                 'update:bootstrap' => 'update bootstrap for classes PHP file',
                 'diff:sql' => 'show differences between YAML files and MySQL tables',
                 'diff:sql:all' => 'show differences for all YAML files',
@@ -1543,6 +1544,30 @@ function makesure_dir_exists($dir) {
                 // echo("<!-- "); print_r( $formarray ); echo(" --!>");
                 $form = generateHTMLForm( $formarray );
                 print_r( $form );
+
+            } else echo ('No form data'. PHP_EOL);
+
+            break;
+
+        case 'form:load':
+            if(!$optparams[1]) {
+                mlog('Usage: ' . $argv[0] . ' db-schema.yaml  file-to-process');
+                exit;
+            }
+            $file = $optparams[1];
+            if(!file_exists($file)) {
+                echo("File $file does not exist!");
+                exit(-1);
+            }
+
+            $yamlData = yaml_parse_file( $file );
+            if(isset($yamlData['form'])) {
+                // $form = generateHTMLForm( $yamlData );
+                // $form = generateHTMLForm0( $yamlData );
+            form_load( $yamlData );
+
+                //$formarray = generateHTMLFormArray( $yamlData );
+                //print_r( $formarray );
 
             } else echo ('No form data'. PHP_EOL);
 

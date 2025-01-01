@@ -938,3 +938,10 @@ function generateClassCode($yamlData) {
     // $sqldiff = syncTableWithYAML($yml, $pdo);
     // echo("$sqldiff\n");
 // }
+
+
+function form_load($yform) {
+	echo("loading form {$yform['form']['name']}\n");
+	
+
+}
