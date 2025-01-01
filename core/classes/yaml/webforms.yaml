@@ -1,6 +1,7 @@
 ---
 table:
   name: webforms
+  extention: __FWDIR__ . '/Webforms.php'
   class: webFormsClass
 
   fields:
@@ -14,10 +15,14 @@ table:
     type: '@cuser'
 
   - name: form_name
-    type: char(64)
+    type: char(128)
     required: true
 
   - name: class_name
     type: char(64)
     required: true
+
+  - name: data
+    type: text
+
 ...

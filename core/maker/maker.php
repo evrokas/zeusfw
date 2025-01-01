@@ -1,5 +1,9 @@
 <?php
 
+class DIR {
+    static $app = null;
+    static $fw = null;
+};
 
 // include( getcwd() . "/../../config/db.php");
     // echo "cwd(): " . getcwd() . "\n";
@@ -10,24 +14,26 @@
         $dir = implode('/',array_slice($dnames, 0, $i));
         if(file_exists($dir . '/config')) {
             // echo "$dir/config exists!";
+            DIR::$app = $dir;
+            DIR::$fw = $dir . '/web/core';
+
             define('__APPDIR__', $dir);
             define('__FWDIR__', $dir . '/web/core');
             break;
         } else
         if(file_exists($dir . '/bootstrap.php')) {
+            DIR::$fw = $dir;
+
             define('__FWDIR__', $dir);
             break;
         }
     }
 
+    // echo("app-dir: " . DIR::$app . "\tfw-dir: " . DIR::$fw . "\n");
     // if(defined('__APPDIR__'))echo 'app dir: ' . __APPDIR__ . "\n";
     // if(defined('__FWDIR__'))echo 'fw dir: ' . __FWDIR__ . "\n";
 
 
-    if(defined('__APPDIR__')) {
-        // echo(">>>" . __APPDIR__ . '/config/db.php' . "\n");
-        include_once(__APPDIR__ . '/config/db.php');
-    }
     
 
     require('functions.php');
@@ -438,7 +444,7 @@ class Database {
 
         $s = 'DESCRIBE ' . $this->name . ";";
         file_put_contents($temp, $s);
-        $res = shell_exec(__APPDIR__ . "/sql/msql.sh < " . $temp);
+        $res = shell_exec(DIR::$app . "/sql/msql.sh < " . $temp);
         // print_r( $res );
 
         $res = str_replace("\t\t", "\t", $res);
@@ -688,14 +694,14 @@ function spill_bootstrap($files) {
 
 function diff_sql($file) {
 
-    if(!defined('__APPDIR__'))require_option('app-dir');
+    if(!DIR::$app)require_option('app-dir');
 
     $tableinfo =  yaml_parse_file( $file );
     
     // $db = new Database($tableinfo);
     // $s = $db->emitSqlDiff();
 
-    include_once(__APPDIR__ . '/config/db.php');
+    include_once(DIR::$app . '/config/db.php');
     
     $host = DB_HOST;
     $dbname = DB_NAME;
@@ -908,11 +914,14 @@ function generate_feed_from_yaml($name, $dir, $update = array()) {
 
 include(__DIR__ . '/../db/dbal.php');
 
-if(file_exists(__FWDIR__ . '/classes/feed_hashes.php'))
-  include(__FWDIR__ . '/classes/feed_hashes.php');
+if(!defined('__FWDIR__'))
+    define('__FWDIR__', DIR::$fw);
 
-if(file_exists(__FWDIR__ . '/classes/feed_class.php'))
-  include(__FWDIR__ . '/classes/feed_class.php');
+if(file_exists(DIR::$fw . '/classes/feed_hashes.php'))
+  include(DIR::$fw . '/classes/feed_hashes.php');
+
+if(file_exists(DIR::$fw . '/classes/feed_class.php'))
+  include(DIR::$fw . '/classes/feed_class.php');
 
 function load_feed_data($name) {
     // echo("load yaml feeds to database\n");
@@ -1044,7 +1053,7 @@ function load_feed_data($name) {
 function export_data($afile) {
     global $yaml_dir;
 
-    if(!defined('__APPDIR__'))require_option('app-dir');
+    if(!DIR::$app)require_option('app-dir');
 
     $temp = tempnam('/tmp', 'export-');
 
@@ -1056,7 +1065,7 @@ function export_data($afile) {
     // print_r( $yinfo );
 
     $args = "-y --compact --skip-extended-insert --no-create-info --skip-comments ";
-    $cmd = __APPDIR__ . "/sql/msqldump.sh " . $args . $yinfo['table'];
+    $cmd = DIR::$app . "/sql/msqldump.sh " . $args . $yinfo['table'];
     $res = shell_exec( $cmd );
     // $res2 = array();
     // $res = exec( $cmd , $res2);
@@ -1074,11 +1083,11 @@ function content_view($afile) {
 
 // $dir can be fw/ or web/
 function tables_action($action, $target = null) {
-    if(!defined('__APPDIR__'))require_option('app-dir');
+    if(!DIR::$app)require_option('app-dir');
     $cwd = posix_getcwd();
     // echo "Current dir: $cwd\n";
     
-    chdir(__APPDIR__);
+    chdir(DIR::$app);
     // echo "Current dir: " . posix_getcwd() . "\n";
 
 
@@ -1280,7 +1289,8 @@ function makesure_dir_exists($dir) {
 
 
     if(isset($options['app-dir'])) {
-        define('__APPDIR__', $options['app-dir']);
+        DIR::$app = $options['app-dir'];
+        // define('__APPDIR__', $options['app-dir']);
     }
 
     switch($optparams[0]) {
@@ -1293,8 +1303,8 @@ function makesure_dir_exists($dir) {
                 'spill:sql:all' => 'spill SQL code for all YAML files in yaml folder',
                 'spill:class' => 'spill PHP CLASS code for specific YAML file',
                 'spill:class:all' => 'spill PHP CLASS code for all YAML files in yaml folder',
-                'gen:form' => 'spill FORM templates',
-                'gen:form:all' => 'generate FORM all templates',
+                'gen:form:array' => 'generate FORM array from YAML',
+                'gen:form:html' => 'generate FORM html from array',
                 'form:load' => 'load form data to database',
                 'update:bootstrap' => 'update bootstrap for classes PHP file',
                 'diff:sql' => 'show differences between YAML files and MySQL tables',
@@ -1521,11 +1531,13 @@ function makesure_dir_exists($dir) {
             break;
 
         case 'gen:form:html':
+            if(!DIR::$fw || !DIR::$app) {
+        }
 
             // include webform sources
-            require_once(__FWDIR__ . "/bootstrap.php");
+            require_once(DIR::$fw . "/bootstrap.php");
 
-            $kernel = new Kernel(['PHP_SELF' => __FILE__, 'SCRIPT_FILENAME' => __FILE__], __APPDIR__ . "/config/");
+            $kernel = new Kernel(['PHP_SELF' => __FILE__, 'SCRIPT_FILENAME' => __FILE__], DIR::$app . "/config/");
             Renderer::init([__FWDIR__ . '/templates']);
             Renderer::$enable_comments = true;
 
