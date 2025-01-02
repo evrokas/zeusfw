@@ -1,7 +1,7 @@
 ---
 table:
   name: webforms
-  extention: __FWDIR__ . '/Webforms.php'
+  # extention: __FWDIR__ . '/Webforms.php'
   class: webFormsClass
 
   fields:
@@ -18,11 +18,11 @@ table:
     type: char(128)
     required: true
 
-  - name: class_name
+  - name: form_class
     type: char(64)
     required: true
 
   - name: data
-    type: text
+    type: blob
 
 ...
