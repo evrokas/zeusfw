@@ -72,6 +72,7 @@ abstract class dbAbstractEntityClass {
     }
     
     function getConnection() { return $GLOBALS['AppDBConnection']; }
+    static function sgetConnection() { return $GLOBALS['AppDBConnection']; }
 
     function getById(int $aid) {
         if(!$this->getConnection()->isConnected()) {
@@ -120,6 +121,59 @@ abstract class dbAbstractEntityClass {
 
         return ($list);
     }
+
+    // static version
+    // return results based on filter, filter is on format ['id' => '0', 'name' => 'test']
+    static function sgetAllFilter($tableName, $filterArray = [], $sortsArray = []) {
+        global $AppDBConnection;
+        if(!$AppDBConnection->getConnection()) {
+            echo "Database is not connected!\n";
+            if(!$AppDBConnection->Connect()) {
+                echo "Could not connect to database";
+                return (null);
+            }
+        }
+
+        $sql = "SELECT * FROM " . $tableName;
+
+        $whereList = [];
+        foreach($filterArray as $key => $value) {
+            $whereList[] = "{$key} = :{$key}";
+        }
+
+        if(!empty($whereList)) {
+            $sql .= " WHERE " . implode(" AND " , $whereList);
+        }
+
+        foreach($sortsArray as $key => $direction) {
+            $sql .= " ORDER BY {$key} {$direction}";
+        }
+
+        // print_r($filterArray);
+        // print_r($sortsArray);
+        // print_r($sql);
+
+        $stmt = $AppDBConnection->getConnection()->prepare( $sql );
+        $stmt->execute( $filterArray );
+
+        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        // print_r($results);
+
+        return ($results);
+    }
+/*
+    function getAllFilter($filterArray = [], $sortsArray = []) {
+        if(!$this->getConnection()->isConnected()) {
+            // echo "Database is not connected!\n";
+            if(!$this->getConnection()->Connect()) {
+                echo "Could not connect to database";
+                return (null);
+            }
+        }
+
+        return (self::sgetAllFilter($this->_table, $filterArray, $sortsArray));
+    }
+*/
 
     // insert in database this object
     abstract function insert();
