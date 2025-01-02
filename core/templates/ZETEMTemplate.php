@@ -13,7 +13,7 @@
 class Renderer {
 	static $blocks = array();
 	static $template_path = array();
-	static $cache_path = 'cache/';
+	static $cache_path = '/tmp/cache/';
 	static $cache_enabled = FALSE;
 	// static $cache_enabled = true;   //FALSE;
 	static $enable_comments = TRUE;
