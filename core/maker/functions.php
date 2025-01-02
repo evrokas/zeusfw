@@ -498,7 +498,7 @@ function syncTableWithYAML($yamlData, $pdo) {
             }
 
             $existingDefinition = trim($existing['Type']) . ($existing['Null'] === 'NO' ? ' NOT NULL' : '') .
-                ($existing['Default'] !== null ? " DEFAULT '" . trim($existing['Default']) . "'" : '') .
+                ($existing['Default'] !== null ? " DEFAULT " . trim($existing['Default']) . "" : '') .
                 (isset($existing['Extra']) ?  " " . trim($existing['Extra']) : '');
 
 /*
@@ -1007,6 +1007,10 @@ function form_load($yData) {
             ]);
 
             $formClass->insert();
+
+            print_r($formClass);
+            echo("Form added to database\n");
+
         } else {
             if(count($dbForm)>1) {
                 echo("Found more than 1 forms in database. You must fix it manually!\n");
@@ -1043,7 +1047,7 @@ function form_view($yData) {
 
     echo("loading form `{$yData['form']['name']}`\n");
 	
-    $formArray = generateHTMLFormArray($yData);
+    // $formArray = generateHTMLFormArray($yData);
 
     // print_r($formArray);
     // $serializedArray = serialize( $formArray );
@@ -1051,7 +1055,7 @@ function form_view($yData) {
     // print_r($serializedArray);
     // echo("\n---\n");
     // $s = JsonSerializable()
-    $jsonArray = json_encode( $formArray);
+    // $jsonArray = json_encode( $formArray);
     // print_r($jsonArray);
     
     if(isset($yData['table']['class'])) {
@@ -1096,45 +1100,81 @@ function form_view($yData) {
             $arr = json_decode( $dbForm[0]['data'], true );
             print_r($arr);
         }
-/*         
-        if(empty($dbForm)) {
-            echo("No forms found in database\n");
-            
-            $formClass = new webFormsClass([
-                'guid' => mguid(),
-                'cdate' => date('Y-m-d H:i:s'),
-                'cuser' => 'admin',
-                'form_name' => $formName,
-                'form_class' => $className,
-                'data' => $jsonArray
-            ]);
+    } else {
+        echo("Database table has no matching class to it\n");
+        exit(-1);
+    }
+}
 
-            $formClass->insert();
-        } else {
-            if(count($dbForm)>1) {
-                echo("Found more than 1 forms in database. You must fix it manually!\n");
-                exit(-1);
-            }
+function form_view_html($yData) {
+    global $AppDBConnection;
 
-            echo("Found form in database\n");
-            print_r($dbForm);
+    // echo("loading form `{$yData['form']['name']}`\n");
+	
+    // $formArray = generateHTMLFormArray($yData);
 
-            $formClass = new webFormsClass( $dbForm[0] );
+    // print_r($formArray);
+    // $serializedArray = serialize( $formArray );
 
-            $formClass->setguid( mguid() );
-            $formClass->setcdate( date('Y-m-d H:i:s'));
-            $formClass->setcuser( 'admin' );
-            $formClass->setform_name( $formName );
-            $formClass->setform_class( $className );
+    // print_r($serializedArray);
+    // echo("\n---\n");
+    // $s = JsonSerializable()
+    // $jsonArray = json_encode( $formArray);
+    // print_r($jsonArray);
+    
+    if(isset($yData['table']['class'])) {
+        // class is set
+        $tableName = $yData['table']['name'];
+        $className = $yData['table']['class'];
+        $formName = $yData['form']['name'];
 
-            print_r($formClass);
+        // echo("class name $className\n");
 
-            $formClass->update();
 
-            echo ("Form in database is updated\n");
+        include_once(DIR::$app . '/config/db.php');
+        // echo("DB_HOST " . DB_HOST . "\tDB_NAME: " . DB_NAME . "\n");
+        // $host = DB_HOST;
+        // $dbname = DB_NAME;
+        // $user = DB_USER;
+        // $pass = DB_PASS;
+
+        // include webform sources
+        
+        require(DIR::$fw . "/bootstrap.php");
+        
+        
+        $AppDBConnection = new dbConnection(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+        $AppDBConnection->Connect();
+
+        global $kernel;
+        $kernel = new Kernel(['PHP_SELF' => __FILE__, 'SCRIPT_FILENAME' => __FILE__], DIR::$app . "/config/");
+        Renderer::init([DIR::$fw. '/templates']);
+        Renderer::$enable_comments = true;
+
+        // try {
+        //     $pdo = new PDO("mysql:host=$host;dbname=$dbname", $user, $pass);
+        //     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        // } catch (PDOException $e) {
+        //     die("Database connection failed: " . $e->getMessage());
+        // }
+
+        // $AppDBConnection = $pdo;
+
+        $dbForm = webFormsClass::sgetAllFilter('webforms', ['form_name' => $formName]);
+
+        // echo("Found forms with name `$formName`\n");
+        // print_r($dbForm);
+
+        if(!empty($dbForm)) {
+            $arr = json_decode( $dbForm[0]['data'], true );
+            // print_r($arr);
+
+
+            $formArray = generateHTMLForm( $arr );
+
+            print_r($formArray);
+
         }
-
- */
     } else {
         echo("Database table has no matching class to it\n");
         exit(-1);

@@ -1307,6 +1307,7 @@ function makesure_dir_exists($dir) {
                 'gen:form:html' => 'generate FORM html from array',
                 'form:load' => 'load form data to database',
                 'form:view' => 'show form data from database',
+                'form:view:html' => 'show form HTML data from database',
                 'update:bootstrap' => 'update bootstrap for classes PHP file',
                 'diff:sql' => 'show differences between YAML files and MySQL tables',
                 'diff:sql:all' => 'show differences for all YAML files',
@@ -1553,7 +1554,7 @@ function makesure_dir_exists($dir) {
             require_once(DIR::$fw . "/bootstrap.php");
 
             $kernel = new Kernel(['PHP_SELF' => __FILE__, 'SCRIPT_FILENAME' => __FILE__], DIR::$app . "/config/");
-            Renderer::init([__FWDIR__ . '/templates']);
+            Renderer::init([DIR::$fw. '/templates']);
             Renderer::$enable_comments = true;
 
             if(!$optparams[1]) {
@@ -1616,6 +1617,30 @@ function makesure_dir_exists($dir) {
                 // $form = generateHTMLForm( $yamlData );
                 // $form = generateHTMLForm0( $yamlData );
             form_view( $yamlData );
+
+                //$formarray = generateHTMLFormArray( $yamlData );
+                //print_r( $formarray );
+
+            } else echo ('No form data'. PHP_EOL);
+
+            break;
+
+        case 'form:view:html':
+            if(!$optparams[1]) {
+                mlog('Usage: ' . $argv[0] . ' db-schema.yaml  file-to-process');
+                exit;
+            }
+            $file = $optparams[1];
+            if(!file_exists($file)) {
+                echo("File $file does not exist!");
+                exit(-1);
+            }
+
+            $yamlData = yaml_parse_file( $file );
+            if(isset($yamlData['form'])) {
+                // $form = generateHTMLForm( $yamlData );
+                // $form = generateHTMLForm0( $yamlData );
+            form_view_html( $yamlData );
 
                 //$formarray = generateHTMLFormArray( $yamlData );
                 //print_r( $formarray );
