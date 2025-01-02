@@ -19,11 +19,23 @@ class Attributes {
             $this->addAttribute($attrclass, $attrname);
     }
 
+    function existAttribute($attrclass, $attrname) {
+        if(array_key_exists($attrclass, array_keys($this->attr))) {
+            if(!in_array($attrname, $this->attr[$attrclass])) {
+                return true;
+            } else return false;
+        } else return false;
+    }
 
     function addAttribute($attrclass, $attrname) {
         if(!isset($this->attr[ $attrclass ]))
             $this->attr[ $attrclass ] = array();
-        $this->attr[ $attrclass ][] = $attrname;
+    
+        if(!$this->existAttribute($attrclass, $attrname)) {
+            // $attrname does not exist, so add it
+            $this->attr[ $attrclass ][] = $attrname;
+        }
+
         // print_r( $this->attr );
     }
 
@@ -33,6 +45,14 @@ class Attributes {
             unset($this->attr[ $attrclass ][ $attrname ]);
     }
 
+    function toggleAttribute($attrclass, $attrname) {
+        if($this->existAttribute($attrclass, $attrname))
+            $this->removeAttribute($attrclass, $attrname);
+        else
+            $this->addAttribute($attrclass, $attrname);
+    }
+
+    // shorthands for class="class"
     function addClass($attrname) {
         $this->addAttribute('class', $attrname);
     }
@@ -40,7 +60,6 @@ class Attributes {
     function removeClass($attrname) {
         $this->removeAttribute('class', $attrname);
     }
-
 
     function getAttributes() {
         $str = '';
