@@ -1306,6 +1306,7 @@ function makesure_dir_exists($dir) {
                 'gen:form:array' => 'generate FORM array from YAML',
                 'gen:form:html' => 'generate FORM html from array',
                 'form:load' => 'load form data to database',
+                'form:view' => 'show form data from database',
                 'update:bootstrap' => 'update bootstrap for classes PHP file',
                 'diff:sql' => 'show differences between YAML files and MySQL tables',
                 'diff:sql:all' => 'show differences for all YAML files',
@@ -1359,9 +1360,15 @@ function makesure_dir_exists($dir) {
 
             // be sure the sql directory exists, otherwise create it
             makesure_dir_exists( $sql_dir );
-
+            
+            echo("removing old sql files from $sql_dir/\n");
+            shell_exec("rm -f $sql_dir/*.sql");
+            
+            
+            echo("generating sql files in $sql_dir/\n");
             $files = get_yaml_files( $yaml_dir );
             foreach( $files as $yfile ) {
+                echo("  ... " . pathinfo($yfile, PATHINFO_FILENAME ) . "\n");
                 spill_sql( $yaml_dir . '/' . $yfile, $sql_dir );
             }
             break;
@@ -1384,8 +1391,16 @@ function makesure_dir_exists($dir) {
             spill_class( $yaml_dir . '/' . $file, $class_dir);
             break;
         case 'spill:class:all':
+            echo("removing old class files\n");
+            $res = shell_exec("ls *.php | grep -v bootstrap_classes.php - | xargs rm -v");
+
+            print_r($res);
+            
+            echo("generating class files\n");
             $files = get_yaml_files( $yaml_dir );
             foreach($files as $yfile ) {
+                echo("  ... " . pathinfo($yfile, PATHINFO_FILENAME ) . "\n");
+
                 spill_class($yaml_dir . '/' . $yfile, $class_dir);
             }
             break;
@@ -1577,6 +1592,30 @@ function makesure_dir_exists($dir) {
                 // $form = generateHTMLForm( $yamlData );
                 // $form = generateHTMLForm0( $yamlData );
             form_load( $yamlData );
+
+                //$formarray = generateHTMLFormArray( $yamlData );
+                //print_r( $formarray );
+
+            } else echo ('No form data'. PHP_EOL);
+
+            break;
+
+        case 'form:view':
+            if(!$optparams[1]) {
+                mlog('Usage: ' . $argv[0] . ' db-schema.yaml  file-to-process');
+                exit;
+            }
+            $file = $optparams[1];
+            if(!file_exists($file)) {
+                echo("File $file does not exist!");
+                exit(-1);
+            }
+
+            $yamlData = yaml_parse_file( $file );
+            if(isset($yamlData['form'])) {
+                // $form = generateHTMLForm( $yamlData );
+                // $form = generateHTMLForm0( $yamlData );
+            form_view( $yamlData );
 
                 //$formarray = generateHTMLFormArray( $yamlData );
                 //print_r( $formarray );

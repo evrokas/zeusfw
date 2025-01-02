@@ -359,7 +359,7 @@ function generateHTMLForm1($yamlData) {
 function createFieldDefinition($field, bool $includeFieldName = false) {
     // Predefined mapping for @ values
     $internalTypes = [
-        "@cdate" => "DATETIME DEFAULT 'CURRENT_TIMESTAMP'",
+        "@cdate" => "DATETIME DEFAULT CURRENT_TIMESTAMP",
         "@cuser" => "CHAR(32) NOT NULL",
         "@guid" => "CHAR(36) NOT NULL",
         "@delete" => "DATETIME DEFAULT NULL",
@@ -394,7 +394,7 @@ function createFieldDefinition($field, bool $includeFieldName = false) {
 
         $required = $required ? " NOT NULL " : '';
         if(!is_null($default))
-            $default = " DEFAULT " . "'" . addslashes($default) . "'";
+            $default = " DEFAULT " . "" . addslashes($default) . "";
             // $default = " DEFAULT " . ($default==="null" ? $default : "'" . addslashes($default) . "'");
 
         $onUpdate = isset($field['on_update']) ? " ON UPDATE " . $field['on_update'] : null;
@@ -940,8 +940,203 @@ function generateClassCode($yamlData) {
 // }
 
 
-function form_load($yform) {
-	echo("loading form {$yform['form']['name']}\n");
-	
+function form_load($yData) {
+    global $AppDBConnection;
 
+    echo("loading form `{$yData['form']['name']}`\n");
+	
+    $formArray = generateHTMLFormArray($yData);
+
+    // print_r($formArray);
+    // $serializedArray = serialize( $formArray );
+
+    // print_r($serializedArray);
+    // echo("\n---\n");
+    // $s = JsonSerializable()
+    $jsonArray = json_encode( $formArray);
+    // print_r($jsonArray);
+    
+    if(isset($yData['table']['class'])) {
+        // class is set
+        $tableName = $yData['table']['name'];
+        $className = $yData['table']['class'];
+        $formName = $yData['form']['name'];
+
+        // echo("class name $className\n");
+
+
+        include_once(DIR::$app . '/config/db.php');
+        // echo("DB_HOST " . DB_HOST . "\tDB_NAME: " . DB_NAME . "\n");
+        // $host = DB_HOST;
+        // $dbname = DB_NAME;
+        // $user = DB_USER;
+        // $pass = DB_PASS;
+
+        // include webform sources
+        
+        require(DIR::$fw . "/bootstrap.php");
+        
+        
+        $AppDBConnection = new dbConnection(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+        $AppDBConnection->Connect();
+
+        // try {
+        //     $pdo = new PDO("mysql:host=$host;dbname=$dbname", $user, $pass);
+        //     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        // } catch (PDOException $e) {
+        //     die("Database connection failed: " . $e->getMessage());
+        // }
+
+        // $AppDBConnection = $pdo;
+
+        $dbForm = webFormsClass::sgetAllFilter('webforms', ['form_name' => $formName]);
+
+        // echo("Found forms with name `$formName`\n");
+        // print_r($dbForm);
+
+        if(empty($dbForm)) {
+            echo("No forms found in database\n");
+            
+            $formClass = new webFormsClass([
+                'guid' => mguid(),
+                'cdate' => date('Y-m-d H:i:s'),
+                'cuser' => 'admin',
+                'form_name' => $formName,
+                'form_class' => $className,
+                'data' => $jsonArray
+            ]);
+
+            $formClass->insert();
+        } else {
+            if(count($dbForm)>1) {
+                echo("Found more than 1 forms in database. You must fix it manually!\n");
+                exit(-1);
+            }
+
+            echo("Found form in database\n");
+            print_r($dbForm);
+
+            $formClass = new webFormsClass( $dbForm[0] );
+
+            $formClass->setguid( mguid() );
+            $formClass->setcdate( date('Y-m-d H:i:s'));
+            $formClass->setcuser( 'admin' );
+            $formClass->setform_name( $formName );
+            $formClass->setform_class( $className );
+
+            print_r($formClass);
+
+            $formClass->update();
+
+            echo ("Form in database is updated\n");
+        }
+
+
+    } else {
+        echo("Database table has no matching class to it\n");
+        exit(-1);
+    }
+}
+
+function form_view($yData) {
+    global $AppDBConnection;
+
+    echo("loading form `{$yData['form']['name']}`\n");
+	
+    $formArray = generateHTMLFormArray($yData);
+
+    // print_r($formArray);
+    // $serializedArray = serialize( $formArray );
+
+    // print_r($serializedArray);
+    // echo("\n---\n");
+    // $s = JsonSerializable()
+    $jsonArray = json_encode( $formArray);
+    // print_r($jsonArray);
+    
+    if(isset($yData['table']['class'])) {
+        // class is set
+        $tableName = $yData['table']['name'];
+        $className = $yData['table']['class'];
+        $formName = $yData['form']['name'];
+
+        // echo("class name $className\n");
+
+
+        include_once(DIR::$app . '/config/db.php');
+        // echo("DB_HOST " . DB_HOST . "\tDB_NAME: " . DB_NAME . "\n");
+        // $host = DB_HOST;
+        // $dbname = DB_NAME;
+        // $user = DB_USER;
+        // $pass = DB_PASS;
+
+        // include webform sources
+        
+        require(DIR::$fw . "/bootstrap.php");
+        
+        
+        $AppDBConnection = new dbConnection(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+        $AppDBConnection->Connect();
+
+        // try {
+        //     $pdo = new PDO("mysql:host=$host;dbname=$dbname", $user, $pass);
+        //     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        // } catch (PDOException $e) {
+        //     die("Database connection failed: " . $e->getMessage());
+        // }
+
+        // $AppDBConnection = $pdo;
+
+        $dbForm = webFormsClass::sgetAllFilter('webforms', ['form_name' => $formName]);
+
+        echo("Found forms with name `$formName`\n");
+        print_r($dbForm);
+
+        if(!empty($dbForm)) {
+            $arr = json_decode( $dbForm[0]['data'], true );
+            print_r($arr);
+        }
+/*         
+        if(empty($dbForm)) {
+            echo("No forms found in database\n");
+            
+            $formClass = new webFormsClass([
+                'guid' => mguid(),
+                'cdate' => date('Y-m-d H:i:s'),
+                'cuser' => 'admin',
+                'form_name' => $formName,
+                'form_class' => $className,
+                'data' => $jsonArray
+            ]);
+
+            $formClass->insert();
+        } else {
+            if(count($dbForm)>1) {
+                echo("Found more than 1 forms in database. You must fix it manually!\n");
+                exit(-1);
+            }
+
+            echo("Found form in database\n");
+            print_r($dbForm);
+
+            $formClass = new webFormsClass( $dbForm[0] );
+
+            $formClass->setguid( mguid() );
+            $formClass->setcdate( date('Y-m-d H:i:s'));
+            $formClass->setcuser( 'admin' );
+            $formClass->setform_name( $formName );
+            $formClass->setform_class( $className );
+
+            print_r($formClass);
+
+            $formClass->update();
+
+            echo ("Form in database is updated\n");
+        }
+
+ */
+    } else {
+        echo("Database table has no matching class to it\n");
+        exit(-1);
+    }
 }
