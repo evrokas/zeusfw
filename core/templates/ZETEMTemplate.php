@@ -13,7 +13,7 @@
 class Renderer {
 	static $blocks = array();
 	static $template_path = array();
-	static $cache_path = '/tmp/cache/';
+	static $cache_path = 'cache/';
 	static $cache_enabled = FALSE;
 	// static $cache_enabled = true;   //FALSE;
 	static $enable_comments = TRUE;
@@ -103,6 +103,7 @@ class Renderer {
 
 	/* return true if template file exists, false otherwise */
 	static function existsTemplate($tname) {
+		// echopre(" **** checking for exist template: $tname");
 		if(array_key_exists( $tname, self::$template_files)) {
 			return true;
 		} else return false;
@@ -120,7 +121,7 @@ class Renderer {
 			RecursiveIteratorIterator::LEAVES_ONLY);
 
 		// echopre(print_r( $files, 1 ));
-		$farr = array();
+		// $farr = array();
 		// echo "Template files in path: $apath\n";
 
 		$dupl=0;
@@ -133,6 +134,7 @@ class Renderer {
 				$dupl++;
 				// exit;
 			}
+			// echopre("adding file " .  $f[ array_key_last($f)  ] . " [{$fnam->getPathName()}]");
 			$farr[ $f[ array_key_last($f) ] ] = $fnam->getPathName();
 		}
 		// print_r( $farr );
@@ -164,6 +166,8 @@ class Renderer {
 		  	mkdir(self::$cache_path, 0744);
 		}
 	    $cached_file = self::$cache_path . str_replace(array('/', '.zetem'), array('_', ''), $file . '.php');
+
+		// echopre(print_r(self::$template_files, 1));
 		// echo "Searching for cached file : $cached_file\n";
 		// echo "Template: ". self::$template_files[ $file ] . "\n";
 		// echopre("Cache file: ". $cached_file . " modification date: " . filemtime($cached_file ));
