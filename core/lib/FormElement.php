@@ -1,13 +1,18 @@
 <?php
 
 abstract class FormElement {
+    protected $formname;
     protected $element;
     protected $template;
+    protected $template_table;
     protected $template_suggestions;
+    protected $template_suggestions_table;
 
     public function __construct($formname, $element) {
+        $this->formname = $formname;
         $this->element = $element;
         [$this->template, $this->template_suggestions] = $this->getTemplate($formname);
+        [$this->template_table, $this->template_suggestions_table] = $this->getTableTemplate($formname);
 
         // echo("element name: " . $this->element['name'] . "\n");
         // echo("template suggestions: " . print_r($this->template_suggestions, 1) . "\n");
@@ -27,8 +32,24 @@ abstract class FormElement {
                 $suggestions[] = 'form_element_' . $args['name'];
                 $suggestions[] = 'form_element_' . $args['form'] . '_' . $args['name'];
         }, $tem_suggestions);
-
         return [Renderer::getTemplate($tem_suggestions), $tem_suggestions];
+    }
+
+    public function getTableTemplate($formname) {
+        $table_suggestions = [];
+        Renderer::getTemplateSuggestions([
+            'form' => $formname,
+            'type' => $this->element['type'],
+            'name' => $this->element['name']
+        ],
+            function($args, &$suggestions) {
+                $suggestions[] = 'form_table_element';
+                $suggestions[] = 'form_table_element_' . $args['type'];
+                $suggestions[] = 'form_table_element_' . $args['name'];
+                $suggestions[] = 'form_table_element_' . $args['form'] . '_' . $args['name'];
+            }, $table_suggestions);
+
+        return [Renderer::getTemplate($table_suggestions), $table_suggestions];
     }
 
     public function render($variables) {
@@ -38,8 +59,41 @@ abstract class FormElement {
 
         return Renderer::render($this->template, $variables, [$this->template_suggestions, $this->template]);
     }
+    
+    public function renderTableItem($variables) {
+        // echo("form element render function, variables: " . print_r($variables, 1) . "\n");
+        // echo("template suggestions: " . print_r($this->template_suggestions_table, 1) . "\n");
+        // echo("selected template: " . $this->template_table . "\n");
+
+        return Renderer::render($this->template_table, $variables, [$this->template_suggestions_table, $this->template_table]);
+    }
 
     abstract public function generateHTML();
+
+    public function genetateHTMLforTable() {
+        // echopre("generating HTML table info for " . print_r($this->element, 1));
+        $variables = [
+            'label' => $this->element['label'] ?? ucFirst($this->element['name']),
+            'attributes' => $this->element['table-attributes'] ?? [],
+            'value' => $this->element['default'],
+        ];
+
+        return ($this->renderTableItem($variables));
+    }
+
+    // public function generateHTMLforTableRow($elements) {
+    //     $variables = [
+    //         'row' => $elements
+    //     ];
+
+    //     return ($this->renderTableRow($variables));
+    // }
+}
+
+function buildAttributes($attrs) {
+    foreach($attrs as $key => $value) {
+        echo("attribute '$key' == '$value'\n");
+    }
 }
 
 class InputElement extends FormElement {
@@ -56,6 +110,7 @@ class InputElement extends FormElement {
             'label' => $this->element['label'] ?? ucfirst($this->element['name']),
             'tag' => 'input', // The HTML tag for this element
             'attributes' => $attributes,
+            // 'attributes' => buildAttributes($attributes),
             'options' => [], // No options for standard inputs
             'default' => '' // No content for input tags
         ];
@@ -401,6 +456,83 @@ function generateHTMLForm($formArray) {
                                 'attributes' => $formAttributes, 
                                 'elements' => $elements,
                                 'controls' => $controls
+                            ],
+                        [$template_suggestions, $template]);
+}
+
+function generateHTMLTableRow($formname, $variables) {
+    $row_suggestions = [];
+    Renderer::getTemplateSuggestions([
+        'form' => $formname,
+    ],
+    function($args, &$suggestions) {
+        $suggestions[] = 'form_table_row';
+        $suggestions[] = 'form_table_row_' . $args['form'];
+    }, $row_suggestions);
+    
+    $row_template = Renderer::getTemplate($row_suggestions);
+    Renderer::render($row_template, ['row' => $variables], [$row_suggestions, $row_template]);
+}
+
+
+
+function generateHTMLFormTable($formArray) {
+    $formName = $formArray['name'] ?? null;
+    if(!$formName) {
+        echo "Form is not named. Please set form name and try again.\n";
+        exit(-1);
+    }
+    $formAttributes = $formArray['attributes'] ?? [];
+    $inputs_lists = $formArray['inputs_list'] ?? [];
+
+    // we do not neeed buttons or controls in table form
+    // $buttons = $formArray['buttons'] ?? [];
+    // $controls = [];
+
+    $elements = [];
+    
+    foreach($inputs_lists as $inputs) {
+        $row_elements = [];
+        foreach($inputs as $input) {
+            // echopre("processing form input: " . print_r($input,1));
+            $className = ucfirst($input['type']) . 'Element';
+            if(!class_exists($className))$className = 'BasicInputElement';
+
+            if(class_exists($className)) {
+                // echo(" Generating class for input {$input['name']}\n");
+                $element = new $className( $formName, $input );
+                $row_elements[] = $element->genetateHTMLforTable();
+                // $elements[] = $element->render();
+            } else {
+                $row_elements[] = "<!-- unsupported input type: " . htmlspecialchars($input['type']) . " -->";
+            }
+        }
+
+        // $elements[] = generateHTMLTableRow($formName, $row_elements);
+        echopre("row: " . print_r($row_elements, 1));
+        $elements[] = implode(' ', $row_elements);
+    }
+    // foreach($buttons as $button) {
+    //     $buttonElement = new ButtonElement( $formName, $button );
+    //     $controls[] = $buttonElement->generateHTML();
+    //     // $elements[] = $buttonElement->render();
+    // }
+
+    $template_suggestions = [];
+    Renderer::getTemplateSuggestions(['type' => 'webform', 'name' => $formArray['name']], function($args, &$suggestions) {
+        $suggestions[] = 'webform_table';
+        $suggestions[] = 'webform_table__' . $args['name'];
+    }, $template_suggestions);
+    
+    // print_r($template_suggestions);
+    $template = Renderer::getTemplate($template_suggestions);
+
+    $formAttributes['class'] = 'webform';
+
+    return Renderer::render($template, [
+                                'attributes' => $formAttributes, 
+                                'elements' => $elements,
+                                // 'controls' => $controls
                             ],
                         [$template_suggestions, $template]);
 }
