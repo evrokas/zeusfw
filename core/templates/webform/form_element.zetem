@@ -10,8 +10,9 @@
         {% foreach($options as $option): %}
             <option value="{{ $option['value'] }}" {% if ( $option['selected'] ): %}selected{% endif %}>{{ $option['label'] }}</option>
         {% endforeach %}
+
         </{{ $tag }}>
-        {% elseif ( $tag == 'textarea'): %}
+    {% elseif ( $tag == 'textarea'): %}
         {# Render default content for a textarea #}
         {{ $default }}
         </{{ $tag }}>
