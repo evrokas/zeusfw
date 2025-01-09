@@ -242,7 +242,10 @@ function getConf($atok) {
 function core_get_temp_filename(string $prefix) {
     global $kernel;
 
-    // $file_dir = tempnam()
+    $file_dir = tempnam($kernel->getConfig('template_cache_path'), $prefix);
+    // echopre("Temporary file name: $file_dir");
+
+    return $file_dir;
 }
 
 /**
