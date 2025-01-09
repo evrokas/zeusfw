@@ -450,7 +450,6 @@ function generateSQLTable($yamlData) {
 
 
 
-
 function syncTableWithYAML($yamlData, $pdo) {
     $tableName = $yamlData['table']['name'] ?? 'default_table';
 
@@ -541,126 +540,6 @@ function syncTableWithYAML($yamlData, $pdo) {
     return implode(";\n", $sql);
 }
 
-
-
-
-function syncTableWithYAML1($yamlData, $pdo) {
-    $tableName = $yamlData['table']['name'] ?? 'default_table';
-
-    // Fetch existing table structure
-    $existingColumns = [];
-    $noexist = 0;
-    try {
-        $stmt = $pdo->query("DESCRIBE `$tableName`");
-
-    } catch (PDOException $e){
-        echo("/* Table `$tableName` does not exist in database */\n");
-        if($e->errorInfo[1] === 1146)$noexist = 1;
-    }
-
-    if($noexist)return [];
-
-    if ($stmt) {
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            $existingColumns[$row['Field']] = $row;
-        }
-    }
-    // print_r($existingColumns);
-
-    $sql = [];
-
-    foreach ($yamlData['table']['fields'] as $field) {
-        $name = $field['name'];
-/*
-
-        $dbDefault = '';
-        $dbOnUpdate = '';
-        $dbRequired = false;
-        switch($field['type']) {
-            case "@guid":
-                $dbType = 'CHAR(36)';
-                $dbRequired = true;
-                break;
-            case "@cdate":
-                $dbType = 'DATETIME';
-                $dbDefault = "DEFAULT 'CURRENT_TIMESTAMP'";
-                break;
-            case "@cuser":
-                $dbType = 'CHAR(32)';
-                $dbRequired = true;
-                break;
-            default:
-                $dbType = trim($field['db_type'] ?? $field['type'] ?? 'VARCHAR(255)');
-                $dbRequired = trim($field['db_required'] ?? $field['required'] ?? false);
-                $dbDefault = trim(isset($field['db_default']) ? "DEFAULT '" . $field['db_default'] . "'" : '');
-                $dbOnUpdate = trim(isset($field['db_on_update']) ? "ON UPDATE " . $field['db_on_update'] : '');
-                break;
-        }
-
-        if(($dbType === 'boolean')) {
-            // echo("Default: <$dbDefault>  db_default: " . (isset($field['db_default']) ? "<".$field['db_default'].">" : "<not set>") ."\n");
-            if(isset($field['db_default']) && (empty($field['db_default'])))
-                $dbDefault = "DEFAULT '0'";
-        } 
-
-        $required = $dbRequired ? ' NOT NULL ' : ' ';
-        $columnDefinition = "$dbType$required$dbDefault $dbOnUpdate";
-*/
-        $columnDefinition = createDBFieldDefinition( $field, false );
-
-        if (isset($existingColumns[$name])) {
-            // Check if column needs an update
-            $existing = $existingColumns[$name];
-
-            // booleans are handled as tinyint(1)
-            if($existing['Type'] === 'tinyint(1)') {
-                $existing['Type'] = 'boolean';
-                if(isset($existing['Default']) && ($existing['Default'] == 0))$existing['Default'] = "0";
-            }
-            // remove DEFAULT_GENERATED flag
-            if(isset($existing['Extra'])) {
-                // echo("extra: " . $existing['Extra'] . "\n");
-                $existing['Extra'] = trim(str_replace('DEFAULT_GENERATED', '', $existing['Extra']));
-                if(!strlen($existing['Extra']))unset($existing['Extra']);
-            }
-
-            $existingDefinition = trim($existing['Type']) . ($existing['Null'] === 'NO' ? ' NOT NULL' : '') .
-                ($existing['Default'] !== null ? " DEFAULT '" . trim($existing['Default']) . "'" : '') .
-                (isset($existing['Extra']) ?  " " . trim($existing['Extra']) : '');
-
-            // echo("existing  $name => $existingDefinition\n");
-
-            if (strtolower(trim($existingDefinition)) !== strtolower(trim($columnDefinition))) {
-                // Alter column
-                // $pdo->exec("ALTER TABLE `$tableName` MODIFY `$name` $columnDefinition");
-                $sql[] = "/* old definition $existingDefinition */";
-                $sql[] = "/* new definition $columnDefinition */";
-                $sql[] = "ALTER TABLE `$tableName` MODIFY `$name` $columnDefinition;";
-            }
-        } else {
-            // Add new column
-            // $pdo->exec("ALTER TABLE `$tableName` ADD `$name` $columnDefinition");
-            $sql[] = "ALTER TABLE `$tableName` ADD `$name` $columnDefinition;";
-        }
-    }
-
-    // Drop columns not in YAML
-    foreach ($existingColumns as $existingName => $existingColumn) {
-        $found = false;
-        foreach ($yamlData['table']['fields'] as $field) {
-            if ($field['name'] === $existingName) {
-                $found = true;
-                break;
-            }
-        }
-
-        if (!$found && ($existingName !== 'id')) {
-            // $pdo->exec("ALTER TABLE `$tableName` DROP `$existingName`");
-            $sql[] = "ALTER TABLE `$tableName` DROP `$existingName`;";
-        }
-    }
-    return implode(";\n", $sql);
-}
 
 function generateClassCode($yamlData) {
     global $options;
@@ -1020,13 +899,15 @@ function form_load($yData) {
             echo("Found form in database\n");
             print_r($dbForm);
 
-            $formClass = new webFormsClass( $dbForm[0] );
-
+            // $formClass = new webFormsClass( $dbForm[0]->getAllFields() );
+            $formClass = $dbForm[0];
+            
             $formClass->setguid( mguid() );
             $formClass->setcdate( date('Y-m-d H:i:s'));
             $formClass->setcuser( 'admin' );
             $formClass->setform_name( $formName );
             $formClass->setform_class( $className );
+            $formClass->setdata( $jsonArray );
 
             print_r($formClass);
 
@@ -1097,7 +978,7 @@ function form_view($yData) {
         print_r($dbForm);
 
         if(!empty($dbForm)) {
-            $arr = json_decode( $dbForm[0]['data'], true );
+            $arr = json_decode( $dbForm[0]->getdata(), true );
             print_r($arr);
         }
     } else {
@@ -1147,7 +1028,7 @@ function form_view_html($yData) {
         $AppDBConnection->Connect();
 
         global $kernel;
-        $kernel = new Kernel(['PHP_SELF' => __FILE__, 'SCRIPT_FILENAME' => __FILE__], DIR::$app . "/config/");
+        $kernel = new Kernel(['MAKER_INVOKE' => true, 'PHP_SELF' => __FILE__, 'SCRIPT_FILENAME' => __FILE__], DIR::$app . "/config/");
         Renderer::init([DIR::$fw. '/templates']);
         Renderer::$enable_comments = true;
 
@@ -1166,7 +1047,7 @@ function form_view_html($yData) {
         // print_r($dbForm);
 
         if(!empty($dbForm)) {
-            $arr = json_decode( $dbForm[0]['data'], true );
+            $arr = json_decode( $dbForm[0]->getdata(), true );
             // print_r($arr);
 
 
