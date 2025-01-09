@@ -1547,13 +1547,14 @@ function makesure_dir_exists($dir) {
             break;
 
         case 'gen:form:html':
+
             if(!DIR::$fw || !DIR::$app) {
-        }
+            }
 
-            // include webform sources
+        // include webform sources
             require_once(DIR::$fw . "/bootstrap.php");
-
-            $kernel = new Kernel(['PHP_SELF' => __FILE__, 'SCRIPT_FILENAME' => __FILE__], DIR::$app . "/config/");
+            
+            $kernel = new Kernel(['MAKER_INVOKE' => true, 'PHP_SELF' => __FILE__, 'SCRIPT_FILENAME' => __FILE__], DIR::$app . "/config");
             Renderer::init([DIR::$fw. '/templates']);
             Renderer::$enable_comments = true;
 
