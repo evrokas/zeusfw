@@ -194,6 +194,7 @@ class RouterClass {
             $ips = $kernel->safeGetConfigValue('analytics', 'ignore_ips');
             // error_log('ignore IPs: ' . print_r($ips, 1));
 
+            // ignore IPs that in ignore_ips list
             if(in_array($_SERVER['REMOTE_ADDR'], $ips)) {
                 $hasAnalytics = false;
             }
