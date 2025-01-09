@@ -7,9 +7,12 @@
         {% endforeach %}
     </div>
 
-    <div class="form_controls">
-        {% foreach($controls as $control): %}
-            {{ $control }}
-        {% endforeach %}
-    </div>
+    {% if(count($controls)>0): %}
+        <div class="form_controls">
+            {% foreach($controls as $control): %}
+                {{ $control }}
+            {% endforeach %}
+        </div>
+    {% endif %}
+    
 </form>
