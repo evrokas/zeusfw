@@ -75,9 +75,13 @@ class Kernel {
 
         date_default_timezone_set( $this->safeGetConfig('tz') );
 
-        if(class_exists('pageAnalyticsClassEx')) {
-            pageAnalyticsClassEx::initializePageAnalyticsRecord();
+        /* check if it not invoked by maker.php */
+        if(!key_exists('MAKER_INVOKE', $asrv) || !$asrv['MAKER_INVOKE']) {
+            if(class_exists('pageAnalyticsClassEx')) {
+                pageAnalyticsClassEx::initializePageAnalyticsRecord();
+            }
         }
+        
     }
 
     function getConfig($section=null) {
