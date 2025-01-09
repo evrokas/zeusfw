@@ -156,9 +156,17 @@ abstract class dbAbstractEntityClass {
         $stmt = $AppDBConnection->getConnection()->prepare( $sql );
         $stmt->execute( $filterArray );
 
-        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        // print_r($results);
+        // $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $results = [];
+        $className = get_called_class();
+        while( $row = $stmt->fetch(PDO::FETCH_ASSOC) ) {
+            // $rclass = new webFormsClass( $row );
 
+            $rclass = new $className( $row );
+            $results[] = $rclass;
+        }
+        
+        // print_r($results);
         return ($results);
     }
 /*
@@ -240,7 +248,7 @@ class entityTest extends dbAbstractEntityClass {
 
         echo "SQL: $sql \n";
 
-        $st = $this->getConnection()->getConnection()->prepare ( $sql );
+        $stmt = $this->getConnection()->getConnection()->prepare ( $sql );
         $st->bindValue( ":username", $this->username, PDO::PARAM_STR );
         $st->bindValue( ":password", $this->password, PDO::PARAM_STR );
         $st->bindValue( ":email", $this->email, PDO::PARAM_STR );
