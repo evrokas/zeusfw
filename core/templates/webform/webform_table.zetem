@@ -1,0 +1,7 @@
+<table>
+    {% foreach($elements as $element): %}
+        <tr>
+            {{ $element }}
+        </tr>    
+    {% endforeach %}
+</table>
