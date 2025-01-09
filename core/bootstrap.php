@@ -45,6 +45,7 @@ require_once(__DIR__ . "/lib/Feeders.php");
 
 require_once(__DIR__ . "/lib/FormElement.php");
 
+require_once(__DIR__ . "/lib/WebForms.php");
 // moved to ../src/
 // if(file_exists('../src/ClassesEx.php'))
 // require_once(__DIR__ . "/lib/ClassesEx.php");
