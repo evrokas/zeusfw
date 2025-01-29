@@ -57,14 +57,14 @@ class SecurityClass {
     static function userIsPermitted($aperm) {
         global $kernel;
         $permlist = self::processRoles($aperm);
+        // echopre("permissions list: " . print_r($permlist, 1));
         if(!$permlist) {
             echo "One or more roles in [" . print_r( $aperm, 1 ) . "] is not configured correct. Please check!";
             exit();
         }
 
-        // echo "<pre>Page access: " . print_r( $permlist, 1 ) . "</pre>"; 
         $uroles = $kernel->getUserRoles();
-        // echo "<pre>User access: " . print_r( $uroles, 1 ) . "</pre>";
+        // echopre("User access roles: " . print_r($uroles, 1));
 
         $pass = 0;
         if($uroles) {
@@ -72,7 +72,7 @@ class SecurityClass {
                 if(in_array($urole, $permlist))$pass++;
             }
         }
-        // echo "<pre>User can pass $pass</pre>";
+        // echopre("Access: " . (($pass)?"granted":"denied"));
         return ($pass);
     }
 
@@ -81,14 +81,30 @@ class SecurityClass {
     // return error message to show
     static function require($aperm) {
         global $kernel;
+
         // check to see if a particular user has the necessery premissions
         // echo "<pre>Required permission: " . $aperm . "</pre>";
+        // echopre("Required permission: $aperm");
+        
         $uroles = $kernel->getUserRoles();
-        // echo "<pre>Roles " . print_r( $uroles, 1 ) . " for permissions " . print_r( self::$roles,1 ) . "</pre>";
+        if(!$uroles) {
+            // echopre("User is not logged in");
+        }
+        // echopre("Roles `" . print_r( $uroles, 1 ) . "` for permissions " . print_r( self::$roles,1 ));
         $pass = 0;
         if(!empty($uroles)) {
             foreach($uroles as $urole) {
-                if(in_array($aperm, self::$roles[ $urole]))$pass++;
+                // echopre("check role: $urole");
+                switch( $urole ) {
+                    case "authenticated":
+                        $pass++;
+                        break;
+                    default:
+                        if(in_array($aperm, self::$roles[ $urole ])){
+                            // echopre("found permission: $aperm");
+                            $pass++;
+                        }
+                }
             }
         } else {
             // echopre("Empty roles for user");
@@ -100,6 +116,5 @@ class SecurityClass {
         }
 
         return null;
-        // echo "<pre>User can pass $pass</pre>";
     }
 }
