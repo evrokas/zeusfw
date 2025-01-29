@@ -12,11 +12,11 @@
 class Attributes {
     private $attr;
 
-    function __construct($attrclass = null, $attrname = null) {
+    function __construct(array $attrs = []) {
         $this->attr = array();
 
-        if(isset($attrclass) && isset($attrname))
-            $this->addAttribute($attrclass, $attrname);
+        if(is_array($attrs) && !empty($attrs))
+            $this->addAttribute( $attrs );
     }
 
     function existAttribute($attrclass, $attrname) {
@@ -27,7 +27,8 @@ class Attributes {
         } else return false;
     }
 
-    function addAttribute($attrclass, $attrname) {
+    // deprecated
+    function addAttributeS(string $attrclass, string $attrname) {
         if(!isset($this->attr[ $attrclass ]))
             $this->attr[ $attrclass ] = array();
     
@@ -39,22 +40,30 @@ class Attributes {
         // print_r( $this->attr );
     }
 
+    function addAttribute(array $attrs) {
+        if(!is_array($attrs))return;
+
+        foreach($attrs as $attrclass => $attrvalue) {
+            if(!isset($this->attr[ $attrclass ]))
+                $this->attr[ $attrclass ] = [];
+
+            // do not add duplicate attribute values
+            if(!$this->existAttribute($attrclass, $attrvalue)) {
+                $this->attr[ $attrclass ][] = $attrvalue;
+            }
+        }
+
+    }
+
     function removeAttribute($attrclass, $attrname) {
         if(!isset($this->attr[ $attrclass ]))return;
         if(isset($this->attr[ $attrclass ][ $attrname ]))
             unset($this->attr[ $attrclass ][ $attrname ]);
     }
 
-    function toggleAttribute($attrclass, $attrname) {
-        if($this->existAttribute($attrclass, $attrname))
-            $this->removeAttribute($attrclass, $attrname);
-        else
-            $this->addAttribute($attrclass, $attrname);
-    }
-
     // shorthands for class="class"
     function addClass($attrname) {
-        $this->addAttribute('class', $attrname);
+        $this->addAttribute(['class' => $attrname ]);
     }
 
     function removeClass($attrname) {
@@ -62,13 +71,15 @@ class Attributes {
     }
 
     function getAttributes() {
-        $str = '';
+        $eqls = [];
         foreach($this->attr as $attrclass => $attrdata) {
             // echo "atribute data: " . $attrdata;
             if(count($attrdata))
-                $s = $attrclass . "=\"" . implode(' ', $attrdata) . "\"";
-            $str .= $s;
+                $eqls[] = $attrclass . "=\"" . implode(' ', $attrdata) . "\"";
+            else $eqls[] = $attrclass;
         }
+
+        $str = implode(' ', $eqls);
     
       return ($str);
     }
