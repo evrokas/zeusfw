@@ -509,7 +509,7 @@ function generateHTMLFormTable($formArray) {
         }
 
         // $elements[] = generateHTMLTableRow($formName, $row_elements);
-        echopre("row: " . print_r($row_elements, 1));
+        // echopre("row: " . print_r($row_elements, 1));
         $elements[] = implode(' ', $row_elements);
     }
     // foreach($buttons as $button) {
