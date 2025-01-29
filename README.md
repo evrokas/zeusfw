@@ -1,5 +1,9 @@
 Zeus Framework
 
+[21-12-2024]
+In the process of creating the webforms module. This will allow configuration variables editing.
+Plan to create a File Manager module
+
 [13-11-2024]
 Must implement theming on the framework, so each project has its own styling
 and templating, along with different menu implementations.

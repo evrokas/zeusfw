@@ -7,6 +7,8 @@ improved. maintenance functions are added.
  - Form arrays are generated
  - Form html is generated
  What remains is integration with the database
+
+[21-12-24] implement File Manager (can upload a variety of files, and also create new text files). Stores files in file system (as file contents) and in database (as file meta data). Can also store file contents in database directly.
  
 [17-11-24] Webform development. This is important because it will allow the creation of the administration module and the use of a simple user interface for alterning configuration variables by the web application. This will allow the `zpms/operations` functionality be implemented more easily, because there many variables to be configured on the web app, that should not be implemented on hardcoded configuration files. Also, should this be implemented, the `zpms/patient` and `zpms/appointment` pages, can be implemented as webforms with the same or improved functionality. Also, in the `zweb/blog`, `zweb/contact` and other pages webforms will be very easy to implement.
 
