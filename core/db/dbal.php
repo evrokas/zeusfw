@@ -152,6 +152,9 @@ abstract class dbAbstractEntityClass {
         // print_r($filterArray);
         // print_r($sortsArray);
         // print_r($sql);
+        // echopre(print_r($filterArray, 1));
+        // echopre(print_r($sortsArray, 1));
+        // echopre(print_r($sql, 1));
 
         $stmt = $AppDBConnection->getConnection()->prepare( $sql );
         $stmt->execute( $filterArray );
