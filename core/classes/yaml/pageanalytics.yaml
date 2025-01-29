@@ -7,6 +7,9 @@ table:
   fields:
   - name: cdate
     type: '@cdate'
+    # type: datetime
+    # default: current_timestamp
+    # on_update: current_timestamp
 
   - name: page
     type: text
