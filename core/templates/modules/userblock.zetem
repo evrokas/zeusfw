@@ -1,8 +1,8 @@
 <div class="user-block">
     {% if($loggedin): %}
-        <h5>User <span><a href="{{rel_url('/profile')}}">{{$name}}</a></span>. <a href="{{rel_url('/logout')}}">Logout</a></h5>
+        User <span><a href="{{rel_url('/profile')}}">{{$name}}</a></span>. <a href="{{rel_url('/logout')}}">Logout</a>
     {% else: %}
-        <h5><a href="{{rel_url('/login')}}">Login</a></h5>
+        <a href="{{rel_url('/login')}}">Login</a>
     {% endif %}
     
 </div>
