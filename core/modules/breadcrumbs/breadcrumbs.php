@@ -27,17 +27,17 @@ class breadcrumbsModule extends moduleClass {
                 // first item
                 $pathfinal[] = [
                     'text' => '::',
-                    'attributes' => new Attributes('class', 'breadcrumb-first')
+                    'attributes' => new Attributes(['class' => 'breadcrumb-first'])
                 ]; 
             else
                 $pathfinal[] = [
                     'text' => '/',
-                    'attributes' => new Attributes('class', 'breadcrumb-separator')
+                    'attributes' => new Attributes(['class' => 'breadcrumb-separator'])
                 ];
 
                 $pathfinal[] = [
                     'text' => $pathitem['text'],
-                    'attributes' => new Attributes('class', 'breadcrumb-item'),
+                    'attributes' => new Attributes(['class' => 'breadcrumb-item']),
                     'url' => $pathitem['url']
                 ];
             $loop++;
