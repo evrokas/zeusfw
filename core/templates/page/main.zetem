@@ -11,32 +11,22 @@
         <title>{{ $title }}</title>
     {% endif %}
 
-
-    {% foreach($head_links as $hlink): %}
-        <link
-            {% foreach($hlink as $elkey => $elval): %}
-                {% foreach($elval as $el_key => $el_val): %}
-                    {{ $el_key }} = 
-                    {% if($el_key === "href"): %}
-                        {{ rel_url($el_val) }}
-                    {% else: %}
-                        {{ $el_val }}
-                    {% endif %}
-                {% endforeach %}
-            {% endforeach %}
-        >
-    {% endforeach %}
-
-    {% if(isset($css))foreach($css as $csss): %}
-        <link rel="stylesheet" href="{{rel_url($csss['src'])."?".time()}}">
-    {% endforeach %}
-
-    {% if(isset($head_script))foreach($head_script as $scrpt): %}
-        <script type="{{$scrpt['type']}}" src="{{rel_url($scrpt['src'])}}"></script>
+    {% if(isset($links))foreach($links as $link): %}
+        <link {{$link->getAttributes()}}>
     {% endforeach; %}
 
-</head>
+    {% foreach($head_links as $hlink): %}
+        <script head_links {{$hlink->getAttributes()}}></script>
+    {% endforeach %}
 
+    {#
+    {% if(isset($head_scripts))foreach($head_scripts as $scrpt): %}
+        <script head_scripts type="{{$scrpt['type']}}" src="{{rel_url($scrpt['src'])}}"></script>
+    {% endforeach; %}
+    #}
+</head>
+<body>
+    
     {% if(isset($fonts))foreach($fonts as $font): %}
     <style type="text/css">
         @font-face {
@@ -47,18 +37,10 @@
     {% endforeach %}
 
   
-<body>
     {% include page.zetem %}
-</body>
 
-    {% if(isset($foot_script))foreach($foot_script as $scrpt): %}
-        <script 
-            {% if(array_key_exists('type', $scrpt)):%}
-                    type="{{$scrpt['type']}}" 
-            {% endif %}
-            src="{{rel_url($scrpt['src'])}}"
-            {% if(array_key_exists('defer', $scrpt)): %}
-                defer
-            {% endif %}
-        ></script>
+    {% if(isset($foot_links))foreach($foot_links as $link): %}
+        <script foot_links {{$link->getAttributes()}}></script>
     {% endforeach; %}
+
+</body>
