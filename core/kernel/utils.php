@@ -109,8 +109,18 @@ function randomEmail() {
     return ($s);
 }
 
+function logpre($str) {
 
+}
 function echopre($str) {
+    // if(is_array($str)) {
+    //     $out = "";
+    //     foreach($str as $key => $value) {
+    //         $out .= "$key = $value";
+    //     }
+    //     $str = 'array: {'.$out.'}';
+    // }
+
     echo "<pre>$str</pre>";
 }
 
@@ -154,15 +164,21 @@ function attach_library_helper($libname) {
     global $kernel;
 
     // error_log("attach library: " . $libname . "\n");
+    // echopre("attach library: $libname");
 
     $cnf = $kernel->getConfig();
+    // echopre( "pre-merged css: " . print_r($kernel->getConfig('css'), 1) );
+
     // echo "<pre>";print_r( $cnf['css'] );echo "</pre>";
     // echo "<pre>";print_r( $cnf['libraries'] );echo "</pre>";
 
     if(array_key_exists($libname, $cnf['libraries'])) {
         // echo "<pre>";print_r( $cnf['libraries'][$libname] );echo "</pre>";
+        // echopre( print_r( $cnf['libraries'][$libname], 1));
         $kernel->addConfig($cnf['libraries'][$libname]);
     }
+
+    // echopre( "merged css: " . print_r($kernel->getConfig('css'), 1) );
 
     // echo "<pre>";print_r( $kernel->getConfig('css'));echo "</pre>";
     // echo "<pre>";print_r( $kernel->getConfig('foot_script'));echo "</pre>";
