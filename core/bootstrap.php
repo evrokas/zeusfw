@@ -33,6 +33,8 @@ require_once(__DIR__ . "/router/ErrorHandlers.php");      // load router classes
 require_once(__DIR__ . "/templates/ZETEMTemplate.php");
 
 
+require_once(__DIR__ . "/lib/Log.php");
+
 require_once(__DIR__ . "/lib/Attributes.php");
 require_once(__DIR__ . "/lib/Modules.php");
 require_once(__DIR__ . "/lib/Content.php");
@@ -46,6 +48,11 @@ require_once(__DIR__ . "/lib/Feeders.php");
 require_once(__DIR__ . "/lib/FormElement.php");
 
 require_once(__DIR__ . "/lib/WebForms.php");
+
+
 // moved to ../src/
 // if(file_exists('../src/ClassesEx.php'))
 // require_once(__DIR__ . "/lib/ClassesEx.php");
+
+
+require_once('kernel/maintenance.php');
