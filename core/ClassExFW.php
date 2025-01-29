@@ -125,6 +125,42 @@ class userTokensClassEx extends userTokensClass {
         return password_verify($validator, $tokens->getvalidator());
     }
     
+    static function get_expired_user_tokens(): null|array {
+        global $AppDBConnection;
+
+        if(!$AppDBConnection->isConnected()) {
+            if(!$AppDBConnection->Connect()) {
+                echo 'Could not connect to database';
+                return null;
+            }
+        }
+
+        $sql = 'SELECT * FROM user_tokens WHERE expiry < NOW()';
+        $st = $AppDBConnection->getConnection()->prepare( $sql );
+        $st->execute();
+
+        $results = [];
+        while( $row = $st->fetch(PDO::FETCH_ASSOC) ) {
+            $results[] = new userTokensClass( $row );
+        }
+
+        return $results;
+    }
+
+    static function remove_expired_user_tokens() {
+        global $AppDBConnection;
+
+        if(!$AppDBConnection->isConnected()) {
+            if(!$AppDBConnection->Connect()) {
+                echo 'Could not connect to database';
+                return null;
+            }
+        }
+
+        $sql = 'DELETE FROM user_tokens WHERE expiry < NOW()';
+        $st = $AppDBConnection->getConnection()->prepare( $sql );
+        $st->execute();
+    }
 }
 
 
