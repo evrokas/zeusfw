@@ -58,6 +58,7 @@ class pageAnalyticsClassEx extends pageAnalyticsClass {
         $this->settotal_count( $this->gettotal_count()+1);
         $this->setweek_count($this->getweek_count()+1);
         $this->setmonth_count($this->getmonth_count()+1);
+        $this->setcdate( getDBtime() );
     }
 
     function reset_total_count() { $this->settotal_count( 0 ); }
@@ -91,27 +92,134 @@ class pageAnalyticsClassEx extends pageAnalyticsClass {
             $stat->insert();
 
         } else {
-            $stat->setcdate(getDBtime());
-            $stat->update();
+            // $stat->setcdate(getDBtime());
+            // $stat->update();
         }
     }
 
+    static function getStatisticsRecord() {
+        $stat = pageAnalyticsClassEx::getPageByName('__system_statistics');
+        if(!$stat) {
+            self::initializePageAnalyticsRecord();
+            $stat = pageAnalyticsClassEx::getPageByName('__system_statistics');
+        }
+
+        return $stat;
+    }
 
     static function newWeek() {
-        $pages = pageAnalyticsClassEx::sgetAll();
-        foreach($pages as $pag) {
-            $pag->setlast_week_count( $pag->getweek_count() );
-            $pag->setweek_count( 0 );
-            $pag->update();
+        // get hash 
+        global $AppDBConnection;
+
+        if(!$AppDBConnection->isConnected()) {
+            if(!$AppDBConnection->Connect()) {
+                echo 'Could not connect to database';
+                return null;
+            }
         }
-    }
-    static function newMonth() {
-        $pages = pageAnalyticsClassEx::sgetAll();
-        foreach($pages as $pag) {
-            $pag->setlast_month_count( $pag->getmonth_count() );
-            $pag->setmonth_count( 0 );
-            $pag->update();
-        }
+
+        // update last_week with current week, in one sql command
+        $sql = "UPDATE pageanalytics SET last_week_count = week_count, week_count = 0, cdate = :cdate";
+        $st = $AppDBConnection->getConnection()->prepare( $sql );
+        $st->bindValue(":cdate", getDBtime(), PDO::PARAM_STR);
+
+        $st->execute();
+
+                // this is very inefficient(!)
+        // $pages = pageAnalyticsClassEx::sgetAll();
+        // foreach($pages as $pag) {
+        //     $pag->setlast_week_count( $pag->getweek_count() );
+        //     $pag->setweek_count( 0 );
+        //     // $pag->setcdate( getDBtime() );
+        //     $pag->update();
+        // }
     }
 
+    static function newMonth() {
+        // get hash 
+        global $AppDBConnection;
+
+        if(!$AppDBConnection->isConnected()) {
+            if(!$AppDBConnection->Connect()) {
+                echo 'Could not connect to database';
+                return null;
+            }
+        }
+
+        // update last_week with current week, in one sql command
+        $sql = "UPDATE pageanalytics SET last_month_count = month_count, month_count = 0, cdate = :cdate";
+        $st = $AppDBConnection->getConnection()->prepare( $sql );
+        $st->bindValue(":cdate", getDBtime(), PDO::PARAM_STR);
+
+        $st->execute();
+        
+        // this is very inefficient(!)
+        // $pages = pageAnalyticsClassEx::sgetAll();
+        // foreach($pages as $pag) {
+        //     $pag->setlast_month_count( $pag->getmonth_count() );
+        //     $pag->setmonth_count( 0 );
+        //     // $pag->setcdate( getDBtime() );
+        //     $pag->update();
+        // }
+    }
+
+    static function updateStatisticsPage($weekno, $monthno = null, $stat = null) {
+        global $AppDBConnection;
+
+        // if both are null, do nothing
+        if(!$weekno && !$monthno)return;
+
+
+        if(!$AppDBConnection->isConnected()) {
+            if(!$AppDBConnection->Connect()) {
+                echo 'Could not connect to database';
+                return null;
+            }
+        }
+
+        if(!$stat) {
+            $stat = self::getStatisticsRecord();
+        }
+
+        $sql = "UPDATE pageanalytics SET ";
+        $values = [];
+        $assign = [];
+
+        $assign['cdate'] = getDBtime();
+
+        if($weekno) {
+            // update week number
+            $assign['last_week_count'] = $weekno;
+        }
+
+        if($monthno) {
+            // update month number
+            $assign['last_month_count'] = $monthno;
+        }
+
+        $finalassigns = [];
+        foreach($assign as $key => $val) {
+            $finalassigns[] = "$key = :$key";
+            $values[$key] = $val;
+        }
+
+        $sql .= implode(',', $finalassigns);
+        
+        $sql .= " WHERE page = :pagename";
+
+        echopre(print_r($sql, 1));
+
+        $st = $AppDBConnection->getConnection()->prepare($sql);
+        foreach($values as $key => $val) {
+            $st->bindValue(":$key", $val);
+        }
+
+        // if($weekno)
+        //     $st->bindValue(':weekno', $weekno, PDO::PARAM_INT);
+        // if($monthno)
+        //     $st->bindValue(':monthno', $monthno, PDO::PARAM_INT);
+
+        $st->bindValue(':pagename', $stat->getpage(), PDO::PARAM_STR);
+        $st->execute();
+    }
 }
