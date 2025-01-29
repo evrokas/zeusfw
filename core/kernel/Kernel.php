@@ -82,6 +82,10 @@ class Kernel {
             }
         }
         
+
+        // set maintenance class
+        Maintenance::init();
+        Maintenance::maintenance();
     }
 
     function getConfig($section=null) {
@@ -123,6 +127,7 @@ class Kernel {
     }
 
     function addConfig($section) {
+        // Log::log("adding section in configuration: " . print_r($section, 1));
         if(!is_array($section)) {
             $addsection = yaml_parse($section);
         } else
@@ -216,8 +221,6 @@ class Kernel {
         // echopre("APP dir: $app_module_dir");
 
 
-
-
         // echopre("<hr>");
 
         $final_core_module_dir = /*$core_dir . */'/core' . $core_module_dir; /*. '/' . $amodule;*/
@@ -263,12 +266,16 @@ class Kernel {
     function renderPage() {
         // Renderer::view("main.zetem", $kernel->getConfig() );
         // registerModules();
-        
+
+        // print log messages before page content
+        // echopre("<hr>LOG: " . Log::get(true) . "<hr>");
+
         $regions_resp = array();
+        // $config = $this->getConfig();
 
         // $cont = new ContentClass('content/homepage.html');
 
-        foreach($this->getConfig()['regions'] as $region) {
+        foreach($this->getConfig('regions') as $region) {
             // echo "<pre>Region " . print_r( $region, 1 ) . "</pre>";
             $blocks = $this->getBlocksInRegion( $region );
             // print_r( $blocks );
@@ -305,15 +312,89 @@ class Kernel {
 
         // echopre(print_r($this->getConfig('foot_script'), 1));
 
+        $links = [];
+        $fav = $this->getConfig('favicon');
+        // echopre(print_r($config['favicon'], 1));
+        if($fav &&
+            isset($fav['src']) && file_exists( $fav['src']) ) {
+            $links[] = new Attributes([
+                "rel" => "icon",
+                "type" => $fav['type'] ?? mime_content_type($fav['src']),
+                // "type" => "image/ico",
+                "href" => rel_url($fav['src'])
+            ]);
+        }
+
+        $clean_css = remove_header_duplicates($this->getConfig('css'));
+        foreach($clean_css as $css) {
+            $links[] = new Attributes([
+                "rel" => "stylesheet",
+                "href" => rel_url($css['src']/* . "?".time() */)
+            ]);
+        }
+
+        $head_links = $this->getConfig('head_links');
+
+        if($head_links) {
+            $clean_head_links = remove_header_duplicates( $head_links );
+            $attr = new Attributes();
+            echopre("head links: " . print_r($clean_head_links, 1));
+            foreach($clean_head_links as $lnk) {
+                foreach($lnk as $elname => $elvalue) {
+                    if(strtolower( $elname ) === "href" && str_starts_with('http', strtolower( $elname )))
+                        $attr->addAttribute([$elname => rel_url( $elvalue )]);
+                    else $attr->addAttribute([$elname => $elvalue]);
+                }
+            }
+            $links[] = $attr;
+        }
+
+        $head_scripts = [];
+        $head_script = $this->getConfig('head_script');
+        if($head_script) {
+            $clean_head_script = remove_header_duplicates( $head_script );
+            foreach($clean_head_script as $script) {
+                $attr = new Attributes();
+                foreach($script as $skey => $sval) {
+                    if( strtolower($skey) === 'src' ) {
+                            $attr->addAttribute(['href' => rel_url( $sval ) ]);
+                    } else $attr->addAttribute([$skey => $sval]);
+                }
+                $head_scripts[] = $attr;
+            }
+        }
+
+        $foot_links = [];
+        $foot_script = $this->getConfig('foot_script');
+        if($foot_script) {
+            $clean_foot_script = remove_header_duplicates( $foot_script );
+            foreach($clean_foot_script as $script) {
+                $attr = new Attributes();
+                unset( $script[ array_key_first($script ) ] );
+                foreach($script as $skey => $sval) {
+                    if( strtolower($skey) === 'src' ) {
+                            $attr->addAttribute(['href' => rel_url( $sval ) ]);
+                    } else $attr->addAttribute([$skey => $sval]);
+                }
+                $foot_links[] = $attr;
+            }
+        }
+        // if(in_array(''))
+        // echopre("links: " . print_r($links, 1));
+        // echopre("link attribute: " . $links[0]->getAttributes());
         Renderer::view('main.zetem', 
         [
             'title' => $this->getConfig('title'),
             'meta' => $this->getConfig('meta'),
-            'css' => remove_header_duplicates($this->getConfig('css')),
+            'links' => $links,
+            // 'css' => remove_header_duplicates($this->getConfig('css')),
+            'css' => $css,
             'fonts' => $this->getConfig('fonts'),
-            'head_links' => remove_header_duplicates($this->getConfig('head_links')),
-            'head_script' => remove_header_duplicates($this->getConfig('head_script')),
-            'foot_script' => remove_header_duplicates($this->getConfig('foot_script')),
+            'head_links' => $head_links,
+            // 'head_script' => remove_header_duplicates($this->getConfig('head_script')),
+            'head_scripts' => $head_scripts,
+            // 'foot_script' => remove_header_duplicates($this->getConfig('foot_script')),
+            'foot_links' => $foot_links,
             'regions' => $regions_resp
         ]);
     
@@ -382,6 +463,7 @@ class Kernel {
     }
 
     function getUserRoles() {
+        // echopre(print_r($_SESSION, 1));
         if(isset($_SESSION) && isset($_SESSION['user']) && isset($_SESSION['user_roles'])) {
             return($_SESSION['user_roles']);
         } else return null;
@@ -397,6 +479,7 @@ class Kernel {
             echo "<pre>User roles are initialized falsely. Please check!";
             exit();
         }
+        $urolelist[] = 'authenticated';
         $_SESSION['user_roles'] = $urolelist;
     }
     
