@@ -66,6 +66,9 @@ class formsClass {
             echopre(print_r($_POST, 1));
             
             self::storeFormResults($form, $_POST);
+
+            // echopre("post:" . print_r($_POST, 1));
+            // echopre("session:" . print_r($_SESSION, 1));
         }
 
         return "Form: {$params['guid']}";
@@ -116,7 +119,7 @@ class formsClass {
             $output[] = implode(',', $out);
             
         }
-        echopre("input_lists: " . print_r($formArray, 1));
+        // echopre("input_lists: " . print_r($formArray, 1));
         $html[] = generateHTMLFormTable($formArray);
 
 
