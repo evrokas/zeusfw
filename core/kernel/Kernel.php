@@ -342,7 +342,7 @@ class Kernel {
             foreach($clean_head_links as $lnk) {
                 foreach($lnk as $elname => $elvalue) {
                     if(strtolower( $elname ) === "href" && str_starts_with('http', strtolower( $elname )))
-                        $attr->addAttribute([$elname => rel_url( $elvalue )]);
+                        $attr->addAttribute(['src' => rel_url( $elvalue )]);
                     else $attr->addAttribute([$elname => $elvalue]);
                 }
             }
@@ -373,7 +373,7 @@ class Kernel {
                 unset( $script[ array_key_first($script ) ] );
                 foreach($script as $skey => $sval) {
                     if( strtolower($skey) === 'src' ) {
-                            $attr->addAttribute(['href' => rel_url( $sval ) ]);
+                            $attr->addAttribute(['src' => rel_url( $sval ) ]);
                     } else $attr->addAttribute([$skey => $sval]);
                 }
                 $foot_links[] = $attr;
