@@ -33,18 +33,8 @@ class userTokensClassEx extends userTokensClass {
     }
         
     static function getUserTokenBySelector(string $selector) {
- 
-        global $AppDBConnection;
-
-        if(!$AppDBConnection->isConnected()) {
-            if(!$AppDBConnection->Connect()) {
-                echo 'Could not connect to database';
-                return (null);
-            }
-        }
-
         $sql = "SELECT * FROM user_tokens WHERE selector=:selector AND expiry>= now() LIMIT 1";
-        $st = $AppDBConnection->getConnection()->prepare( $sql );
+        $st = dbConnection::getConnection()->prepare( $sql );
         $st->bindValue(":selector", $selector, PDO::PARAM_STR);
         $st->execute();
         $row = $st->fetch();
@@ -58,17 +48,8 @@ class userTokensClassEx extends userTokensClass {
 
 
     static function delete_user_token(string $uname, string $remoteip, string $useragent): bool {
-        global $AppDBConnection;
-
-        if(!$AppDBConnection->isConnected()) {
-            if(!$AppDBConnection->Connect()) {
-                echo 'Could not connect to database';
-                return false;
-            }
-        }
-
         $sql = "DELETE FROM user_tokens WHERE uname=:uname AND remoteip=:remoteip AND useragent=:useragent";
-        $st = $AppDBConnection->getConnection()->prepare( $sql );
+        $st = dbConnection::getConnection()->prepare( $sql );
         $st->bindValue(":uname", $uname, PDO::PARAM_STR);
         $st->bindValue(":remoteip", $remoteip, PDO::PARAM_STR);
         $st->bindValue(":useragent", $useragent, PDO::PARAM_STR);
@@ -77,15 +58,6 @@ class userTokensClassEx extends userTokensClass {
     }
 
     static function getUserByToken(string $token, string $remoteip, string $useragent) {
-        global $AppDBConnection;
-
-        if(!$AppDBConnection->isConnected()) {
-            if(!$AppDBConnection->Connect()) {
-                echo 'Could not connect to database';
-                return null;
-            }
-        }
-
         $tokens = userTokensClassEx::parse_token($token);
         prelog("getUserByToken: $token, $tokens[0]");
 
@@ -93,7 +65,7 @@ class userTokensClassEx extends userTokensClass {
         
         // stop using ip for logging in
         $sql = "SELECT * FROM users INNER JOIN user_tokens ON user_tokens.uname=users.uname WHERE selector=:selector AND useragent=:useragent AND expiry > now() LIMIT 1";
-        $st = $AppDBConnection->getConnection()->prepare( $sql );
+        $st = dbConnection::getConnection()->prepare( $sql );
         $st->bindValue(":selector", $tokens[0], PDO::PARAM_STR);
         // $st->bindValue(":remoteip", $remoteip, PDO::PARAM_STR);
         $st->bindValue(":useragent", $useragent, PDO::PARAM_STR);
@@ -126,17 +98,8 @@ class userTokensClassEx extends userTokensClass {
     }
     
     static function get_expired_user_tokens(): null|array {
-        global $AppDBConnection;
-
-        if(!$AppDBConnection->isConnected()) {
-            if(!$AppDBConnection->Connect()) {
-                echo 'Could not connect to database';
-                return null;
-            }
-        }
-
         $sql = 'SELECT * FROM user_tokens WHERE expiry < NOW()';
-        $st = $AppDBConnection->getConnection()->prepare( $sql );
+        $st = dbConnection::getConnection()->prepare( $sql );
         $st->execute();
 
         $results = [];
@@ -148,19 +111,8 @@ class userTokensClassEx extends userTokensClass {
     }
 
     static function remove_expired_user_tokens() {
-        global $AppDBConnection;
-
-        if(!$AppDBConnection->isConnected()) {
-            if(!$AppDBConnection->Connect()) {
-                echo 'Could not connect to database';
-                return null;
-            }
-        }
-
         $sql = 'DELETE FROM user_tokens WHERE expiry < NOW()';
-        $st = $AppDBConnection->getConnection()->prepare( $sql );
+        $st = dbConnection::getConnection()->prepare( $sql );
         $st->execute();
     }
 }
-
-

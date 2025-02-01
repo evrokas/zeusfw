@@ -73,8 +73,8 @@ class Attributes {
     function getAttributes() {
         $eqls = [];
         foreach($this->attr as $attrclass => $attrdata) {
-            // echo "atribute data: " . $attrdata;
-            if(count($attrdata))
+            // echopre("attribute data: " . print_r($attrdata, 1));
+            if(count($attrdata)>0)
                 $eqls[] = $attrclass . "=\"" . implode(' ', $attrdata) . "\"";
             else $eqls[] = $attrclass;
         }

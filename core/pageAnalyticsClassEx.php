@@ -3,18 +3,8 @@
 class pageAnalyticsClassEx extends pageAnalyticsClass {
 
     static function getPageByName($pagename) {
-        // get hash 
-        global $AppDBConnection;
-
-        if(!$AppDBConnection->isConnected()) {
-            if(!$AppDBConnection->Connect()) {
-                echo 'Could not connect to database';
-                return null;
-            }
-        }
-
         $sql = "SELECT * FROM pageanalytics WHERE page=:pagename LIMIT 1";
-        $st = $AppDBConnection->getConnection()->prepare( $sql );
+        $st = dbConnection::getConnection()->prepare( $sql );
 
         $st->bindValue(":pagename", $pagename, PDO::PARAM_STR);
         $st->execute();
@@ -29,18 +19,8 @@ class pageAnalyticsClassEx extends pageAnalyticsClass {
     }
 
     static function getPageByURL($url) {
-        // get hash 
-        global $AppDBConnection;
-
-        if(!$AppDBConnection->isConnected()) {
-            if(!$AppDBConnection->Connect()) {
-                echo 'Could not connect to database';
-                return null;
-            }
-        }
-
         $sql = "SELECT * FROM pageanalytics WHERE url=:url LIMIT 1";
-        $st = $AppDBConnection->getConnection()->prepare( $sql );
+        $st = dbConnection::getConnection()->prepare( $sql );
 
         $st->bindValue(":url", $url, PDO::PARAM_STR);
         $st->execute();
@@ -108,19 +88,9 @@ class pageAnalyticsClassEx extends pageAnalyticsClass {
     }
 
     static function newWeek() {
-        // get hash 
-        global $AppDBConnection;
-
-        if(!$AppDBConnection->isConnected()) {
-            if(!$AppDBConnection->Connect()) {
-                echo 'Could not connect to database';
-                return null;
-            }
-        }
-
         // update last_week with current week, in one sql command
         $sql = "UPDATE pageanalytics SET last_week_count = week_count, week_count = 0, cdate = :cdate";
-        $st = $AppDBConnection->getConnection()->prepare( $sql );
+        $st = dbConnection::getConnection()->prepare( $sql );
         $st->bindValue(":cdate", getDBtime(), PDO::PARAM_STR);
 
         $st->execute();
@@ -136,19 +106,9 @@ class pageAnalyticsClassEx extends pageAnalyticsClass {
     }
 
     static function newMonth() {
-        // get hash 
-        global $AppDBConnection;
-
-        if(!$AppDBConnection->isConnected()) {
-            if(!$AppDBConnection->Connect()) {
-                echo 'Could not connect to database';
-                return null;
-            }
-        }
-
         // update last_week with current week, in one sql command
         $sql = "UPDATE pageanalytics SET last_month_count = month_count, month_count = 0, cdate = :cdate";
-        $st = $AppDBConnection->getConnection()->prepare( $sql );
+        $st = dbConnection::getConnection()->prepare( $sql );
         $st->bindValue(":cdate", getDBtime(), PDO::PARAM_STR);
 
         $st->execute();
@@ -164,18 +124,8 @@ class pageAnalyticsClassEx extends pageAnalyticsClass {
     }
 
     static function updateStatisticsPage($weekno, $monthno = null, $stat = null) {
-        global $AppDBConnection;
-
         // if both are null, do nothing
         if(!$weekno && !$monthno)return;
-
-
-        if(!$AppDBConnection->isConnected()) {
-            if(!$AppDBConnection->Connect()) {
-                echo 'Could not connect to database';
-                return null;
-            }
-        }
 
         if(!$stat) {
             $stat = self::getStatisticsRecord();
@@ -209,7 +159,7 @@ class pageAnalyticsClassEx extends pageAnalyticsClass {
 
         echopre(print_r($sql, 1));
 
-        $st = $AppDBConnection->getConnection()->prepare($sql);
+        $st = dbConnection::getConnection()->prepare($sql);
         foreach($values as $key => $val) {
             $st->bindValue(":$key", $val);
         }

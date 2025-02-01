@@ -579,17 +579,8 @@ function generateClassCode($yamlData) {
                   }");
   
               mlog("  static function sgetById(int \$aid) {
-                  global \$AppDBConnection;
-  
-                      if(!\$AppDBConnection->isConnected()) {
-                          if(!\$AppDBConnection->Connect()) {
-                              echo 'Could not connect to database';
-                              return (null);
-                          }
-                      }
-              
                       \$sql = \"SELECT * FROM " . $table['name'] . " WHERE id=:id\";
-                      \$st = \$AppDBConnection->getConnection()->prepare( \$sql );
+                      \$st = dbConnection::getConnection()->prepare( \$sql );
                       \$st->bindValue(\":id\", \$aid, PDO::PARAM_INT);
                       \$st->execute();
                       \$row = \$st->fetch();
@@ -602,17 +593,8 @@ function generateClassCode($yamlData) {
               }");
   
               mlog("  static function sgetAll() {
-                  global \$AppDBConnection;
-  
-                  if(!\$AppDBConnection->isConnected()) {
-                      if(!\$AppDBConnection->Connect()) {
-                          echo 'Could not connect to database';
-                          return (null);
-                      }
-                  }
-          
                   \$sql = \"SELECT * FROM " . $table['name'] . ";\";
-                  \$st = \$AppDBConnection->getConnection()->prepare( \$sql );
+                  \$st = dbConnection::getConnection()->prepare( \$sql );
                   \$st->execute();
           
                   \$list = array();
@@ -685,12 +667,6 @@ function generateClassCode($yamlData) {
               return (null);
           }
   
-          if(!\$this->getConnection()->isConnected()) {
-              if(!\$this->getConnection()->Connect()) {
-                  echo 'Could not connect to database';
-                  return (null);
-              }
-          }
           ");
               
           mlog("\$sql = \"INSERT INTO ".$table['name'] ." ( ", false);
@@ -702,7 +678,7 @@ function generateClassCode($yamlData) {
           mlog($str . " );\";");
           
           // echo "SQL: $sql \n";
-          mlog("\$st = \$this->getConnection()->getConnection()->prepare ( \$sql );");
+          mlog("\$st = \$this->getConnection()->prepare ( \$sql );");
   
           foreach($table['fields'] as $fld) {
               mlog("\$st->bindValue( \":".$fld['name']."\", \$this->".$fld['name'].", PDO::PARAM_STR );");
@@ -710,7 +686,7 @@ function generateClassCode($yamlData) {
           mlog("\$st->execute();");
           
   //         echo "Inserted record\n";
-          mlog("\$this->setid( \$this->getConnection()->getConnection()->lastInsertId() );");
+          mlog("\$this->setid( \$this->getConnection()->lastInsertId() );");
           mlog("}");
   
   
@@ -722,13 +698,6 @@ function generateClassCode($yamlData) {
                   return (null);
               }
       
-              if(!\$this->getConnection()->isConnected()) {
-                  if(!\$this->getConnection()->Connect()) {
-                      echo 'Could not connect to database';
-                      return (null);
-                  }
-              }
-                  
               \$sql = \"UPDATE ".$table['name'] ." SET ", false);
               
   
@@ -743,7 +712,7 @@ function generateClassCode($yamlData) {
               mlog(" WHERE id=:id\";");
                   
               mlog("
-              \$st = \$this->getConnection()->getConnection()->prepare ( \$sql );
+              \$st = \$this->getConnection()->prepare ( \$sql );
               ");
       
               foreach($table['fields'] as $fld) {
@@ -764,7 +733,7 @@ function generateClassCode($yamlData) {
               return (null);
           }
           
-          if(!\$this->getConnection()->isConnected()) {
+          if(!\$this->isdbConnected()) {
               if(!\$this->getConnection()->Connect()) {
                   echo 'Could not connect to database';
                   return (null);
@@ -773,7 +742,7 @@ function generateClassCode($yamlData) {
           ");
       
           mlog("\$sql = \"DELETE FROM " . $table['name'] . " WHERE id = :id;\";");
-          mlog("\$st = \$this->getConnection()->getConnection()->prepare(\$sql);");
+          mlog("\$st = \$this->getConnection()->prepare(\$sql);");
           mlog("\$st->bindValue( \":"."id"."\", \$this->"."id".", PDO::PARAM_INT );");
           mlog("\$st->execute();");
           mlog("
@@ -787,41 +756,7 @@ function generateClassCode($yamlData) {
       }
 
 
-
-
-// function init() {
-
-    // $yml = yaml_parse_file('table-structure.yml');
-    // $html = generateHTMLForm($yml);
-    // echo("$html\n");
-
-    // $sql = generateSQLTable($yml);
-    // echo("$sql\n");
-
-
-
-    // Database connection (replace with your credentials)
-    // require('../config/db.php');
-    // $host = DB_HOST;
-    // $dbname = DB_NAME;
-    // $user = DB_USER;
-    // $pass = DB_PASS;
-    // try {
-    //     $pdo = new PDO("mysql:host=$host;dbname=$dbname", $user, $pass);
-    //     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    // } catch (PDOException $e) {
-    //     die("Database connection failed: " . $e->getMessage());
-    // }
-
-
-    // $sqldiff = syncTableWithYAML($yml, $pdo);
-    // echo("$sqldiff\n");
-// }
-
-
 function form_load($yData) {
-    global $AppDBConnection;
-
     echo("loading form `{$yData['form']['name']}`\n");
 	
     $formArray = generateHTMLFormArray($yData);
@@ -856,8 +791,8 @@ function form_load($yData) {
         require(DIR::$fw . "/bootstrap.php");
         
         
-        $AppDBConnection = new dbConnection(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-        $AppDBConnection->Connect();
+        dbConnection::init(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+        dbConnection::Connect();
 
         // try {
         //     $pdo = new PDO("mysql:host=$host;dbname=$dbname", $user, $pass);
@@ -865,8 +800,6 @@ function form_load($yData) {
         // } catch (PDOException $e) {
         //     die("Database connection failed: " . $e->getMessage());
         // }
-
-        // $AppDBConnection = $pdo;
 
         $dbForm = webFormsClass::sgetAllFilter('webforms', ['form_name' => $formName]);
 
@@ -924,8 +857,6 @@ function form_load($yData) {
 }
 
 function form_view($yData) {
-    global $AppDBConnection;
-
     echo("loading form `{$yData['form']['name']}`\n");
 	
     // $formArray = generateHTMLFormArray($yData);
@@ -959,18 +890,8 @@ function form_view($yData) {
         
         require(DIR::$fw . "/bootstrap.php");
         
-        
-        $AppDBConnection = new dbConnection(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-        $AppDBConnection->Connect();
-
-        // try {
-        //     $pdo = new PDO("mysql:host=$host;dbname=$dbname", $user, $pass);
-        //     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        // } catch (PDOException $e) {
-        //     die("Database connection failed: " . $e->getMessage());
-        // }
-
-        // $AppDBConnection = $pdo;
+        dbConnection::init(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+        dbConnection::Connect();
 
         $dbForm = webFormsClass::sgetAllFilter('webforms', ['form_name' => $formName]);
 
@@ -988,8 +909,6 @@ function form_view($yData) {
 }
 
 function form_view_html($yData) {
-    global $AppDBConnection;
-
     // echo("loading form `{$yData['form']['name']}`\n");
 	
     // $formArray = generateHTMLFormArray($yData);
@@ -1023,23 +942,13 @@ function form_view_html($yData) {
         
         require(DIR::$fw . "/bootstrap.php");
         
-        
-        $AppDBConnection = new dbConnection(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-        $AppDBConnection->Connect();
+        dbConnection::init(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+        dbConnection::Connect();
 
         global $kernel;
         $kernel = new Kernel(['MAKER_INVOKE' => true, 'PHP_SELF' => __FILE__, 'SCRIPT_FILENAME' => __FILE__], DIR::$app . "/config/");
         Renderer::init([DIR::$fw. '/templates']);
         Renderer::$enable_comments = true;
-
-        // try {
-        //     $pdo = new PDO("mysql:host=$host;dbname=$dbname", $user, $pass);
-        //     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        // } catch (PDOException $e) {
-        //     die("Database connection failed: " . $e->getMessage());
-        // }
-
-        // $AppDBConnection = $pdo;
 
         $dbForm = webFormsClass::sgetAllFilter('webforms', ['form_name' => $formName]);
 

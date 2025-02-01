@@ -43,6 +43,7 @@ class menuModule extends moduleClass {
         // $amenu['attributes']->addClass('menu-level-'.$alevel);
         // if(!count($amenu))return;
         // echopre("menu: " . print_r($amenu, 1));
+        if(!$amenu)return;
         foreach($amenu as $mitem => $mdata) {
             // echopre("mitem: " . print_r($mdata, 1) . " ==> " . array_key_first($mdata));
             // $at = new Attributes();

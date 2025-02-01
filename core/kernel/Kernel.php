@@ -75,6 +75,14 @@ class Kernel {
 
         date_default_timezone_set( $this->safeGetConfig('tz') );
 
+
+        // initialize databse connection
+        dbConnection::init(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+        if(!dbConnection::Connect()) {
+            echo "Could not connect to the database. Fatal error. Please contact administrator!";
+            exit(-1);
+        }
+
         /* check if it not invoked by maker.php */
         if(!key_exists('MAKER_INVOKE', $asrv) || !$asrv['MAKER_INVOKE']) {
             if(class_exists('pageAnalyticsClassEx')) {
@@ -357,7 +365,7 @@ class Kernel {
                 $attr = new Attributes();
                 foreach($script as $skey => $sval) {
                     if( strtolower($skey) === 'src' ) {
-                            $attr->addAttribute(['href' => rel_url( $sval ) ]);
+                            $attr->addAttribute(['src' => rel_url( $sval ) ]);
                     } else $attr->addAttribute([$skey => $sval]);
                 }
                 $head_scripts[] = $attr;

@@ -220,7 +220,7 @@ function inject_block($blockname, $content, $attrs = null) {
 }
 
 function kindex($token) {
-    $at = new Attributes("class", "index-token");
+    $at = new Attributes(["class" => "index-token"]);
     return inject_block("span", $token, $at);
 
     // return "<span class=\"index\">".$token."</span>";

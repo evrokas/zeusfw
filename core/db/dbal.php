@@ -2,44 +2,53 @@
 
 // database abstract layer
 class dbConnection {
-    private $host;
-    private $username;
-    private $password;
-    private $database;
-    private $_connection;
+    static private $host;
+    static private $username;
+    static private $password;
+    static private $database;
+    static private $pdo;
 
-    function __construct($ahost, $ausername, $apassword, $adatabase) {
-        $this->host = $ahost;
-        $this->username = $ausername;
-        $this->password = $apassword;
-        $this->database = $adatabase;
+    static function init($ahost, $ausername, $apassword, $adatabase) {
+        self::$host = $ahost;
+        self::$username = $ausername;
+        self::$password = $apassword;
+        self::$database = $adatabase;
 
-        $this->setConnection( null );
+        self::setConnection( null );
     }
 
-
-    function isConnected() {
-        return ($this->getConnection() != false);
+    static function isConnected() {
+        return (self::$pdo != false);
     }
 
-    function getConnection() {
-        return ($this->_connection);
-    }
-    function setConnection($aconn) {
-        $this->_connection = $aconn;
+    static function getConnection() {
+        return (self::$pdo);
     }
 
-    function Connect() {
-        $this->_connection = new PDO("mysql:host=".$this->host.";dbname=".$this->database, $this->username, $this->password);
-      return($this->_connection );
+    static function setConnection($aconn) {
+        self::$pdo = $aconn;
+    }
+
+    /* connect to database and return pdo */
+    static function Connect() {
+        if(!self::$pdo) {
+            try {
+                self::$pdo = new PDO("mysql:host=".self::$host.";dbname=".self::$database, self::$username, self::$password);
+                self::$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            } catch (PDOException $e) {
+                die("Database connection failed: " . $e->getMessage());
+            }
+        }
+
+      return ( self::$pdo );
     }
 };
 
 // configuration is included from parent script
 // require_once(__DIR__ . '/../../config/db.php');
-if(defined('DB_HOST')) {
-    $AppDBConnection = new dbConnection(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-}
+// if(defined('DB_HOST')) {
+    // $AppDBConnection = new dbConnection(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+// }
 
 abstract class dbAbstractEntityClass {
     protected $_table;
@@ -71,20 +80,24 @@ abstract class dbAbstractEntityClass {
         return $resp;
     }
     
-    function getConnection() { return $GLOBALS['AppDBConnection']; }
-    static function sgetConnection() { return $GLOBALS['AppDBConnection']; }
+    function getConnection() { return dbConnection::getConnection(); }
+    static function sgetConnection() { return dbConnection::getConnection(); }
+    function isdbConnected() { return dbConnection::isConnected(); }
+    
+    function dbConnect() { return dbConnection::Connect(); }
+    static function sdbConnect() { return dbConnection::Connect(); }
 
     function getById(int $aid) {
-        if(!$this->getConnection()->isConnected()) {
+        if(!$this->isdbConnected()) {
             // echo "Database is not connected!\n";
-            if(!$this->getConnection()->Connect()) {
+            if(!$this->dbConnect()) {
                 echo "Could not connect to database";
                 return (null);
             }
         }
 
         $sql = "SELECT * FROM " . $this->_table . " WHERE id=:id";
-        $st = $this->getConnection()->getConnection()->prepare( $sql );
+        $st = $this->getConnection()->prepare( $sql );
         $st->bindValue(":id", $aid, PDO::PARAM_INT);
         $st->execute();
         $row = $st->fetch();
@@ -98,16 +111,16 @@ abstract class dbAbstractEntityClass {
     }
 
     function getAll() {
-        if(!$this->getConnection()->isConnected()) {
+        if(!$this->isdbConnected()) {
             // echo "Database is not connected!\n";
-            if(!$this->getConnection()->Connect()) {
+            if(!$this->dbConnect()) {
                 echo "Could not connect to database";
                 return (null);
             }
         }
 
         $sql = "SELECT * FROM " . $this->_table . ";";
-        $st = $this->getConnection()->getConnection()->prepare( $sql );
+        $st = $this->getConnection()->prepare( $sql );
         $st->execute();
 
         $list = array();
@@ -125,10 +138,9 @@ abstract class dbAbstractEntityClass {
     // static version
     // return results based on filter, filter is on format ['id' => '0', 'name' => 'test']
     static function sgetAllFilter($tableName, $filterArray = [], $sortsArray = []) {
-        global $AppDBConnection;
-        if(!$AppDBConnection->getConnection()) {
+        if(!self::sgetConnection()) {
             echo "Database is not connected!\n";
-            if(!$AppDBConnection->Connect()) {
+            if(!self::sgetConnection()->Connect()) {
                 echo "Could not connect to database";
                 return (null);
             }
@@ -156,7 +168,7 @@ abstract class dbAbstractEntityClass {
         // echopre(print_r($sortsArray, 1));
         // echopre(print_r($sql, 1));
 
-        $stmt = $AppDBConnection->getConnection()->prepare( $sql );
+        $stmt = self::sgetConnection()->prepare( $sql );
         $stmt->execute( $filterArray );
 
         // $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -172,19 +184,6 @@ abstract class dbAbstractEntityClass {
         // print_r($results);
         return ($results);
     }
-/*
-    function getAllFilter($filterArray = [], $sortsArray = []) {
-        if(!$this->getConnection()->isConnected()) {
-            // echo "Database is not connected!\n";
-            if(!$this->getConnection()->Connect()) {
-                echo "Could not connect to database";
-                return (null);
-            }
-        }
-
-        return (self::sgetAllFilter($this->_table, $filterArray, $sortsArray));
-    }
-*/
 
     // insert in database this object
     abstract function insert();
@@ -238,7 +237,7 @@ class entityTest extends dbAbstractEntityClass {
             return (null);
         }
 
-        if(!$this->getConnection()->isConnected()) {
+        if(!$this->isdbConnected()) {
             // echo "Database is not connected!\n";
             if(!$this->getConnection()->Connect()) {
                 echo "Could not connect to database";
@@ -251,7 +250,7 @@ class entityTest extends dbAbstractEntityClass {
 
         echo "SQL: $sql \n";
 
-        $stmt = $this->getConnection()->getConnection()->prepare ( $sql );
+        $st = $this->getConnection()->prepare ( $sql );
         $st->bindValue( ":username", $this->username, PDO::PARAM_STR );
         $st->bindValue( ":password", $this->password, PDO::PARAM_STR );
         $st->bindValue( ":email", $this->email, PDO::PARAM_STR );
@@ -267,7 +266,7 @@ class entityTest extends dbAbstractEntityClass {
             return (null);
         }
 
-        if(!$this->getConnection()->isConnected()) {
+        if(!$this->isdbConnected()) {
             // echo "Database is not connected!\n";
             if(!$this->getConnection()->Connect()) {
                 echo "Could not connect to database";
@@ -279,7 +278,7 @@ class entityTest extends dbAbstractEntityClass {
 
         echo "SQL: $sql \n";
 
-        $st = $this->getConnection()->getConnection()->prepare ( $sql );
+        $st = $this->getConnection()->prepare ( $sql );
         $st->bindValue( ":username", $this->username, PDO::PARAM_STR );
         $st->bindValue( ":password", $this->password, PDO::PARAM_STR );
         $st->bindValue( ":email", $this->email, PDO::PARAM_STR );
@@ -296,7 +295,7 @@ class entityTest extends dbAbstractEntityClass {
             return (null);
         }
 
-        if(!$this->getConnection()->isConnected()) {
+        if(!$this->isdbConnected()) {
             // echo "Database is not connected!\n";
             if(!$this->getConnection()->Connect()) {
                 echo "Could not connect to database";
@@ -305,7 +304,7 @@ class entityTest extends dbAbstractEntityClass {
         }
     
         $sql = "DELETE FROM " . $this->_table . " WHERE id = :id;";
-        $st = $this->getConnection()->getConnection()->prepare($sql);
+        $st = $this->getConnection()->prepare($sql);
         $st->bindValue(":id", $this->id, PDO::PARAM_INT);
         $st->execute();
 

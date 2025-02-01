@@ -200,17 +200,8 @@ class Database {
                 }");
 
             mlog("  static function sgetById(int \$aid) {
-                global \$AppDBConnection;
-
-                    if(!\$AppDBConnection->isConnected()) {
-                        if(!\$AppDBConnection->Connect()) {
-                            echo 'Could not connect to database';
-                            return (null);
-                        }
-                    }
-            
                     \$sql = \"SELECT * FROM " . $this->name . " WHERE id=:id\";
-                    \$st = \$AppDBConnection->getConnection()->prepare( \$sql );
+                    \$st = dbConnection::getConnection()->prepare( \$sql );
                     \$st->bindValue(\":id\", \$aid, PDO::PARAM_INT);
                     \$st->execute();
                     \$row = \$st->fetch();
@@ -223,17 +214,8 @@ class Database {
             }");
 
             mlog("  static function sgetAll() {
-                global \$AppDBConnection;
-
-                if(!\$AppDBConnection->isConnected()) {
-                    if(!\$AppDBConnection->Connect()) {
-                        echo 'Could not connect to database';
-                        return (null);
-                    }
-                }
-        
                 \$sql = \"SELECT * FROM " . $this->name . ";\";
-                \$st = \$AppDBConnection->getConnection()->prepare( \$sql );
+                \$st = dbConnection::getConnection()->prepare( \$sql );
                 \$st->execute();
         
                 \$list = array();
@@ -306,12 +288,6 @@ class Database {
             return (null);
         }
 
-        if(!\$this->getConnection()->isConnected()) {
-            if(!\$this->getConnection()->Connect()) {
-                echo 'Could not connect to database';
-                return (null);
-            }
-        }
         ");
             
         mlog("\$sql = \"INSERT INTO ".$this->name ." ( ", false);
@@ -323,7 +299,7 @@ class Database {
         mlog($str . " );\";");
         
         // echo "SQL: $sql \n";
-        mlog("\$st = \$this->getConnection()->getConnection()->prepare ( \$sql );");
+        mlog("\$st = \$this->getConnection()->prepare ( \$sql );");
 
         foreach($this->fields as $fld) {
             mlog("\$st->bindValue( \":".$fld['name']."\", \$this->".$fld['name'].", PDO::PARAM_STR );");
@@ -331,7 +307,7 @@ class Database {
         mlog("\$st->execute();");
         
 //         echo "Inserted record\n";
-        mlog("\$this->setid( \$this->getConnection()->getConnection()->lastInsertId() );");
+        mlog("\$this->setid( \$this->getConnection()->lastInsertId() );");
         mlog("}");
 
 
@@ -343,13 +319,6 @@ class Database {
                 return (null);
             }
     
-            if(!\$this->getConnection()->isConnected()) {
-                if(!\$this->getConnection()->Connect()) {
-                    echo 'Could not connect to database';
-                    return (null);
-                }
-            }
-                
             \$sql = \"UPDATE ".$this->name ." SET ", false);
             
 
@@ -364,7 +333,7 @@ class Database {
             mlog(" WHERE id=:id\";");
                 
             mlog("
-            \$st = \$this->getConnection()->getConnection()->prepare ( \$sql );
+            \$st = \$this->getConnection()->prepare ( \$sql );
             ");
     
             foreach($this->fields as $fld) {
@@ -384,17 +353,10 @@ class Database {
             echo 'Trying to delete() an empty record';
             return (null);
         }
-        
-        if(!\$this->getConnection()->isConnected()) {
-            if(!\$this->getConnection()->Connect()) {
-                echo 'Could not connect to database';
-                return (null);
-            }
-        }
         ");
     
         mlog("\$sql = \"DELETE FROM " . $this->name . " WHERE id = :id;\";");
-        mlog("\$st = \$this->getConnection()->getConnection()->prepare(\$sql);");
+        mlog("\$st = \$this->getConnection()->prepare(\$sql);");
         mlog("\$st->bindValue( \":"."id"."\", \$this->"."id".", PDO::PARAM_INT );");
         mlog("\$st->execute();");
         mlog("
