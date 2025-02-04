@@ -9,6 +9,7 @@
 function rel_url($p) {
     global $kernel;
 
+    if(!$p)return "";
     if(str_starts_with($p, 'http'))
         return ($p);
 
