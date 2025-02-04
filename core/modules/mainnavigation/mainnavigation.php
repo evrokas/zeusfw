@@ -12,6 +12,7 @@ class menuModule extends moduleClass {
         $pathtrail = new Menutrail($Request->getQueryRoute(), $this->menu);
         $pathtrail->getTrail($this->trail);
 
+        // echopre("Menu links: " . print_r($pathtrail->getMenulinks(), 1));
         // $pathtrail = new Menutrail($Request->getQueryRoute(), $this->menu);
 
         // move the following in setMenu()
