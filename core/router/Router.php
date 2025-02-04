@@ -76,7 +76,7 @@ class RouterClass {
         }
 
         unset($params);
-        return (0);
+        return (null);
     }
 
     function matchRoute(&$areq) {
@@ -87,18 +87,19 @@ class RouterClass {
         $req = trim($arequest);
         $req = trim($req, '/');
         $req = explode('/', $req);
-        // print_r( $req );
+        // echopre("request #2: " . print_r($req, 1 ));
         $match_collection = array();
         $rule = '';
 
+        // echopre("Route table: " . print_r($this->route_table, 1));
         foreach($this->route_table as $routename => $routedata) {
-            
+            // echopre("route:[$routename] " . print_r($routedata, 1));
             if(is_array($routedata['url'])) {
                 // echopre("Route is array");
 
                 foreach($routedata['url'] as $routeurl) {
                     $rpath = explode('/', trim($routeurl, '/'));
-                    // echo("<pre>Routename: ". print_r( $routename, 1) . " : " . $routedata['url'] . " method: " . (isset($routedata['method'])?$routedata['method']:"unknown") . "</pre>" );
+                    // echo("<pre>Routename: ". print_r( $routename, 1) . " : " . implode('|', $routedata['url']) . " method: " . (isset($routedata['method'])?print_r($routedata['method'], 1):"unknown") . "</pre>" );
                     // echo("<pre>rpath: ". print_r( $rpath, 1). "</pre>");
                     
                     
@@ -111,14 +112,16 @@ class RouterClass {
                     }
                 }
             } else {
-                $rpath = explode('/', trim($routedata['url'], '/'));
-                // echo("<pre>Routename: ". print_r( $routename, 1) . " : " . $routedata['url'] . " method: " . (isset($routedata['method'])?$routedata['method']:"unknown") . "</pre>" );
-                // echo("<pre>rpath: ". print_r( $rpath, 1). "</pre>");
-                
-                
-                $params = array();
-                $match = $this->matchRoutePaths($req, $rpath, $params);
-                $rule = $routedata['url'];
+                if($routedata['url']) {
+                    $rpath = explode('/', trim($routedata['url'], '/'));
+                    // echo("<pre>Routename: ". print_r( $routename, 1) . " : " . $routedata['url'] . " method: " . (isset($routedata['method'])?$routedata['method']:"unknown") . "</pre>" );
+                    // echo("<pre>rpath: ". print_r( $rpath, 1). "</pre>");
+                    
+                    
+                    $params = array();
+                    $match = $this->matchRoutePaths($req, $rpath, $params);
+                    $rule = $routedata['url'];
+                } else $match = null;
             }
             if($match) {
 
