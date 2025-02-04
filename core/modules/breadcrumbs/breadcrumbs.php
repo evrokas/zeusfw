@@ -8,6 +8,20 @@ class breadcrumbsModule extends moduleClass {
         $ptrail = new Menutrail($Request->getQueryRoute(), $kernel->getConfig('menu')['main']);
         $path = array();
         $ptrail->getTrail($path);
+
+        $results = [];
+        if(isset($_SESSION['route_match'])) {
+            $results = $ptrail->search_menu_trail_for_key($_SESSION['route_match']['_routename'],
+            $kernel->getConfig('menu')['main'], $kernel->getConfig('routes'));
+            
+            // reverse array
+            $results = array_reverse( $results );
+            // echopre("breadcrumps items: " . print_r($results, 1));
+        }
+
+
+        $path = $results;
+
         // echopre(print_r( $path, 1 ));
         if(!count($path)) {
             // menu trail could not get a path
@@ -19,7 +33,7 @@ class breadcrumbsModule extends moduleClass {
         // if(!(count($path) == 1) || !(str_starts_with(strtolower($path[0]['text']), 'home')))
             // $path = array_merge([['text' => getLangText(["en"=>"Home","gr"=>"Αρχική"]), 'url' => '/']], $path);
     
-    // echopre(print_r( $path,1) );
+        // echopre(print_r( $path,1) );
         $loop=0;
         $pathfinal = array();
         foreach($path as $pathitem) {
@@ -36,7 +50,8 @@ class breadcrumbsModule extends moduleClass {
                 ];
 
                 $pathfinal[] = [
-                    'text' => $pathitem['text'],
+                    // 'text' => $pathitem['text'],
+                    'text' => $pathitem['route_title']??null,
                     'attributes' => new Attributes(['class' => 'breadcrumb-item']),
                     'url' => $pathitem['url']
                 ];
