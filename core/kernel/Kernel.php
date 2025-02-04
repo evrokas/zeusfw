@@ -214,19 +214,9 @@ class Kernel {
         $app_len = strlen(__APPDIR__ . '/web');
 
         $root_dir = dirname($_SERVER['PHP_SELF']);
-        // echopre("root_dir: $root_dir");
-
         $core_dir = substr(__FWDIR__, strlen($_SERVER['DOCUMENT_ROOT']));
-        // echopre("core dir: $core_dir");
-
-        // echopre("bootstrap_len: $bootstrap_len");
-        // echopre("app_len: $app_len");
-
         $core_module_dir = substr($adir, $bootstrap_len);
-        // echopre("core module rel dir: $core_module_dir");
-
         $app_module_dir = substr($adir, $app_len);
-        // echopre("APP dir: $app_module_dir");
 
 
         // echopre("<hr>");
@@ -235,17 +225,6 @@ class Kernel {
         // echopre("final_core_module_dir: $final_core_module_dir");
 
         $final_app_module_dir = /*$root_dir . */$app_module_dir; /* . '/' . $amodule;*/
-        // echopre("final_app_module_dir: $final_app_module_dir");
-
-        // echopre("<hr>");
-
-        // echopre("pre resolve: " .  print_r($info, 1) );
-
-        // $aadir = substr(dirname($adir), strlen($_SERVER['DOCUMENT_ROOT'])+strlen(dirname($_SERVER['PHP_SELF']))).'/'.$amodule;
-        // echopre('aadir: ' , $aadir);
-
-        // $aaadir = substr(dirname($adir), strlen(__BOOTSTRAP_DIR__)).'/'.$amodule;
-        // echopre('aaadir: ' , $aaadir);
 
         // echopre("\$info: " . print_r($info, 1));
         $rinfo = recursive_array_replace("@core", $final_core_module_dir, $info);
