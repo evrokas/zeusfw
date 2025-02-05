@@ -28,6 +28,7 @@ class breadcrumbsModule extends moduleClass {
             // try router instead, to get the current route
             $rtrail = new Routetrail();
             $rtrail->getTrail($path);
+            // echopre("Using Routetrail() " . print_r($path, 1));
         }
         
         // if(!(count($path) == 1) || !(str_starts_with(strtolower($path[0]['text']), 'home')))
@@ -51,7 +52,7 @@ class breadcrumbsModule extends moduleClass {
 
                 $pathfinal[] = [
                     // 'text' => $pathitem['text'],
-                    'text' => $pathitem['route_title']??null,
+                    'text' => getLangText($pathitem['route_title']??$pathitem['text']??null),
                     'attributes' => new Attributes(['class' => 'breadcrumb-item']),
                     'url' => $pathitem['url']
                 ];
