@@ -1,0 +1,20 @@
+---
+table:
+  name: dictionary
+  class: dictionaryClass
+  extention: __FWDIR__ . '/dictionaryClassEx.php'
+
+  fields:
+  - name: en
+    type: text default null
+
+  - name: en_set
+    type: boolean default false
+      
+
+  - name: gr
+    type: text default null
+
+  - name: gr_set
+    type: boolean default false
+---

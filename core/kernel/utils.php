@@ -227,6 +227,16 @@ function kindex($token) {
     // return "<span class=\"index\">".$token."</span>";
 }
 
+function t($token) {
+    // $lang = dictionaryClassEx::getTokenLanguage($token);
+    // echopre("Translate token $token");
+    // echopre("returned language: " . print_r($lang, 1));
+    // if(!empty($token)) {
+        $word = dictionaryClassEx::translateToken($token);
+        // echopre("token $token => $word");
+        return $word;
+    // }
+}
 
 // if $tok is string, return that string,
 // if $tok is an array, and current selected language is in array keys

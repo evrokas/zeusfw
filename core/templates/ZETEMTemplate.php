@@ -70,7 +70,7 @@ class Renderer {
 		self::filterRegister('upper', 'Renderer::filter_uppercase');
 		self::filterRegister('cache_asset', 'Renderer::filter_cache_asset');
 		self::filterRegister('date', 'Renderer::filter_date');
-
+		self::filterRegister('t', 'Renderer::filter_translate');
 
 	}
 	static function view($file, $data = array(), $stemplate = null) {
@@ -353,6 +353,11 @@ class Renderer {
 		$dt = new DateTime($token);
 		if(count($args)>0)return $dt->format($args[0]);
 		else return $dt;
+	}
+
+	static function filter_translate($token, $args = array() ) {
+		$out = t( $token );
+		return $out;
 	}
 
 	static function filterRegister(string $name, string $cback) {
