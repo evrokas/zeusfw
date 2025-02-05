@@ -21,7 +21,7 @@ class dbConnection {
         return (self::$pdo != false);
     }
 
-    static function getConnection() {
+    static function getConnection(): PDO {
         return (self::$pdo);
     }
 
