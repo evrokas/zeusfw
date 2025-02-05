@@ -28,7 +28,7 @@ class Menutrail {
 
     function search_menu_trail_for_key($key, $menu, $routes) {
         foreach($menu as $mkey => $mval) {
-            // echopre("menu key: " . print_r($mkey,1) . " val: " . array_key_first($mval));
+            // echopre("menu key: $key, mkey: " . print_r($mkey,1) . " val: " . array_key_first($mval));
             // echopre("menu item: " . print_r($mval, 1));
             if(array_key_first($mval) === $key) {
                 // echopre("found: $mkey");
@@ -110,7 +110,7 @@ class Menutrail {
 
     function getTrails() {
         foreach($this->menu as $menuitem) {
-            echopre("menuitem: " . $menuitem['text'] . "<br>");
+            // echopre("menuitem: " . $menuitem['text'] . "<br>");
         }
     }
 

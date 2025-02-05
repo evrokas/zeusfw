@@ -428,6 +428,7 @@ function generateSQLTable($yamlData) {
 
     $columns[] = "`id` INTEGER NOT NULL AUTO_INCREMENT UNIQUE";
 
+    // echo("yamlData : " . print_r($yamlData, 1));
     foreach ($yamlData['table']['fields'] as $field) {
 
         // use specialized function to create field definition

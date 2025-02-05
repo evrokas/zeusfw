@@ -610,7 +610,7 @@ function spill_sql($ymlfile, $sqldir) {
     $dbinfo = yaml_parse_file( $ymlfile );
     
     // echo("spill_sql(): $sqldir / $ymlfile");
-    // print_r( $dbinfo );
+    // echo("info: " . print_r($dbinfo,1));
 
     // $db = new Database( $dbinfo );
     // $s = $db->emitDescription();
