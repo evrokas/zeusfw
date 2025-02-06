@@ -1,0 +1,4 @@
+<div class="language-selector">
+    {% $langs = implode(" | ", $available) %}
+    Languages {{ $langs }} ( {{$current}} )
+</div>
