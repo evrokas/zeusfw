@@ -288,11 +288,16 @@ class Kernel {
         }, $sugg);
 
         
+        $regionAttributes = new Attributes();
+        $regionAttributes->addAttribute(['class' => 'region']);
+        $regionAttributes->addAttribute(['class' => 'region-' . $regionName]);
+        
         $template = Renderer::getTemplate($sugg);
         // echopre("template $template, suggestions: " . print_r($sugg, 1));
         if(strlen($output)) {
             $region_output_all = Renderer::render($template, 
                 [ 'region_name' => $regionName,
+                    'attributes' => $regionAttributes,
                     'blocks' => $output],
                     [$sugg, $template]);
         } else $region_output_all = '';
@@ -366,8 +371,8 @@ class Kernel {
                             $section_output_all = Renderer::render($template, 
                                 [
                                     // 'section_name' => $subKey,
-                                    'attributes' => $sectionAttributes,
                                     'section_name' => implode('-', $depth['section']),
+                                    'attributes' => $sectionAttributes,
                                     'blocks' => $output],
                                     [$sugg, $template]);
                         } else $section_output_all = '';
@@ -455,8 +460,14 @@ class Kernel {
             $temp = Renderer::getTemplate($sugg);
             // echopre("found template: $temp : blk_resp size (bytes) " . strlen($blk_resp));
             
+            $regionAttributes = new Attributes();
+            $regionAttributes->addAttribute(['class' => 'region']);
+            $regionAttributes->addAttribute(['class' => 'region-' . $region]);
             if(strlen($blk_resp))
-                $regions_response[ $region ] = Renderer::render($temp /*'region.zetem'*/, ['region_name' => $region, 'blocks' => $blk_resp], [$sugg, $temp]);
+                $regions_response[ $region ] = Renderer::render($temp, 
+                            [ 'attributes' => $regionAttributes,
+                                'blocks' => $blk_resp], 
+                                [$sugg, $temp] );
         }
         }
         $regions_response = $this->renderRegions();
