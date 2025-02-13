@@ -175,7 +175,7 @@ class Renderer {
 	    if (!self::$cache_enabled || !file_exists($cached_file) || filemtime($cached_file) < filemtime(self::$template_files[ $file ])) {
 			
 			if($stemplates != null && self::$enable_comments) {
-				// echo("generating template from beginning\n");
+				// echopre("generating template from beginning, ". print_r($stemplates, 1));
 				$code = "<!--- template suggestions: ---!>";
 				foreach($stemplates[0] as $sugg) {
 					$code .= "<!--- ";
