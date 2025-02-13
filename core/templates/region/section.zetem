@@ -1,0 +1,10 @@
+{#
+    parameters:
+        section_name        name of the section
+        blocks              string of rendered blocks output
+    
+#}
+
+<div {{attributes($attributes)}}>
+    {{ $blocks }}
+</div>
