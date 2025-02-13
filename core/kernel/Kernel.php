@@ -148,15 +148,24 @@ class Kernel {
         return ($this->config['routes']);
     }
 
-    function getBlocksInRegion($aregion) {
+    /*
+     * obseolete function, since `sections` are introduced
+     * in structure key in settings.info.yaml
+    
+     function getBlocksInRegion($aregion) {
+        // echopre("searching for blocks in region `$aregion`");
         $blks = $this->config['structure'];
         // print_r( $blks[$aregion] );
+        $blocks_in_region = recursive_array_search_key($aregion, $blks);
+        // echopre("found blocks in region `$aregion`: " . print_r($blocks_in_region, 1));
+        return $blocks_in_region;
+
         if(key_exists($aregion, $blks))
             return $blks[$aregion];
         else return null;
     //   return ($blks[$aregion]);
     }
-
+    */
 
     function findMenuKey($amenu, $menukey) {
         // echopre("findMenuKey: $menukey");
@@ -250,6 +259,158 @@ class Kernel {
         }
     }
 
+    function renderRegion($structure, $regionName) {
+        if (!isset($structure[$regionName])) {
+            echopre("Region '$regionName' not found,");
+            $output = "Region '$regionName' not found.";
+            return $output;
+        }
+    
+        $output = '';
+
+        // echopre("Rendering region: $regionName\n");
+        foreach ($structure[$regionName] as $key => $value) {
+            if (is_array($value)) {
+                $output .= $this->renderBlock($key, $value, 0, ['region' => $regionName]); // Section
+            } else {
+                $output .= $this->renderBlock($value, null, 0, ['region' => $regionName]); // Block
+            }
+        }
+
+
+        $sugg = array();
+        Renderer::getTemplateSuggestions(['type' => 'region', 'name' => $regionName], function($args, &$suggestions) {
+            // echopre(print_r($args, 1));
+            if($args['type'] === 'region') {
+                $suggestions[] = 'region';
+                $suggestions[] = 'region--' . $args['name'];
+            }
+        }, $sugg);
+
+        
+        $template = Renderer::getTemplate($sugg);
+        // echopre("template $template, suggestions: " . print_r($sugg, 1));
+        if(strlen($output)) {
+            $region_output_all = Renderer::render($template, 
+                [ 'region_name' => $regionName,
+                    'blocks' => $output],
+                    [$sugg, $template]);
+        } else $region_output_all = '';
+
+        $output = $region_output_all;
+
+        return $output;
+    }
+    
+    function renderBlock($name, $content = null, $tab = 0, $depth = []) {
+        $output = '';
+        // echopre("depth: " . print_r($depth, 1));
+        if ($content === null) {
+            // echopre(str_repeat("  ", $tab) . "Block: $name\n");
+            // echopre(str_repeat("  ", $tab) . "rendering block `$name`");
+
+            $module = $this->getModule( $name );
+            // echopre("found module: " . print_r($module, 1));
+            if($module) {
+                $output = $module->render();
+            }
+            // echopre("module output: $output");
+            // echopre(str_repeat("  ", $tab) . "return from block");
+        } else {
+            // echopre("renderBlock() content: " . print_r($content, 1));
+            if(is_array($content)) {
+                foreach ($content as $subKey => $subValue) {
+                    if (is_array($subValue)) {
+                        // echopre(str_repeat("  ", $tab) .  "  Section: $subKey\n");
+                        $tab++;
+
+                        // $output .= "<div class=\"section section-$subKey\">";
+                        $depth['section'][] = $subKey;
+                        foreach($subValue as $section) {
+                            // echopre(str_repeat("  ", $tab) . "renderingBlock(null, section)");
+                            // array_push($depth, $subKey);
+                            $out = $this->renderBlock(null, $section, $tab + 1, $depth);
+                            // echopre(str_repeat("  ", $tab) . " output from renderBlock()   `" . print_r($out, 1)."`");
+                            $output .= $out;
+                        }
+
+                        $sugg = array();
+                        Renderer::getTemplateSuggestions(
+                                ['type' => 'section',
+                                    'section' => $depth['section'],
+                                    'region' => 'region-'.$depth['region']
+                                ], function($args, &$suggestions) {
+                            // echopre(print_r($args, 1));
+                            if($args['type'] === 'section') {
+                                $suggestions[] = 'section';
+                                $suggestions[] = $args['region'] . '--section';   //'section';
+                                $section_name = [];
+                                foreach($args['section'] as $sect) {
+                                    $section_name[] = $sect;
+                                    $section_list = implode('-', $section_name);
+                                    $suggestions[] = 'section--' . $section_list;
+                                    $suggestions[] = $args['region'].'--section--' . $section_list;
+                                }
+                            }
+                        }, $sugg);
+                
+                        
+                        $template = Renderer::getTemplate($sugg);
+                        // echopre("template $template, suggestions: " . print_r($sugg, 1));
+                        if(strlen($output)) {
+                            $sectionAttributes = new Attributes();
+                            $sectionAttributes->addAttribute(['class' => 'section']);
+                            foreach($depth['section'] as $sect) {
+                                $sectionAttributes->addAttribute( ['class' => "section-" . $sect] );
+                            }
+                            $section_output_all = Renderer::render($template, 
+                                [
+                                    // 'section_name' => $subKey,
+                                    'attributes' => $sectionAttributes,
+                                    'section_name' => implode('-', $depth['section']),
+                                    'blocks' => $output],
+                                    [$sugg, $template]);
+                        } else $section_output_all = '';
+                
+                        $output = $section_output_all;
+
+                        // $output .= '</div>';
+                        // $this->renderBlock($subKey, $subValue, $tab + 1); // Nested section
+                    } else {
+                        // echopre(str_repeat("  ", $tab) .  "  *Block: $subKey\n");
+                        // echopre(str_repeat("  ", $tab) . "renderingBlock($subValue, null)");
+                        // $depth['section'] = [];
+                        // array_push($depth, $subKey);
+                        $depth['section'][] = $subKey;
+                        $output .= $this->renderBlock($subValue, null, $tab+1, $depth); // Block
+                    }
+                }
+            } else {
+                // echopre("content is not an array");
+                $output = $this->renderBlock($content, null, $tab+1); // Block
+            }
+
+        }
+
+        return $output;
+    }
+        
+    function renderRegions() {
+        global $kernel;
+
+        $structure = $kernel->getConfig('structure');
+        $regions = $kernel->getConfig('regions');
+
+        $region_output = [];
+        foreach($regions as $region) {
+            // echopre("## rendering region `$region`" );//. print_r($regionBlocks, 1));
+            $region_output[ $region ] = $kernel->renderRegion($structure, $region);
+            // echopre("regions output[ $region ]: " . print_r($region_output, 1));
+        }
+
+        return $region_output;
+    }
+
     function renderPage() {
         // Renderer::view("main.zetem", $kernel->getConfig() );
         // registerModules();
@@ -257,11 +418,12 @@ class Kernel {
         // print log messages before page content
         // echopre("<hr>LOG: " . Log::get(true) . "<hr>");
 
-        $regions_resp = array();
+        $regions_response = array();
         // $config = $this->getConfig();
 
         // $cont = new ContentClass('content/homepage.html');
 
+        if(false) {
         foreach($this->getConfig('regions') as $region) {
             // echo "<pre>Region " . print_r( $region, 1 ) . "</pre>";
             $blocks = $this->getBlocksInRegion( $region );
@@ -278,7 +440,7 @@ class Kernel {
                     }
                 }
                 // echo "Region response text " . $blk_resp;
-            // $regions_resp[ $region ] = $blk_resp;
+            // $regions_response[ $region ] = $blk_resp;
             $sugg = array();
             Renderer::getTemplateSuggestions(['type' => 'region', 'name' => $region], function($args, &$suggestions) {
                 // echopre(print_r($args, 1));
@@ -294,9 +456,11 @@ class Kernel {
             // echopre("found template: $temp : blk_resp size (bytes) " . strlen($blk_resp));
             
             if(strlen($blk_resp))
-                $regions_resp[ $region ] = Renderer::render($temp /*'region.zetem'*/, ['region_name' => $region, 'blocks' => $blk_resp], [$sugg, $temp]);
+                $regions_response[ $region ] = Renderer::render($temp /*'region.zetem'*/, ['region_name' => $region, 'blocks' => $blk_resp], [$sugg, $temp]);
         }
-
+        }
+        $regions_response = $this->renderRegions();
+        // echopre("regions response: " . print_r($regions_response, 1));
         // echopre(print_r($this->getConfig('foot_script'), 1));
 
         $links = [];
@@ -382,7 +546,7 @@ class Kernel {
             'head_scripts' => $head_scripts,
             // 'foot_script' => remove_header_duplicates($this->getConfig('foot_script')),
             'foot_links' => $foot_links,
-            'regions' => $regions_resp
+            'regions' => $regions_response
         ]);
     
     }
