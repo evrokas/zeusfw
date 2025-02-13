@@ -1,10 +1,11 @@
 {#
     parameters:
         region_name         name of the region
+        attributes          array of attributes for region class
         blocks              string of rendered blocks output
     
 #}
 
-<div class="region region-{{$region_name}}">
+<div {{attributes($attributes)}}>
     {{ $blocks }}
 </div>
