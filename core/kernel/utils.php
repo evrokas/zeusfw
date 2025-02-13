@@ -26,7 +26,7 @@ function asset($file) {
 // an array and has key of 'aatribute'
 function attributes($at) {
     if(is_object($at) && (get_class($at) === 'Attributes')) return $at->getAttributes();
-    else if(is_array($at) && isset($at['attributes']))
+    else if(is_array($at) && isset($at['attributes']) && (get_class($at['attributes']) === "Attributes"))
         return ($at['attributes']->getAttributes());
     else return '';
 }
@@ -208,6 +208,21 @@ function recursive_array_replace ($find, $replace, $array) {
     }
     return $newArray;
 }
+
+function recursive_array_search_key($needle_key, array $array)
+{
+    foreach ($array as $key => $value){
+        if ($key === $needle_key) {
+            return $value;
+        }
+        if (is_array($value)) {
+            if (($result = recursive_array_search_key($needle_key,$value)) !== false) {
+                return $result;
+            }
+        }
+    }
+    return false;
+} 
 
 function inject_block($blockname, $content, $attrs = null) {
     $s = "<$blockname";
