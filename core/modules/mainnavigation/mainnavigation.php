@@ -79,7 +79,8 @@ class menuModule extends moduleClass {
                 $this->setupMenuAttributes($amenu[ $mitem ]['submenu'], $alevel+1);
 
                 $amenu[$mitem]['drop-menu-attributes'] = new Attributes();
-                $amenu[$mitem]['drop-menu-attributes']->addClass('drop-menu-'.$alevel+1);    //$amenu[$mitem]['submenu-class']);
+                $amenu[$mitem]['drop-menu-attributes']->addClass('drop-menu');
+                $amenu[$mitem]['drop-menu-attributes']->addClass('drop-menu-'.$alevel+1);
 
                 if(isset($amenu[$mitem]['submenu-class'])) {
                     $amenu[$mitem]['drop-menu-attributes']->addClass($amenu[$mitem]['submenu-class']);
