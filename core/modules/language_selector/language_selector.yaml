@@ -1,0 +1,16 @@
+libraries:
+  language_selector-library:
+    css:
+      - language_selector-library:
+        src: '@core/css/language_selector.css'
+    foot_script:
+      - language_selector:
+        src: '@core/js/language_selector.js'
+
+routes:
+  language_select:
+    title: "Select language"
+    name: language_select
+    url: /language_select
+    module: language_selector
+

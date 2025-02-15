@@ -1,4 +1,16 @@
+{{ attach_library("language_selector-library") }}
+
 <div class="language-selector">
-    {% $langs = implode(" | ", $available) %}
-    Languages {{ $langs }} ( {{$current}} )
+{#    {% $langs = implode(" | ", $available) %}
+    Languages {{ $langs }} ( {{$current}} ) #}
+    <ul>
+        {% foreach($available as $lang): %}
+            <li>
+                <img {{attributes($attributes[$lang])}} />
+                {#
+                    <a href="{{rel_url(/?{{ $url }}?lang={{ $lang }}">
+                </a>
+                #}
+            </li>
+        {% endforeach %}
 </div>

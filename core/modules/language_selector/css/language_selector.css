@@ -1,0 +1,37 @@
+.language-selector {
+    margin: 0.5rem;
+    padding: 0.5rem;
+    /* background-color: beige; */
+    /* border: 1px solid #ccc; */
+    width: fit-content;
+    /* float: right; */
+    align-self: end;
+
+
+    ul {
+        list-style: none;
+        display: flex;
+        flex-direction: row;
+        gap: 1rem;
+        justify-content: flex-end;
+    }
+
+    ul li {
+        /* padding: 0.5rem; */
+    }
+
+    ul li img { 
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+    }
+    ul li:has(>img.current) {
+        /* border-radius: 50%; */
+        /* border: 1px black solid; */
+        /* background-color: brown; */
+    }
+
+    ul li img.current {
+        border: 2px black solid;
+    }
+}
