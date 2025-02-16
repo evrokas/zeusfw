@@ -22,9 +22,18 @@ class dbConnection {
     }
 
     static function getConnection(): PDO {
+        if(!self::$pdo) {
+            self::Connect();
+        }
+
         return (self::$pdo);
     }
 
+    static function prepare(string $query, array $options = []): PDOStatement|false {
+        return self::$pdo->prepare($query, $option);
+    }
+    
+    
     static function setConnection($aconn) {
         self::$pdo = $aconn;
     }
