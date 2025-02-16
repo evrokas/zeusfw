@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tabbed Panels</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        .tabs {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tabs input[type="radio"] {
+            display: none;
+        }
+
+        .tabs label {
+            padding: 10px;
+            cursor: pointer;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-bottom: none;
+            text-align: center;
+        }
+
+        .tabs label:hover {
+            background-color: #e0e0e0;
+        }
+
+        .tabs label.active {
+            background-color: #fff;
+            border-bottom: 1px solid #fff;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 20px;
+            border: 1px solid #ccc;
+            background-color: #fff;
+        }
+
+        .tab-content.active {
+            display: block;
+            border: none;
+            border-top: 1px solid #fff;
+        }
+
+        input[type="radio"]:checked + label {
+            border-bottom: 1px solid #fff;
+        }
+
+        input[type="radio"]:checked + label + .tab-content {
+            display: block;
+            border: none;
+        }
+
+        .tab-header {
+            display: flex;
+        }
+
+        .tab-header label {
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="tabs">
+        <div class="tab-header">
+            <input type="radio" id="tab1" name="tab" checked>
+            <label for="tab1" tab="content1">Tab 1</label>
+            <input type="radio" id="tab2" name="tab">
+            <label for="tab2" tab="content2">Tab 2</label>
+            <input type="radio" id="tab3" name="tab">
+            <label for="tab3" tab="content3">Tab 3</label>
+        </div>
+
+        <div class="tab-content active" id="content1">
+            <p>This is the content for Tab 1.</p>
+        </div>
+        <div class="tab-content" id="content2">
+            <p>This is the content for Tab 2.</p>
+        </div>
+        <div class="tab-content" id="content3">
+            <p>This is the content for Tab 3.</p>
+        </div>
+    </div>
+
+    <script>
+        // Add active class to the selected tab
+        const labels = document.querySelectorAll('.tabs label');
+        const tabs = document.querySelectorAll('.tabs .tab-content');
+
+        labels.forEach(label => {
+            label.addEventListener('click', () => {
+                labels.forEach(lbl => lbl.classList.remove('active'));
+                label.classList.add('active');
+                // console.log(label.attributes.tab.value);
+                tab=document.getElementById(label.attributes.tab.value);
+                console.log(tab);
+                tabs.forEach(tb => tb.classList.remove('active'));
+                tab.classList.toggle('active');
+            });
+        });
+    </script>
+</body>
+</html>
