@@ -49,6 +49,34 @@ class DIR {
     }
     
 
+    include_once(DIR::$app . '/config/db.php');
+    include(__DIR__ . '/../db/dbal.php');
+    
+
+    if(!defined('__FWDIR__'))
+        define('__FWDIR__', DIR::$fw);
+    
+    if(file_exists(DIR::$fw . '/classes/feed_hashes.php'))
+      include(DIR::$fw . '/classes/feed_hashes.php');
+    
+    if(file_exists(DIR::$fw . '/classes/feed_class.php'))
+      include(DIR::$fw . '/classes/feed_class.php');
+    
+
+
+    // $host = DB_HOST;
+    // $dbname = DB_NAME;
+    // $user = DB_USER;
+    // $pass = DB_PASS;
+
+    dbConnection::init(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+    if(!dbConnection::Connect()) {
+        echo "Could not connect to the database. Fatal error. Please contact administrator!";
+        exit(-1);
+    }
+
+
+
 
     $getopt_options_short = "f:";
     $getopt_options_long = array(
@@ -663,20 +691,6 @@ function diff_sql($file) {
     // $db = new Database($tableinfo);
     // $s = $db->emitSqlDiff();
 
-    include_once(DIR::$app . '/config/db.php');
-    
-    $host = DB_HOST;
-    $dbname = DB_NAME;
-    $user = DB_USER;
-    $pass = DB_PASS;
-
-    try {
-        $pdo = new PDO("mysql:host=$host;dbname=$dbname", $user, $pass);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    } catch (PDOException $e) {
-        die("Database connection failed: " . $e->getMessage());
-    }
-
     $s = syncTableWithYAML($tableinfo, $pdo);
 
     if(!empty($s))echo("$s\n");
@@ -864,26 +878,6 @@ function generate_feed_from_yaml($name, $dir, $update = array()) {
     }
 }
 
-// if(!defined('__APPDIR__')) {
-// if(!defined('DB_HOST')) {
-    // define some dummy constants
-    // define('DB_HOST', '');
-    // define('DB_USER', '');
-    // define('DB_PASS', '');
-    // define('DB_NAME', '');
-// }
-// }
-
-include(__DIR__ . '/../db/dbal.php');
-
-if(!defined('__FWDIR__'))
-    define('__FWDIR__', DIR::$fw);
-
-if(file_exists(DIR::$fw . '/classes/feed_hashes.php'))
-  include(DIR::$fw . '/classes/feed_hashes.php');
-
-if(file_exists(DIR::$fw . '/classes/feed_class.php'))
-  include(DIR::$fw . '/classes/feed_class.php');
 
 function load_feed_data($name) {
     // echo("load yaml feeds to database\n");
