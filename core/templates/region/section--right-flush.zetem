@@ -1,0 +1,13 @@
+{#
+    parameters:
+        section_name        name of the section
+        attributes          array of attributes for section class
+        blocks              string of rendered blocks output
+    
+#}
+
+<div {{attributes($attributes)}}>
+    <div class="section-right-flush-contents">
+        {{ $blocks }}
+    </div>
+</div>
