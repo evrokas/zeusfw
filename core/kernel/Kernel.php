@@ -365,9 +365,12 @@ class Kernel {
                         if(strlen($output)) {
                             $sectionAttributes = new Attributes();
                             $sectionAttributes->addAttribute(['class' => 'section']);
-                            foreach($depth['section'] as $sect) {
-                                $sectionAttributes->addAttribute( ['class' => "section-" . $sect] );
-                            }
+
+                            // foreach($depth['section'] as $sect) {
+                            //     $sectionAttributes->addAttribute( ['class' => "section-" . $sect] );
+                            // }
+                            // echopre("depth: " . print_r($depth['section'], 1));
+                            $sectionAttributes->addAttribute(['class' => 'section-' . $depth[ 'section' ][array_key_last($depth['section']) ]]);
                             $section_output_all = Renderer::render($template, 
                                 [
                                     // 'section_name' => $subKey,
