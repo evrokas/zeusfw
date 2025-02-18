@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo Update Zeus installtion
+echo Update Zeus installation
 
 if [ ! -f web/core/bootstrap.php ]; then
     echo "Please execute this script from the installation root folder"
