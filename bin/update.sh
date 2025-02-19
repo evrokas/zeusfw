@@ -12,17 +12,19 @@ BASEDIR=`pwd`
 MAKER=$BASEDIR"/web/core/maker/maker.php"
 
 
+echo 'Updating in `core` folders...'
+
 # update classes in framework
 pushd ./web/core/classes
 
 echo "core -> spill:sql:all"
-php $MAKER spill:sql:all
+php $MAKER --app-dir=$BASEDIR spill:sql:all
 
 echo "core -> spill:class:all"
-php $MAKER spill:class:all
+php $MAKER --app-dir=$BASEDIR spill:class:all
 
 echo "core -> update:bootstrap"
-php $MAKER update:bootstrap
+php $MAKER --app-dir=$BASEDIR update:bootstrap
 
 # now table structures are in correct places
 
@@ -66,9 +68,12 @@ fi
 # try to remove tables if they do not exist in the file structure
 ## TODO
 
-
 tfile="$(mktemp /tmp/sql-temp.XXXXXXXX)" || exit 1
 
+echo "core -> diff:sql:all"
+#echo "basedir $BASEDIR"
+
+echo "php $MAKER --app-dir=$BASEDIR diff:sql:all"
 php $MAKER --app-dir=$BASEDIR diff:sql:all > $tfile
 cat $tfile
 echo "Do you want to apply the above changes in the database? (y/N) (Ctrl-C to exit)"
@@ -83,6 +88,9 @@ else
 fi
 
 popd
+
+
+echo 'Updating in `application` folders...'
 
 # update classes in userspace
 pushd web/classes
@@ -130,7 +138,7 @@ if [[ ! -z $db_new_web_tables ]]; then
 fi
 
 
-php $MAKER  diff:sql:all > $tfile
+php $MAKER diff:sql:all > $tfile
 cat $tfile
 echo "Do you want to apply the above changes in the database? (y/N) (Ctrl-C to exit)"
 read answer
