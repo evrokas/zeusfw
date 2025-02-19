@@ -6,9 +6,11 @@
         - link1:
           text: link_name
           url: link_url
+          icon: icon to show
           permissions: access_permissions
           attributes: div attributes
-
+          access: access_permissions
+          published: (true|false) if item is published
 #}
 
     {% include show_menu.zetem %}
