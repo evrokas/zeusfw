@@ -5,77 +5,6 @@ class DIR {
     static $fw = null;
 };
 
-// include( getcwd() . "/../../config/db.php");
-    // echo "cwd(): " . getcwd() . "\n";
-    $dnames = explode('/' , getcwd());
-    // print_r( $dnames );
-
-    for($i=count($dnames);$i>0;$i--) {
-        $dir = implode('/',array_slice($dnames, 0, $i));
-        if(file_exists($dir . '/config')) {
-            // echo "$dir/config exists!";
-            DIR::$app = $dir;
-            DIR::$fw = $dir . '/web/core';
-
-            define('__APPDIR__', $dir);
-            define('__FWDIR__', $dir . '/web/core');
-            break;
-        } else
-        if(file_exists($dir . '/bootstrap.php')) {
-            DIR::$fw = $dir;
-
-            define('__FWDIR__', $dir);
-            break;
-        }
-    }
-
-    // echo("app-dir: " . DIR::$app . "\tfw-dir: " . DIR::$fw . "\n");
-    // if(defined('__APPDIR__'))echo 'app dir: ' . __APPDIR__ . "\n";
-    // if(defined('__FWDIR__'))echo 'fw dir: ' . __FWDIR__ . "\n";
-
-
-    
-
-    require('functions.php');
-
-    function mlog($s, $nl = true, $li=false) {
-        if($li)echo __FILE__."(".__FUNCTION__."):".__LINE__.": ";
-        echo $s . ($nl?"\n":"");
-    }
-
-
-    function mguid() {
-        return (trim(file_get_contents('/proc/sys/kernel/random/uuid')));
-    }
-    
-
-    include_once(DIR::$app . '/config/db.php');
-    include(__DIR__ . '/../db/dbal.php');
-    
-
-    if(!defined('__FWDIR__'))
-        define('__FWDIR__', DIR::$fw);
-    
-    if(file_exists(DIR::$fw . '/classes/feed_hashes.php'))
-      include(DIR::$fw . '/classes/feed_hashes.php');
-    
-    if(file_exists(DIR::$fw . '/classes/feed_class.php'))
-      include(DIR::$fw . '/classes/feed_class.php');
-    
-
-
-    // $host = DB_HOST;
-    // $dbname = DB_NAME;
-    // $user = DB_USER;
-    // $pass = DB_PASS;
-
-    dbConnection::init(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-    if(!dbConnection::Connect()) {
-        echo "Could not connect to the database. Fatal error. Please contact administrator!";
-        exit(-1);
-    }
-
-
 
 
     $getopt_options_short = "f:";
@@ -102,6 +31,134 @@ class DIR {
     $bootstrap_file = 'bootstrap_classes.php';
 
 
+    // $getopt_options_short = "f:";
+    // $getopt_options_long = array('app-dir:', 'add-id', 'extends-class:',
+    //     'name:', 'type:', 'author:', 'title:', 'desc:', 'viewmode:',
+    //     'template:', 'dir:');
+    $i=0;
+    $optparams = array();
+    
+    $cmdline_options = getopt($getopt_options_short, $getopt_options_long, $i);
+    $options = array_merge($inline_options, $cmdline_options);
+    // print_r($options);
+
+    // if(!isset($options['extends-class'])) {
+        // $options['extends-class'] = 'dbAbstractEntityClass';
+    // }
+
+    while($i < $argc) {
+        $optparams[] = $argv[$i++];
+    }
+    // print_r( $opts );
+    // mlog( 'argc: ' . $argc );
+    // mlog( 'i: ' . $i );
+    // print_r( $optparams );
+
+    if(!$optparams[0]) {
+        mlog('Please specify a command to execute.');
+        exit;
+    }
+
+    // $yaml_dir = "yaml";
+    // $sql_dir = "sql";
+    // $data_dir = "../../web/files/database";
+    // $class_dir = ".";
+    // $bootstrap_file = 'bootstrap_classes.php';
+
+
+    if(isset($options['app-dir'])) {
+        DIR::$app = $options['app-dir'];
+        // define('__APPDIR__', $options['app-dir']);
+    }
+
+
+
+
+    if(!DIR::$app) {
+
+        // include( getcwd() . "/../../config/db.php");
+        // echo "cwd(): " . getcwd() . "\n";
+        $dnames = explode('/' , getcwd());
+        // print_r( $dnames );
+        
+        for($i=count($dnames);$i>0;$i--) {
+            $dir = implode('/',array_slice($dnames, 0, $i));
+            // echo("searching in folder: $dir\n");
+            if(file_exists($dir . '/config/db.php')) {
+                // echo "$dir/config exists!";
+                DIR::$app = $dir;
+                DIR::$fw = $dir . '/web/core';
+                
+                define('__APPDIR__', $dir);
+                define('__FWDIR__', $dir . '/web/core');
+                break;
+            } else
+            if(file_exists($dir . '/bootstrap.php')) {
+                // echo "$dir/bootstrap.php exists!";
+                DIR::$fw = $dir;
+                
+                define('__FWDIR__', $dir);
+                break;
+            }
+        }
+    }
+
+    // echo("app-dir: " . DIR::$app . "\tfw-dir: " . DIR::$fw . "\n");
+    // if(defined('__APPDIR__'))echo 'app dir: ' . __APPDIR__ . "\n";
+    // if(defined('__FWDIR__'))echo 'fw dir: ' . __FWDIR__ . "\n";
+
+
+    
+
+    require('functions.php');
+
+    function mlog($s, $nl = true, $li=false) {
+        if($li)echo __FILE__."(".__FUNCTION__."):".__LINE__.": ";
+        echo $s . ($nl?"\n":"");
+    }
+
+
+    function mguid() {
+        return (trim(file_get_contents('/proc/sys/kernel/random/uuid')));
+    }
+    
+
+
+    include(__DIR__ . '/../db/dbal.php');
+    
+
+    if(!defined('__FWDIR__'))
+        define('__FWDIR__', DIR::$fw);
+    
+    if(file_exists(DIR::$fw . '/classes/feed_hashes.php'))
+      include(DIR::$fw . '/classes/feed_hashes.php');
+    
+    if(file_exists(DIR::$fw . '/classes/feed_class.php'))
+      include(DIR::$fw . '/classes/feed_class.php');
+    
+
+
+    // $host = DB_HOST;
+    // $dbname = DB_NAME;
+    // $user = DB_USER;
+    // $pass = DB_PASS;
+    // echo("DIR::app folder: " . print_r(DIR::$app, 1));
+    if(file_exists(DIR::$app . '/config/db.php')) {
+
+        include_once(DIR::$app . '/config/db.php');
+
+        // echo("Connecting to database\n");
+        dbConnection::init(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+        if(!dbConnection::Connect()) {
+            echo "Could not connect to the database. Fatal error. Please contact administrator!";
+            exit(-1);
+        }
+    }
+
+
+
+
+
     function require_option($opt) {
         global $options;
 
@@ -112,7 +169,6 @@ class DIR {
             
         return true;
     }
-
 
 
 class Database {
@@ -216,7 +272,6 @@ class Database {
 
         mlog('class ' . $this->classname . ' extends ' . $ext . ' {');
         
-
             foreach($this->fields as $fld) {
                 mlog('  private $' . $fld['name'] . ';');
             }
@@ -434,6 +489,8 @@ class Database {
 
         $s = 'DESCRIBE ' . $this->name . ";";
         file_put_contents($temp, $s);
+
+        if(!DIR::$app)require_option('app-dir');
         $res = shell_exec(DIR::$app . "/sql/msql.sh < " . $temp);
         // print_r( $res );
 
@@ -688,10 +745,10 @@ function diff_sql($file) {
 
     $tableinfo =  yaml_parse_file( $file );
     
+    // echo(">>> DIR::app: {{" . print_r(DIR::$app,1) . "}}\n");
     // $db = new Database($tableinfo);
     // $s = $db->emitSqlDiff();
-
-    $s = syncTableWithYAML($tableinfo, $pdo);
+    $s = syncTableWithYAML($tableinfo, dbConnection::getConnection());
 
     if(!empty($s))echo("$s\n");
 }
@@ -1208,46 +1265,6 @@ function makesure_dir_exists($dir) {
 }
 
 // execute various components of the framework
-
-    // $getopt_options_short = "f:";
-    // $getopt_options_long = array('app-dir:', 'add-id', 'extends-class:',
-    //     'name:', 'type:', 'author:', 'title:', 'desc:', 'viewmode:',
-    //     'template:', 'dir:');
-    $i=0;
-    $optparams = array();
-    
-    $cmdline_options = getopt($getopt_options_short, $getopt_options_long, $i);
-    $options = array_merge($inline_options, $cmdline_options);
-    // print_r($options);
-
-    // if(!isset($options['extends-class'])) {
-        // $options['extends-class'] = 'dbAbstractEntityClass';
-    // }
-
-    while($i < $argc) {
-        $optparams[] = $argv[$i++];
-    }
-    // print_r( $opts );
-    // mlog( 'argc: ' . $argc );
-    // mlog( 'i: ' . $i );
-    // print_r( $optparams );
-
-    if(!$optparams[0]) {
-        mlog('Please specify a command to execute.');
-        exit;
-    }
-
-    // $yaml_dir = "yaml";
-    // $sql_dir = "sql";
-    // $data_dir = "../../web/files/database";
-    // $class_dir = ".";
-    // $bootstrap_file = 'bootstrap_classes.php';
-
-
-    if(isset($options['app-dir'])) {
-        DIR::$app = $options['app-dir'];
-        // define('__APPDIR__', $options['app-dir']);
-    }
 
     switch($optparams[0]) {
         case 'help':
