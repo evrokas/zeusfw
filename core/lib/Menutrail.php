@@ -21,7 +21,7 @@ class Menutrail {
 
     function setPath($apath) {
         $this->path = $apath;
-        if(count($this->path) == 0) {
+        if(count($this->path) === 0) {
             $this->path = ['/'];
         }
     }
@@ -88,8 +88,8 @@ class Menutrail {
         foreach($amenu as $menuitem) {
             $this->menulinks[] = array_key_first($menuitem);
             // echopre("menutrail [lvl: $level]: '" . print_r($menuitem, 1) ."'");
-            // echopre("test trail: " . array_key_first($menuitem) . " === " . $this->path[ $level ] . "<br>");
-            if(isset($this->path[$level]) && (array_key_first($menuitem) == $this->path[ $level ])) {
+            echopre("[l:$level] test trail: " . array_key_first($menuitem) . " === " . $this->path[ $level ] . "<br>");
+            if(isset($this->path[$level]) && (array_key_first($menuitem) === $this->path[ $level ])) {
                 // echopre("found trail " . $menuitem['text'] );
                 // ]. "<br>". print_r( $menuitem, 1));
                 // echopre("menuitem: " . print_r($menuitem, 1));
@@ -104,7 +104,10 @@ class Menutrail {
                 }
                 return;
             }
-            if($found)break;
+            if($found) {
+                echopre("match found [l:$level]");
+                break;
+            }
         }
     }
 

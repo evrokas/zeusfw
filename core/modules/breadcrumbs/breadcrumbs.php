@@ -7,7 +7,7 @@ class breadcrumbsModule extends moduleClass {
 
         $ptrail = new Menutrail($Request->getQueryRoute(), $kernel->getConfig('menu')['main']);
         $path = array();
-        $ptrail->getTrail($path);
+        // $ptrail->getTrail($path);
 
         $results = [];
         if(isset($_SESSION['route_match'])) {
