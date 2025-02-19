@@ -107,10 +107,11 @@ class SecurityClass {
                 }
             }
         } else {
+            if($aperm === "anonymous")return null;
             // echopre("Empty roles for user");
         }
         if(!$pass) {
-            // echo error_401();
+            // echo(" error_401() ");
             return error_401();
             // exit();
         }
