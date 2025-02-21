@@ -318,6 +318,7 @@ class Kernel {
             // echopre("found module: " . print_r($module, 1));
             if($module) {
                 $output = $module->render();
+                // $output = $module->run();
             }
             // echopre("module output: $output");
             // echopre(str_repeat("  ", $tab) . "return from block");
@@ -431,48 +432,6 @@ class Kernel {
 
         // $cont = new ContentClass('content/homepage.html');
 
-        if(false) {
-        foreach($this->getConfig('regions') as $region) {
-            // echo "<pre>Region " . print_r( $region, 1 ) . "</pre>";
-            $blocks = $this->getBlocksInRegion( $region );
-            // print_r( $blocks );
-            $blk_resp = '';
-            if($blocks)
-                foreach($blocks as $block) {
-                    $blk = $this->getModule( $block );
-                    // echopre("Calling module->render() for block " . print_r( $blk, 1). "<br/>");
-                    if($blk) {
-                        $bresponse = $blk->render();
-                        // echopre("Reponse from module: " .print_r( $blk, 1) . " : << $bresponse >><br/>");
-                        $blk_resp .= $bresponse;
-                    }
-                }
-                // echo "Region response text " . $blk_resp;
-            // $regions_response[ $region ] = $blk_resp;
-            $sugg = array();
-            Renderer::getTemplateSuggestions(['type' => 'region', 'name' => $region], function($args, &$suggestions) {
-                // echopre(print_r($args, 1));
-                if($args['type'] == 'region') {
-                    $suggestions[] = 'region';
-                    $suggestions[] = 'region--' . $args['name'];
-                }
-            }, $sugg);
-
-            // echopre(print_r($sugg, 1));
-
-            $temp = Renderer::getTemplate($sugg);
-            // echopre("found template: $temp : blk_resp size (bytes) " . strlen($blk_resp));
-            
-            $regionAttributes = new Attributes();
-            $regionAttributes->addAttribute(['class' => 'region']);
-            $regionAttributes->addAttribute(['class' => 'region-' . $region]);
-            if(strlen($blk_resp))
-                $regions_response[ $region ] = Renderer::render($temp, 
-                            [ 'attributes' => $regionAttributes,
-                                'blocks' => $blk_resp], 
-                                [$sugg, $temp] );
-        }
-        }
         $regions_response = $this->renderRegions();
         // echopre("regions response: " . print_r($regions_response, 1));
         // echopre(print_r($this->getConfig('foot_script'), 1));
