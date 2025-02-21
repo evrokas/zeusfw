@@ -1,0 +1,4 @@
+
+<div class="message">
+    message {{$type}}
+</div>

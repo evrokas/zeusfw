@@ -1,0 +1,51 @@
+---
+table:
+  name: message
+  class: messageClass
+
+  fields:
+    - name: cdate
+      type: '@cdate'
+
+    - name: cuser
+      type: '@cuser'
+
+    - name: recepient
+      type: text
+
+    - name: mdate
+      type: '@cdate'
+
+    - name: title
+      type: varchar(256)
+
+    - name: message
+      type: text
+
+    - name: language
+      type: varchar(8)
+    
+    - name: deleted
+      type: '@delete'
+
+    - name: readed
+      type: boolean default 0
+
+    - name: category
+      type: text
+
+    - name: priority
+      type: text
+---
+
+# cdate   date created at
+# cuser   user created from
+# receipient  users addressed to: all, user-name
+# mdate   message date
+# title   messge title
+# message actual message
+# language  messge language (en|gr)
+# deleted message deleted
+# readed  message read
+# category  message category
+# priority  message priority (mormal|urgent)
