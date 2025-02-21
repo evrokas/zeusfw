@@ -6,15 +6,19 @@ table:
 
   fields:
   - name: en
-    type: text default null
+    type: text
+    default: null
 
   - name: en_set
-    type: boolean default false
+    type: boolean
+    default: false
       
 
   - name: gr
-    type: text default null
+    type: text
+    default: null
 
   - name: gr_set
-    type: boolean default false
+    type: boolean
+    default: false
 ---
