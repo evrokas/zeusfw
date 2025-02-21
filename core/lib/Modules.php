@@ -38,10 +38,11 @@ class moduleClass {
 
 
     function run($aparams = array()) {
+        echopre("default run function");
         // override here to add functionality beyond render()
         return ($this->render($aparams));
     }
-    function renderTemplate($aparms = array()) {
+    function renderTemplate($aparams = array()) {
         // helper function to render a template
         global $kernel;
 
@@ -59,11 +60,16 @@ class moduleClass {
             // echopre( print_r($_SESSION['route_match']['_routename'], 1));
             if(isset($modconfig['display'])) {
                 $display = false;
-                // echopre( print_r( $modconfig[$this->modulename]['display'], 1));
-                if(array_search($routename, $modconfig['display']) !== false) {
-                    // echopre('Display');
+                // echopre( print_r( $modconfig['display'], 1));
+                if(array_search($routename, array_keys($modconfig['display'])) !== false) {
                     // echopre('Display');
                     $display = true;
+                    $mconf = $modconfig['display'][$routename];
+                    if(isset($mconf['arguments'])) {
+                        // echopre("Arguments: " . print_r($mconf['arguments'], 1));
+                        $aparams += $mconf['arguments'];
+                        // array_push($aparams, $mconf['arguments']);
+                    }
                 } else $display = false;
             } else 
             if(isset($modconfig['hide'])) {
@@ -74,14 +80,15 @@ class moduleClass {
             } else $display = true;              
         } else $display = true;
 
-        if($display)
+        if($display) {
+            // echopre("params: " . print_r($aparams, 1));
             return (
             // $this->modulename . ": renderTemplate(): " . $this->template . ": " .
-            Renderer::render($this->template, $aparms));
+            Renderer::render($this->template, $aparams));
+        }
         else return '';
     }
 }
-
 
 
 function registerModules() {
