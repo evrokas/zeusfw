@@ -721,7 +721,9 @@ function spill_class($sqlfile, $classdir) {
 
     if(isset($dbinfo['table']['extention'])) {
         $s .= "\n\n";
-        $s .= "require_once( " . $dbinfo['table']['extention'] . " );\n";
+        $s .= "if(file_exists( ". $dbinfo['table']['extention'] . ")) {\n";
+        $s .= "require_once( " . $dbinfo['table']['extention'] . " );\n}\n";
+
     }
         
     // echo "emit CLASS data in ". $classdir . '/' . $dbinfo[0]['table']. ".php\n";
@@ -784,7 +786,7 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
     $arr += ['schema' => $template];
 
     $tem = yaml_parse_file($template);
-    print_r($tem);
+    // print_r($tem);
 
     if(!isset($key)){
         $key = array('name' => 'default', 'value' => array('default'));
@@ -806,6 +808,7 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
                 $arr['data'][$optval] = array();
 
                 foreach($fields as $fkey => $fval) {
+                    // echo("processing field: $fkey\n");
                     if((isset($specials_list['guid'])) && in_array($fkey, $specials_list['guid'])) {
                             $g = mguid();
                             $arr['data'][$optval] += [$fkey => $g];
@@ -821,8 +824,18 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
                         $arr['data'][$optval] += [$fkey => $specials_list['__index'] ];
                     } else
                     if((isset($specials_list['prefeed'])) && array_key_exists($fkey, $specials_list['prefeed'])) {
-                        echo "prepopulate $fkey\n";
-                        $arr['data'][$optval] += [$fkey => $specials_list['prefeed'][$fkey]];
+                        echo "prepopulate `$fkey` with `" . $specials_list['prefeed'][$fkey] . "`\n";
+                        
+                        // put prefeed template to $stemplate
+                        $stemplate = $specials_list['prefeed'][$fkey];
+
+                        // now do field replacement on $stemplate
+                        $stemplate = str_replace("{{key}}", $optval, $stemplate);
+                        $stemplate = str_replace("{{name}}", $name, $stemplate);
+
+                        $arr['data'][$optval] += [$fkey => $stemplate];
+                        echo "\tequals `$fkey` with `" . $stemplate . "`\n";
+                        // $arr['data'][$optval] += [$fkey => $specials_list['prefeed'][$fkey]];
                     } else
                     if((isset($specials_list['name'])) && in_array($fkey, $specials_list['name'])) {
                         echo "update name of entry $name\n";
@@ -836,7 +849,7 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
                     // }
                 }
 
-                echo "opt key val: $optval\n";
+                // echo "opt key val: $optval\n";
             }
         }
     }
@@ -911,13 +924,17 @@ function generate_feed_from_yaml($name, $dir, $update = array()) {
         $key = $yfeed['key'];
     } else $key = null;
 
-    print_r($key);
+    // echo "generate upon key: ";
+    // print_r($key);;
 
     $specials_list = array();
     $specials_keys = ['guid', 'date', 'prefeed', 'sequential', 'name'];
     foreach($specials_keys as $skey) {
-        echo "key prepopulates for $skey\n";
-        if(isset($yfeed[ $skey ]))$specials_list[ $skey ] = $yfeed[ $skey ];
+        // echo "key prepopulates for $skey\n";
+        if(isset($yfeed[ $skey ])) {
+            $specials_list[ $skey ] = $yfeed[ $skey ];
+            // echo("Set prepopulated field $skey as " .print_r($yfeed[$skey],1) ."\n");
+        }
     }
 
     $specials_list['__update'] = $update;
@@ -928,9 +945,9 @@ function generate_feed_from_yaml($name, $dir, $update = array()) {
             $specials_list['__index'] = $idx++;
             echo "#Feeder $feeder ... \n";
             generate_feed($ytemplate, $feeder,
-            $key,
-            $yfeed['source'][0] . '/' . $feeder . '.yml',
-            $specials_list);
+                    $key,
+                    $yfeed['source'][0] . '/' . $feeder . '.yml',
+                    $specials_list);
         }
     }
 }
@@ -987,6 +1004,8 @@ function load_feed_data($name) {
             
             // echo "generating class `$schemaClass`\n";
             $feeder_class[$fkey] = new $schemaClass( $ydata['data'][$fkey] );
+
+
             // print_r($feeder_class[$fkey]);
 
             ksort($ydata['data'][$fkey]);
@@ -1000,8 +1019,8 @@ function load_feed_data($name) {
         }
 
         foreach($yfeed['key']['value'] as $fkey) { 
-            // print_r($feeder_class);
             // echo("Feeder key: $fkey  name: " . $feeder_class[$fkey]->getname() . "   GUID: " . $feeder_class[$fkey]->getguid() . " HASH: " . $feeder_hash[$fkey] . "\n");
+            // echo(print_r($feeder_class, 1));
         
             if(($fh=feedhashesClassEx::gethashByGuid($feeder_class[$fkey]->getguid()))) {
                 echo "GUID exists!";
@@ -1009,14 +1028,14 @@ function load_feed_data($name) {
                 if($fh->gethash() != $feeder_hash[$fkey]) {
                     echo "hashes differ!\n";
 
-                    echo "new data\n";
-                    print_r( $feeder_class[$fkey] );
+                    // echo "new data\n";
+                    // print_r( $feeder_class[$fkey] );
 
                     $old_feeder_class = $schemaClass::sgetById($fh->getfeedid());
                     // echo "found old class: " . print_r($old_feeder_class, 1);
 
-                    echo "old data\n";
-                    print_r($old_feeder_class);
+                    // echo "old data\n";
+                    // print_r($old_feeder_class);
 
                     $fld = $feeder_class[$fkey]->getFields();
                     // print_r( $fld );
