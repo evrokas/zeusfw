@@ -242,15 +242,25 @@ function kindex($token) {
     // return "<span class=\"index\">".$token."</span>";
 }
 
+// main translation function, translates $token to current language
+// if $token is an array, then checks if the array has keys as the
+// current language, if yes, then emits the value of that key
 function t($token) {
-    // $lang = dictionaryClassEx::getTokenLanguage($token);
-    // echopre("Translate token $token");
-    // echopre("returned language: " . print_r($lang, 1));
-    // if(!empty($token)) {
-        $word = dictionaryClassEx::translateToken($token);
+    if(is_array($token)) {
+        // it is an array, check to see if it has translation array keys
+        global $kernel;
+        $curLang = $kernel->getCurrentLanguage();
+        if(!array_key_exists($curLang, $token)) {
+            return $token[ $curLang ];
+        } else {
+            return dictionaryClassEx::translateToken($token[ array_key_first($token) ]);
+        }
+    } else {
+        return dictionaryClassEx::translateToken($token);
         // echopre("token $token => $word");
-        return $word;
-    // }
+    }
+
+    // return $word;
 }
 
 // if $tok is string, return that string,

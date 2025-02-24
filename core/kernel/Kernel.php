@@ -421,20 +421,8 @@ class Kernel {
     }
 
     function renderPage() {
-        // Renderer::view("main.zetem", $kernel->getConfig() );
-        // registerModules();
-
-        // print log messages before page content
-        // echopre("<hr>LOG: " . Log::get(true) . "<hr>");
-
-        $regions_response = array();
-        // $config = $this->getConfig();
-
-        // $cont = new ContentClass('content/homepage.html');
-
         $regions_response = $this->renderRegions();
         // echopre("regions response: " . print_r($regions_response, 1));
-        // echopre(print_r($this->getConfig('foot_script'), 1));
 
         $links = [];
         $fav = $this->getConfig('favicon');
@@ -503,21 +491,17 @@ class Kernel {
                 $foot_links[] = $attr;
             }
         }
-        // if(in_array(''))
-        // echopre("links: " . print_r($links, 1));
-        // echopre("link attribute: " . $links[0]->getAttributes());
+
+        // final render
         Renderer::view('main.zetem', 
         [
-            'title' => $this->getConfig('title'),
+            'title' => getLangText($this->getConfig('title')),
             'meta' => $this->getConfig('meta'),
             'links' => $links,
-            // 'css' => remove_header_duplicates($this->getConfig('css')),
             'css' => $css,
             'fonts' => $this->getConfig('fonts'),
             'head_links' => $head_links,
-            // 'head_script' => remove_header_duplicates($this->getConfig('head_script')),
             'head_scripts' => $head_scripts,
-            // 'foot_script' => remove_header_duplicates($this->getConfig('foot_script')),
             'foot_links' => $foot_links,
             'regions' => $regions_response
         ]);
