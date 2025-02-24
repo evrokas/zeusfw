@@ -12,7 +12,7 @@
  * 
  */ 
 
-class htmlContentClass {
+class contentPageClass {
     // path to content files
     static $content_path = array();
 
@@ -65,10 +65,18 @@ class htmlContentClass {
         } else return false;
     }
 
+    static function getFileContents($file): string|false {
+        if(array_key_exists($file, self::$content_files)) {
+            if(file_exists(self::$content_files[ $file ])) {
+                return file_get_contents( self::$content_files[ $file ] );
+            } else return "ERROR: content for file $file not found";
+        } else return "ERROR: file $file does not exist";
+    }
+
     static function getContent($file) {
         $content = "";
         $content .= "<!-- begin content (file: " . $file . ") -->";
-        $content .= file_get_contents(self::$content_files[ $file]);
+        $content .= self::getFileContents($file);
         $content .= "<!-- end content (file: " . $file . ") -->";
         
         // echopre("htmlContent contents {" . $content . "}");
