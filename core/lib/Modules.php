@@ -66,7 +66,7 @@ class moduleClass {
                     $display = true;
                     $mconf = $modconfig['display'][$routename];
                     if(isset($mconf['arguments'])) {
-                        // echopre("Arguments: " . print_r($mconf['arguments'], 1));
+                        echopre("Arguments: " . print_r($mconf['arguments'], 1));
                         $aparams += $mconf['arguments'];
                         // array_push($aparams, $mconf['arguments']);
                     }
@@ -74,7 +74,7 @@ class moduleClass {
             } else 
             if(isset($modconfig['hide'])) {
                 $display = true;
-                if(array_search($routename, $modconfig['hide']) !== false) {
+                if(array_search($routename, array_keys($modconfig['hide'])) !== false) {
                     $display = false;
                 }
             } else $display = true;              
