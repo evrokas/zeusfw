@@ -1,0 +1,48 @@
+---
+table: 
+  name: htmlcontent
+  class: htmlcontentClass
+  extention: __FWDIR__ . '/lib/htmlcontentClassEx.php'
+
+  fields:
+    - name: guid
+      type: '@guid'
+
+    - name: cdate
+      type: '@cdate'
+
+    - name: cuser
+      type: '@cuser'
+
+    - name: lang
+      type: char(8)
+
+    - name: name
+      type: varchar(128)
+
+    - name: machinename
+      type: varchar(128)
+
+    - name: contentfile
+      type: varchar(128)
+
+    - name: author
+      type: varchar(64)
+    
+    - name: created
+      type: '@cdate'
+
+    - name: published
+      type: boolean
+      default: false
+    
+    
+---
+
+lang    html content language
+name    html content page name
+machinename machine name of html content page
+contentfile html content file name
+author  author name of content
+created date content created
+
