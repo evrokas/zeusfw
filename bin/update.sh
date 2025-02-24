@@ -163,7 +163,19 @@ if [[ $answer == [yY] ]]; then
 
     for temp in `ls *.feeder.yaml`; do
 	    echo Update feeder $temp;
-	    php $MAKER --name $temp --dir ../classes/yaml feed:gen:yaml
+
+        schema=`cat $temp | gawk ' /schema/ { print $2 }' -`
+        echo "Schema " $schema;
+
+        if [[ -f ../classes/yaml/$schema ]]; then 
+            php $MAKER --name $temp --dir ../classes/yaml feed:gen:yaml
+        elif [[ -f ../core/classes/yaml/$schema ]]; then
+            php $MAKER --name $temp --dir ../core/classes/yaml feed:gen:yaml
+        else
+            echo Could not locate schema file $schema. Aborting...
+            exit
+        fi
+
 	    php $MAKER --name $temp --dir ../classes/yaml feed:load
     done
 
