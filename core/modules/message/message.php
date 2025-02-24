@@ -6,8 +6,8 @@ class messageModule extends moduleClass {
     }
 
     public function render($params = array()) {
-        return "message 1";
-        // return $this->renderTemplate($params);
+        // return "message 1";
+        return $this->renderTemplate($params);
     }
 
 }
