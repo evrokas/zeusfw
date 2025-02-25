@@ -954,6 +954,48 @@ function generate_feed_from_yaml($name, $dir, $update = array()) {
     }
 }
 
+function clean_feed_data($name, $dir) {
+    $yfeed = yaml_parse_file($name);
+    if(!$yfeed) {
+        echo("ERROR: YAML `$name` file could not be parsed.\n");
+        exit;
+    }
+
+    $schemaFile = $yfeed['schema'];
+    echo("schema file: $schemaFile\n");
+
+    if(!file_exists($dir . '/' . $schemaFile)) {
+        echo("ERROR: Class yaml description file `$dir/$schemaFile` is not available.\n");
+        exit;
+    }
+
+    $schema = yaml_parse_file($dir . '/' . $schemaFile);
+    if(!$schema) {
+        echo("ERROR: Schema YAML `$schemaFile` file is not a YAML file.\n");
+        exit;
+    }
+
+    // echo("Schema: " . print_r($schema, 1));
+    $schemaName = $schema['table']['name'];
+
+    DIR::$fw = DIR::$app . '/web/core';
+    
+    // echo("DIR::app: " . DIR::$app . "\n");
+    // echo("DIR::fw: " . DIR::$fw . "\n");
+    include_once(DIR::$app . '/config/db.php');
+    require(DIR::$fw . "/bootstrap.php");
+    
+    
+    dbConnection::init(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+    dbConnection::Connect();
+
+    $pdo = dbConnection::getConnection();
+
+    $cmd = "DELETE feed_hashes, $schemaName FROM feed_hashes join $schemaName ON feed_hashes.guid = $schemaName.guid";
+    // echo("SQL delete command: $cmd\n");
+
+    $pdo->query( $cmd );
+}
 
 function load_feed_data($name) {
     // echo("load yaml feeds to database\n");
@@ -1311,6 +1353,7 @@ function makesure_dir_exists($dir) {
                 'feed:gen:yaml' => 'generate feed templates from yaml file', 
                 'feed:view' => 'show feed data',
                 'feed:load' => 'load feed data to database',
+                'feed:clean' => 'clean feed data from the database',
                 'tables:list:fw' => 'dump database tables fw',
                 'tables:list:web' => 'dump database tables web',
                 'tables:list:all' => 'dump database tables from fw & web',
@@ -1467,7 +1510,7 @@ function makesure_dir_exists($dir) {
             if(!isset($options['name'])
                 || !isset($options['dir'])
             ) {
-                echo "Usage: --name [feeder yaml template] --dir [yaml template dir] [--update key1[|key2|...]]\n";
+                echo "Usage: --name [feeder yaml template] --dir [class yaml dir] [--update key1[|key2|...]]\n";
                 exit;
             }
             $arr = array();
@@ -1485,6 +1528,16 @@ function makesure_dir_exists($dir) {
             }
 
             load_feed_data($options['name']);
+            break;
+
+        case 'feed:clean':
+            if(!isset($options['name'])
+                || !isset($options['dir'])) {
+                echo("Usage: --name [feeder yaml template] --dir [class yaml dir]\n");
+                exit;
+            }
+            clean_feed_data($options['name'], $options['dir']);
+
             break;
 
         case 'data:export':
