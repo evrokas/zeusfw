@@ -36,6 +36,8 @@ table:
       type: boolean
       default: false
     
+    - name: params
+      type: text
     
 ---
 
@@ -45,4 +47,5 @@ machinename machine name of html content page
 contentfile html content file name
 author  author name of content
 created date content created
-
+published content is published (true|false)
+params  parameters specific for each content, can be text, array, etc...

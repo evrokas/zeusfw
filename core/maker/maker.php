@@ -828,7 +828,9 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
                         
                         // put prefeed template to $stemplate
                         $stemplate = $specials_list['prefeed'][$fkey];
-
+                        // if(is_array($stemplate))$stemplate = serialize($stemplate);
+                        if(is_array($stemplate))$stemplate = json_encode($stemplate, JSON_UNESCAPED_UNICODE);
+                        echo("prefeed default value: `$stemplate`\n");
                         // now do field replacement on $stemplate
                         $stemplate = str_replace("{{key}}", $optval, $stemplate);
                         $stemplate = str_replace("{{name}}", $name, $stemplate);
@@ -874,7 +876,7 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
 
                 foreach($inn['data'] as $earr => $earrval) {
                     // echo "trying to reset default value for field $earr: "; print_r($earrval);
-                    echo "value of $upd field: >>" . $earrval[$upd] . "<<\n";
+                    echo "value of $upd field: >>" . print_r($earrval[$upd],1) . "<<\n";
                     if(key_exists($upd, $earrval)) {
                         echo "must remove key $upd  from array $earr\n";
                         // echo "field : " . $inn['data'][$earr][$upd] . "\n";
@@ -1049,7 +1051,7 @@ function load_feed_data($name) {
                     // print_r($fld);
 
                     $hash2 = hash('sha256', serialize( $fld ));
-                    print_r($hash2 . "\n");
+                    echo("new hash: " . print_r($hash2, 1) . "\n");
 
                     $fh->sethash( $hash2 );
 
@@ -1058,11 +1060,10 @@ function load_feed_data($name) {
                     // $old_feeder_class->loadFields($feeder_class)
                 } else {
                     echo "hashes same!\n";
-
                 }
 
             } else {
-
+                // echo("Inserting feeder_class[ $fkey ] = " . print_r($feeder_class[$fkey], 1));
                 $feeder_class[$fkey]->insert();
                 $fexp = time() + 1 * 24 * 60 * 60;
                 
