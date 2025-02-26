@@ -164,7 +164,7 @@ if [[ $answer == [yY] ]]; then
     for temp in `ls *.feeder.yaml`; do
 	    echo Update feeder $temp;
 
-        schema=`cat $temp | gawk ' /schema/ { print $2 }' -`
+        schema=`cat $temp | gawk ' /schema\:/ { print $2 }' -`
         echo "Schema " $schema;
 
         if [[ -f ../classes/yaml/$schema ]]; then 

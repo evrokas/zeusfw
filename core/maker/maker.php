@@ -954,12 +954,12 @@ function generate_feed_from_yaml($name, $dir=null, $update = array()) {
 
     if(!$dir) {
         $dir = $yfeed['schemadir'];
-        $dir = str_replace('@core', DIR::$fw, $dir);
-        $dir = str_replace('@app', DIR::$app, $dir);
-
-     
+        $dir = str_replace(['@core', '@app'], [DIR::$fw, DIR::$app], $dir);
+        // $dir = str_replace('@app', DIR::$app, $dir);
         echo("Using schema file: $dir\n");
     }
+
+     
     
     $ytemplate = rtrim($dir, '/') . '/' . $yfeed['schema'];
 
