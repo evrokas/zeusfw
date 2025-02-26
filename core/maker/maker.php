@@ -773,8 +773,9 @@ function generate_content($author, $type, $name, $title, $desc, $viewmode) {
     echo(print_r($s, 1));
 }
 
-function generate_feed($template, $name, $key, $output = null, $specials_list = array()) {
+function generate_feed($template, $name, $key, $output = null, $specials_list = array(), $leaf_path = array()) {
 
+    $leaf_path = array_reverse($leaf_path);
     // echo $template;
     $arr = array();
 
@@ -824,7 +825,7 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
                         $arr['data'][$optval] += [$fkey => $specials_list['__index'] ];
                     } else
                     if((isset($specials_list['prefeed'])) && array_key_exists($fkey, $specials_list['prefeed'])) {
-                        echo "prepopulate `$fkey` with `" . $specials_list['prefeed'][$fkey] . "`\n";
+                        echo "prepopulate `$fkey` with `" . print_r($specials_list['prefeed'][$fkey], 1) . "`\n";
                         
                         // put prefeed template to $stemplate
                         $stemplate = $specials_list['prefeed'][$fkey];
@@ -834,6 +835,14 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
                         // now do field replacement on $stemplate
                         $stemplate = str_replace("{{key}}", $optval, $stemplate);
                         $stemplate = str_replace("{{name}}", $name, $stemplate);
+                        if(count($leaf_path)>0)
+                            $stemplate = str_replace("{{leaf}}",  $leaf_path[0], $stemplate);
+                        if(count($leaf_path)>1)
+                            $stemplate = str_replace("{{leaf^}}",  $leaf_path[1], $stemplate);
+                        if(count($leaf_path)>2)
+                        $stemplate = str_replace("{{leaf^^}}",  $leaf_path[2], $stemplate);
+                        if(count($leaf_path)>3)
+                            $stemplate = str_replace("{{leaf^^^}}",  $leaf_path[3], $stemplate);
 
                         $arr['data'][$optval] += [$fkey => $stemplate];
                         echo "\tequals `$fkey` with `" . $stemplate . "`\n";
@@ -904,7 +913,7 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
             $out = array_replace_recursive($arr, $inn);
             // echo "IN: ";    print_r($inn);
 
-            echo "OUT: ";   print_r($out);
+            // echo "OUT: ";   print_r($out);
         } else $out = $arr;
         // file_put_contents($output, $s);
         yaml_emit_file($output, $out, YAML_UTF8_ENCODING);
@@ -912,7 +921,25 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
     }
 }
 
-function generate_feed_from_yaml($name, $dir, $update = array()) {
+function sections_iterate($item, $path = array(), $depth = 0) {
+    $results = [];
+    foreach($item as $key => $el) {
+        $temppath = $path;
+        $temppath[] = $key;
+        // echo("path: " . print_r($temppath, 1));
+        // echo(str_repeat("\t", $depth) . "section iterate: $key (path: " . implode(' | ', $temppath).")\n");
+        if(is_array($el)) {
+            // $temppath[] = $
+            $res = sections_iterate($el, $temppath, $depth+1);
+            foreach($res as $r)$results[] = $r;
+        } else
+            $results[] = $temppath; //implode(' | ', $temppath);
+        
+    }
+    return $results;
+}
+
+function generate_feed_from_yaml($name, $dir=null, $update = array()) {
     // print_r($name);
     $yfeed = yaml_parse_file($name);
     // print_r( $yfeed );
@@ -920,6 +947,20 @@ function generate_feed_from_yaml($name, $dir, $update = array()) {
     // echo "Real path: " . realpath($name) . "\n";
     // $dir = trim($dir, " /\\");
 
+    if(!$dir && !isset($yfeed['schemadir'])) {
+        echo("ERROR: Please set schema class directory (either with --dir directoive of `schemadir` field in yaml file.\n");
+        exit;
+    }
+
+    if(!$dir) {
+        $dir = $yfeed['schemadir'];
+        $dir = str_replace('@core', DIR::$fw, $dir);
+        $dir = str_replace('@app', DIR::$app, $dir);
+
+     
+        echo("Using schema file: $dir\n");
+    }
+    
     $ytemplate = rtrim($dir, '/') . '/' . $yfeed['schema'];
 
     if(isset($yfeed['key'])) {
@@ -929,6 +970,16 @@ function generate_feed_from_yaml($name, $dir, $update = array()) {
     // echo "generate upon key: ";
     // print_r($key);;
 
+    if(isset($yfeed['sections'])) {
+        $section = $yfeed['sections'];
+        // echo("Generating sections: " . print_r($yfeed['sections'], 1));
+        
+        $fullSections = sections_iterate($section);
+        echo("Results: " . print_r($fullSections, 1));
+    }
+
+    // exit;
+    
     $specials_list = array();
     $specials_keys = ['guid', 'date', 'prefeed', 'sequential', 'name'];
     foreach($specials_keys as $skey) {
@@ -942,27 +993,52 @@ function generate_feed_from_yaml($name, $dir, $update = array()) {
     $specials_list['__update'] = $update;
 
     $idx = 0;
-    if(isset($yfeed['order'])) {
-        foreach($yfeed['order'] as $feeder) {
+    // if(isset($yfeed['order'])) {
+        // foreach($yfeed['order'] as $feeder) {
+    if(isset($yfeed['sections'])) {
+        foreach($fullSections as $leaves) {
+            $feeder = implode('-', $leaves);
+
             $specials_list['__index'] = $idx++;
             echo "#Feeder $feeder ... \n";
             generate_feed($ytemplate, $feeder,
                     $key,
                     $yfeed['source'][0] . '/' . $feeder . '.yml',
-                    $specials_list);
+                    $specials_list,
+                    $leaves);
         }
     }
 }
 
-function clean_feed_data($name, $dir) {
+function clean_feed_data($name, $dir=null) {
+
+    if(!DIR::$app)require_option('app-dir');
+
     $yfeed = yaml_parse_file($name);
     if(!$yfeed) {
         echo("ERROR: YAML `$name` file could not be parsed.\n");
         exit;
     }
 
+
+    if(!$dir && !isset($yfeed['schemadir'])) {
+        echo("ERROR: Please set schema class directory (either with --dir directoive of `schemadir` field in yaml file.\n");
+        exit;
+    }
+
+    if(!$dir) {
+        $dir = $yfeed['schemadir'];
+        $dir = str_replace('@core', DIR::$fw, $dir);
+        $dir = str_replace('@app', DIR::$app, $dir);
+
+     
+        echo("Using schema file: $dir\n");
+    }
+
+
+
     $schemaFile = $yfeed['schema'];
-    echo("schema file: $schemaFile\n");
+    // echo("schema file: $schemaFile\n");
 
     if(!file_exists($dir . '/' . $schemaFile)) {
         echo("ERROR: Class yaml description file `$dir/$schemaFile` is not available.\n");
@@ -991,10 +1067,17 @@ function clean_feed_data($name, $dir) {
 
     $pdo = dbConnection::getConnection();
 
-    $cmd = "DELETE feed_hashes, $schemaName FROM feed_hashes join $schemaName ON feed_hashes.guid = $schemaName.guid";
+    $cmd = "DELETE feed_hashes, $schemaName FROM feed_hashes JOIN $schemaName ON feed_hashes.guid = $schemaName.guid";
     // echo("SQL delete command: $cmd\n");
 
-    $pdo->query( $cmd );
+    $results = $pdo->query( $cmd, );
+    if(!$results) {
+        echo("ERROR: SQL query for delete failed.\n");
+        exit;
+    }
+
+    echo("Table `$schemaName` and corresponding `feed_hashes` data are cleared succsufully!\n");
+    exit(0);
 }
 
 function load_feed_data($name) {
@@ -1062,15 +1145,24 @@ function load_feed_data($name) {
             );
         }
 
+        DIR::$fw = DIR::$app . '/web/core';
+        include_once(DIR::$app . '/config/db.php');
+        require(DIR::$fw . "/bootstrap.php");
+        // echo("including bootstrap from " . DIR::$fw . "\n");
+        dbConnection::init(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+        dbConnection::Connect();
+
+        // echo("Classes: " . print_r(get_declared_classes(), 1));
+
         foreach($yfeed['key']['value'] as $fkey) { 
             // echo("Feeder key: $fkey  name: " . $feeder_class[$fkey]->getname() . "   GUID: " . $feeder_class[$fkey]->getguid() . " HASH: " . $feeder_hash[$fkey] . "\n");
             // echo(print_r($feeder_class, 1));
         
             if(($fh=feedhashesClassEx::gethashByGuid($feeder_class[$fkey]->getguid()))) {
-                echo "GUID exists!";
+                echo "$name: " .$feeder_class[$fkey]->getname() . "\tGUID exists!";
                 // print_r($fh);
                 if($fh->gethash() != $feeder_hash[$fkey]) {
-                    echo "hashes differ!\n";
+                    echo "\thashes differ!\n";
 
                     // echo "new data\n";
                     // print_r( $feeder_class[$fkey] );
@@ -1101,10 +1193,12 @@ function load_feed_data($name) {
 
                     // $old_feeder_class->loadFields($feeder_class)
                 } else {
-                    echo "hashes same!\n";
+                    echo "\thashes same!\n";
                 }
 
             } else {
+                echo("adding " . $feeder_class[$fkey]->getname() . "\n" );
+                
                 // echo("Inserting feeder_class[ $fkey ] = " . print_r($feeder_class[$fkey], 1));
                 $feeder_class[$fkey]->insert();
                 $fexp = time() + 1 * 24 * 60 * 60;
@@ -1508,9 +1602,10 @@ function makesure_dir_exists($dir) {
 
         case 'feed:gen:yaml':
             if(!isset($options['name'])
-                || !isset($options['dir'])
-            ) {
-                echo "Usage: --name [feeder yaml template] --dir [class yaml dir] [--update key1[|key2|...]]\n";
+                // || !isset($options['dir']
+            )
+             {
+                echo "Usage: --name [feeder yaml template] [--dir [class yaml dir]] [--update key1[|key2|...]]\n";
                 exit;
             }
             $arr = array();
@@ -1518,7 +1613,8 @@ function makesure_dir_exists($dir) {
                 $arr = explode(':', $options['update']);
                 echo "Force updating records : " . implode(' : ', $arr) . "\n";
             }
-            generate_feed_from_yaml($options['name'], $options['dir'], $arr);
+
+            generate_feed_from_yaml($options['name'], $options['dir']??null, $arr);
             break;
 
         case 'feed:load':
@@ -1532,8 +1628,9 @@ function makesure_dir_exists($dir) {
 
         case 'feed:clean':
             if(!isset($options['name'])
-                || !isset($options['dir'])) {
-                echo("Usage: --name [feeder yaml template] --dir [class yaml dir]\n");
+                // || !isset($options['dir'])
+            ) {
+                echo("Usage: --name [feeder yaml template] [--dir [class yaml dir]]\n");
                 exit;
             }
             clean_feed_data($options['name'], $options['dir']);
