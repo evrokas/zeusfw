@@ -359,6 +359,7 @@ function is_json($string) {
   return json_last_error() === JSON_ERROR_NONE;
 }
 
+if(!function_exists('json_validate')) {
 // more robust function
 function json_validate($string)
 {
@@ -409,4 +410,5 @@ function json_validate($string)
 
     // everything is OK
     return $result;
+}
 }
