@@ -35,6 +35,10 @@ class dictionaryClassEx extends dictionaryClass {
     static function translateToken($token) {
       global $kernel;
 
+        if(empty($token))return "";
+        $multilingual = $kernel->getConfig('multilingual');
+        if(!$multilingual)return $token;
+
         $langs = $kernel->getConfig('languages');
 
         $current_language = $kernel->getCurrentLanguage();
