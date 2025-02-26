@@ -250,7 +250,7 @@ function t($token) {
         // it is an array, check to see if it has translation array keys
         global $kernel;
         $curLang = $kernel->getCurrentLanguage();
-        if(!array_key_exists($curLang, $token)) {
+        if(array_key_exists($curLang, $token)) {
             return $token[ $curLang ];
         } else {
             return dictionaryClassEx::translateToken($token[ array_key_first($token) ]);
