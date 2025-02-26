@@ -157,25 +157,44 @@ echo "Do you want to update content? (y/N) (Ctrl-C to exit)"
 read answer
 if [[ $answer == [yY] ]]; then
 
+    echo -n "Do you want to generate feeders' .yml files? [y/N/ask] "
+    read generate
+
     echo "Updating database content"
     # update userspace content
     pushd $BASEDIR/web/content
 
     for temp in `ls *.feeder.yaml`; do
-	    echo Update feeder $temp;
+	    echo Processing feeder $temp;
 
-        schema=`cat $temp | gawk ' /schema\:/ { print $2 }' -`
+        schema=`cat $temp | gawk ' /schema:/ { print $2 }' -`
         echo "Schema " $schema;
 
-        if [[ -f ../classes/yaml/$schema ]]; then 
-            php $MAKER --name $temp --dir ../classes/yaml feed:gen:yaml
-        elif [[ -f ../core/classes/yaml/$schema ]]; then
-            php $MAKER --name $temp --dir ../core/classes/yaml feed:gen:yaml
-        else
-            echo Could not locate schema file $schema. Aborting...
-            exit
+        
+        if [[ $generate == [yYaA] ]]; then
+
+            if [[ $generate == [aA] ]]; then
+                echo -n "Do you want to update feeder $temp ? [y/N] "
+                read confirm
+            else 
+                confirm="y";
+            fi
+
+            if [[ $confirm == [yY] ]]; then 
+                if [[ -f ../classes/yaml/$schema ]]; then 
+                    echo "Creating feeder data $temp (app)"
+                    php $MAKER --name $temp --dir ../classes/yaml feed:gen:yaml
+                elif [[ -f ../core/classes/yaml/$schema ]]; then
+                    echo "Creating feeder data $temp (core)"
+                    php $MAKER --name $temp --dir ../core/classes/yaml feed:gen:yaml
+                else
+                    echo Could not locate schema file $schema. Aborting...
+                    exit
+                fi
+            fi
         fi
 
+        echo "Loading feeder data $temp"
 	    php $MAKER --name $temp --dir ../classes/yaml feed:load
     done
 

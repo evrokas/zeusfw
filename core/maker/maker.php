@@ -1159,7 +1159,7 @@ function load_feed_data($name) {
             // echo(print_r($feeder_class, 1));
         
             if(($fh=feedhashesClassEx::gethashByGuid($feeder_class[$fkey]->getguid()))) {
-                echo "$name: " .$feeder_class[$fkey]->getname() . "\tGUID exists!";
+                echo "$name: " .$feeder_class[$fkey]->getname() . "\t[$fkey]\tGUID exists!";
                 // print_r($fh);
                 if($fh->gethash() != $feeder_hash[$fkey]) {
                     echo "\thashes differ!\n";
@@ -1197,7 +1197,7 @@ function load_feed_data($name) {
                 }
 
             } else {
-                echo("adding " . $feeder_class[$fkey]->getname() . "\n" );
+                echo("adding " . $feeder_class[$fkey]->getname() . "\t[$fkey]\n" );
                 
                 // echo("Inserting feeder_class[ $fkey ] = " . print_r($feeder_class[$fkey], 1));
                 $feeder_class[$fkey]->insert();
