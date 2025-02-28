@@ -441,7 +441,7 @@ class Kernel {
         foreach($clean_css as $css) {
             $links[] = new Attributes([
                 "rel" => "stylesheet",
-                "href" => rel_url($css['src']/* . "?".time() */)
+                "href" => rel_url($css['src']. "?".time())
             ]);
         }
 
