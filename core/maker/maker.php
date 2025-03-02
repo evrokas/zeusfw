@@ -830,13 +830,17 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
                         // put prefeed template to $stemplate
                         $stemplate = $specials_list['prefeed'][$fkey];
                         // if(is_array($stemplate))$stemplate = serialize($stemplate);
-                        if(is_array($stemplate))$stemplate = json_encode($stemplate, JSON_UNESCAPED_UNICODE);
+                        $field_is_json = false;
+                        if(is_array($stemplate)) {
+                            $stemplate = json_encode($stemplate, JSON_UNESCAPED_UNICODE);
+                            $field_is_json = true;
+                        }
                         echo("prefeed default value: `$stemplate`\n");
                         // now do field replacement on $stemplate
                         $stemplate = str_replace("{{key}}", $optval, $stemplate);
                         $stemplate = str_replace("{{name}}", $name, $stemplate);
                         if(count($leaf_path)>0)
-                            $stemplate = str_replace("{{leaf}}",  $leaf_path[0], $stemplate);
+                            $stemplate = str_replace(["{{leaf}}"],  $leaf_path[0], $stemplate);
                         if(count($leaf_path)>1)
                             $stemplate = str_replace("{{leaf^}}",  $leaf_path[1], $stemplate);
                         if(count($leaf_path)>2)
@@ -844,8 +848,14 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
                         if(count($leaf_path)>3)
                             $stemplate = str_replace("{{leaf^^^}}",  $leaf_path[3], $stemplate);
 
-                        $arr['data'][$optval] += [$fkey => $stemplate];
+                            if($field_is_json) {
+                                $arr['data'][$optval] += [$fkey => json_decode($stemplate, true)];
+                            } else {
+                                $arr['data'][$optval] += [$fkey => $stemplate];
+                            }
+
                         echo "\tequals `$fkey` with `" . $stemplate . "`\n";
+
                         // $arr['data'][$optval] += [$fkey => $specials_list['prefeed'][$fkey]];
                     } else
                     if((isset($specials_list['name'])) && in_array($fkey, $specials_list['name'])) {
@@ -1130,6 +1140,17 @@ function load_feed_data($name) {
         foreach($yfeed['key']['value'] as $fkey) { 
             
             // echo "generating class `$schemaClass`\n";
+            
+            // check to see if a data field is an array, if it is
+            // converit to json data
+            foreach($ydata['data'][$fkey] as $fldkey => $fld) {
+                if(is_array($fld)) {
+                    // echo("Loading array in key: $fkey => " . print_r($fld,1));
+                    $ydata['data'][$fkey][$fldkey] = json_encode($fld, JSON_UNESCAPED_UNICODE);
+                    // echo(" ==> converted to json ==> " . $ydata['data'][$fkey][$fldkey] . "\n");
+                }
+            }
+
             $feeder_class[$fkey] = new $schemaClass( $ydata['data'][$fkey] );
 
 
