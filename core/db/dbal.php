@@ -304,9 +304,9 @@ abstract class dbAbstractEntityClass {
             }
         }
 
-        echopre("filterArray: " . print_r($filterArray, 1));
-        echopre("Conditionals: " . print_r($conditionals, 1));
-        echopre("whereList: " . print_r($whereList, 1));
+        // echopre("filterArray: " . print_r($filterArray, 1));
+        // echopre("Conditionals: " . print_r($conditionals, 1));
+        // echopre("whereList: " . print_r($whereList, 1));
 
         if(!empty($whereList)) {
             $sql .= " WHERE " . implode(" AND " , $whereList);
