@@ -284,7 +284,7 @@ abstract class dbAbstractEntityClass {
 
     // static version
     // return results based on filter, filter is on format ['id' => '0', 'name' => 'test']
-    static function sgetAllFilter($tableName, $filterArray = [], $sortsArray = []) {
+    static function sgetAllFilter($tableName, $filterArray = [], $sortsArray = [], $conditionals = []) {
         if(!self::sgetConnection()) {
             echo "Database is not connected!\n";
             if(!self::sgetConnection()->Connect()) {
@@ -297,8 +297,16 @@ abstract class dbAbstractEntityClass {
 
         $whereList = [];
         foreach($filterArray as $key => $value) {
-            $whereList[] = "{$key} = :{$key}";
+            if(empty($conditionals) || !isset($conditionals[$key])) {
+                $whereList[] = "{$key} = :{$key}";
+            } else {
+                $whereList[] = "{$key} " . $conditionals[$key] . " :{$key}";
+            }
         }
+
+        echopre("filterArray: " . print_r($filterArray, 1));
+        echopre("Conditionals: " . print_r($conditionals, 1));
+        echopre("whereList: " . print_r($whereList, 1));
 
         if(!empty($whereList)) {
             $sql .= " WHERE " . implode(" AND " , $whereList);
