@@ -195,6 +195,7 @@ if [[ $answer == [yY] ]]; then
         fi
 
         echo "Loading feeder data $temp"
+	    php $MAKER --name $temp --dir ../classes/yaml feed:clean
 	    php $MAKER --name $temp --dir ../classes/yaml feed:load
     done
 
