@@ -428,6 +428,9 @@ class Database {
             ");
 
 
+        // static table()
+        mlog('static function table() { return "' . $this->name . '";}');
+
         // delete()
 
         mlog("
@@ -446,7 +449,9 @@ class Database {
         return (true);
         }
     }
-    ");
+
+        ");
+
 
         return( ob_get_clean() );
 

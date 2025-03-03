@@ -78,13 +78,16 @@ class dbConnection {
 class dbQuery {
     private PDO $pdo;
     private string $table = '';
+    private string $className = '';
     private array $conditions = [];
     private array $params = [];
     private array $orderBy = [];
     private string $limit = '';
 
-    public function __construct(PDO $pdo) {
+    public function __construct(PDO $pdo, string $table = null, $called_class_name) {
         $this->pdo = $pdo;
+        $this->table = $table;
+        $this->className = $called_class_name;
     }
 
     public function table(string $table): self {
@@ -157,7 +160,7 @@ class dbQuery {
         return $this;
     }
 
-    public function get(): array {
+    public function prepare() {
         $sql = "SELECT * FROM `$this->table`";
         if ($this->conditions) {
             $sql .= " WHERE " . implode(" ", $this->conditions);
@@ -168,10 +171,25 @@ class dbQuery {
         if ($this->limit) {
             $sql .= " " . $this->limit;
         }
+        return $sql;
+    }
+
+    // return assosiative array
+    public function get(): array {
+        $sql = $this->prepare();
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($this->params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // return array of classes
+    public function cget(): array {
+        $sql = $this->prepare();
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($this->params);
+        return $stmt->fetchAll(PDO::FETCH_CLASS, $this->className);
     }
 
     public function toSql(): string {
@@ -349,12 +367,18 @@ abstract class dbAbstractEntityClass {
     // update database with the contents of this object
     abstract function update();
 
+    abstract static function table();
 
     function getid() { return ( $this->id ); }
     function setid($aid) { $this->id = $aid; }
 
-    function query(): dbQuery {
-        return new dbQuery($this->_table);
+
+    function query() {
+        return new dbQuery(dbConnection::getConnection(), $this->_table, get_called_class());
+    }
+
+    static function squery() {
+        return new dbQuery(dbConnection::getConnection(), static::table(), get_called_class());
     }
 };
 

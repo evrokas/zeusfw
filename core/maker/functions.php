@@ -610,6 +610,10 @@ function generateClassCode($yamlData) {
           
               }");
   
+                // static table()
+                mlog('static function table() { return "' . $table['name'] . '";}');
+
+
               mlog("function loadFields(\$adata) {
         parent::loadFields(\$adata);");
   
