@@ -788,6 +788,11 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
 
     $tem = yaml_parse_file($template);
     // print_r($tem);
+    if(!$tem) {
+        echo("ERROR: could not parse class YAML file. ($template)\n");
+        exit;
+
+    }
 
     if(!isset($key)){
         $key = array('name' => 'default', 'value' => array('default'));
@@ -819,13 +824,13 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
                     } else
                     if((isset($specials_list['sequential'])) && in_array($fkey, $specials_list['sequential'])) {
 
-                        echo "sequential index: " . $specials_list['__index'] . "\n";
+                        // echo "sequential index: " . $specials_list['__index'] . "\n";
                         
                         // $arr['data'][$optval] += [$fkey => $specials_list['sequential'][$fkey]['seq']];
                         $arr['data'][$optval] += [$fkey => $specials_list['__index'] ];
                     } else
                     if((isset($specials_list['prefeed'])) && array_key_exists($fkey, $specials_list['prefeed'])) {
-                        echo "prepopulate `$fkey` with `" . print_r($specials_list['prefeed'][$fkey], 1) . "`\n";
+                        // echo "prepopulate `$fkey` with `" . print_r($specials_list['prefeed'][$fkey], 1) . "`\n";
                         
                         // put prefeed template to $stemplate
                         $stemplate = $specials_list['prefeed'][$fkey];
@@ -835,7 +840,7 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
                             $stemplate = json_encode($stemplate, JSON_UNESCAPED_UNICODE);
                             $field_is_json = true;
                         }
-                        echo("prefeed default value: `$stemplate`\n");
+                        // echo("prefeed default value: `$stemplate`\n");
                         // now do field replacement on $stemplate
                         $stemplate = str_replace("{{key}}", $optval, $stemplate);
                         $stemplate = str_replace("{{name}}", $name, $stemplate);
@@ -848,18 +853,32 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
                         if(count($leaf_path)>3)
                             $stemplate = str_replace("{{leaf^^^}}",  $leaf_path[3], $stemplate);
 
-                            if($field_is_json) {
-                                $arr['data'][$optval] += [$fkey => json_decode($stemplate, true)];
-                            } else {
-                                $arr['data'][$optval] += [$fkey => $stemplate];
-                            }
+                        $root_path = array_reverse($leaf_path);
+                        if(count($root_path)>0)
+                            $stemplate = str_replace(["{{root}}"],  $root_path[0], $stemplate);
+                        if(count($root_path)>1)
+                            $stemplate = str_replace("{{root^}}",  $root_path[1], $stemplate);
+                        if(count($root_path)>2)
+                        $stemplate = str_replace("{{root^^}}",  $root_path[2], $stemplate);
+                        if(count($root_path)>3)
+                            $stemplate = str_replace("{{root^^^}}",  $root_path[3], $stemplate);
 
-                        echo "\tequals `$fkey` with `" . $stemplate . "`\n";
+                            // replace sequential token {{#}}
+                        $stemplate = str_replace("{{%}}", $specials_list['__index'], $stemplate);
+
+                        if($field_is_json) {
+                            $arr['data'][$optval] += [$fkey => json_decode($stemplate, true)];
+                        } else {
+                            $arr['data'][$optval] += [$fkey => $stemplate];
+                        }
+
+                        
+                        // echo "\tequals `$fkey` with `" . $stemplate . "`\n";
 
                         // $arr['data'][$optval] += [$fkey => $specials_list['prefeed'][$fkey]];
                     } else
                     if((isset($specials_list['name'])) && in_array($fkey, $specials_list['name'])) {
-                        echo "update name of entry $name\n";
+                        // echo "update name of entry $name\n";
                         $arr['data'][$optval] += [$fkey => $name];
                     } else
                     if($fkey === $key['name']) {
@@ -913,10 +932,10 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
             // remove some deprecated keys, from older versions
             $deprecated = ['directory', 'schema2'];
             foreach($deprecated as $token) {
-                echo("check for deprecated key $token\n");
                 if(key_exists($token, $inn)) {
-                    echo("  removed\n");
+                    echo("$template: check for deprecated key $token ... ");
                     unset($inn[$token]);
+                    echo("  removed\n");
                 }
             }
 
@@ -966,7 +985,7 @@ function generate_feed_from_yaml($name, $dir=null, $update = array()) {
         $dir = $yfeed['schemadir'];
         $dir = str_replace(['@core', '@app'], [DIR::$fw, DIR::$app], $dir);
         // $dir = str_replace('@app', DIR::$app, $dir);
-        echo("Using schema file: $dir\n");
+        echo("$name: Using schema file: $dir\n");
     }
 
      
@@ -985,7 +1004,7 @@ function generate_feed_from_yaml($name, $dir=null, $update = array()) {
         // echo("Generating sections: " . print_r($yfeed['sections'], 1));
         
         $fullSections = sections_iterate($section);
-        echo("Results: " . print_r($fullSections, 1));
+        // echo("Results: " . print_r($fullSections, 1));
     }
 
     // exit;
@@ -1005,6 +1024,7 @@ function generate_feed_from_yaml($name, $dir=null, $update = array()) {
     $idx = 0;
     // if(isset($yfeed['order'])) {
         // foreach($yfeed['order'] as $feeder) {
+    // echo("Generating sections ... " . print_r($yfeed['sections'],1));
     if(isset($yfeed['sections'])) {
         foreach($fullSections as $leaves) {
             $feeder = implode('-', $leaves);
@@ -1096,6 +1116,10 @@ function load_feed_data($name) {
 
     $yfeed = yaml_parse_file($name);
     // print_r( $yfeed );
+    if(!$yfeed) {
+        echo("ERROR: could not parse feed YAML file. ($name)\n");
+        exit;
+    }
 
 
     // find source files
@@ -1114,6 +1138,10 @@ function load_feed_data($name) {
         // print_r($ydata['data']);
         // print_r( pathinfo($ydata['schema']));
         $yschema = yaml_parse_file( $ydata['schema'])['table'];
+        if(!$yschema) {
+            echo("ERROR: could not parse class YAML file." . $ydata['schema'] . "\n");
+            exit;
+        }
         $schemaClass = $yschema['class'];
 
         // echo('schema y-file: '. print_r($yschema, 1));
@@ -1191,8 +1219,8 @@ function load_feed_data($name) {
                     $old_feeder_class = $schemaClass::sgetById($fh->getfeedid());
                     // echo "found old class: " . print_r($old_feeder_class, 1);
 
-                    // echo "old data\n";
-                    // print_r($old_feeder_class);
+                    echo "old data\n";
+                    print_r($old_feeder_class);
 
                     $fld = $feeder_class[$fkey]->getFields();
                     // print_r( $fld );
@@ -1654,7 +1682,7 @@ function makesure_dir_exists($dir) {
                 echo("Usage: --name [feeder yaml template] [--dir [class yaml dir]]\n");
                 exit;
             }
-            clean_feed_data($options['name'], $options['dir']);
+            clean_feed_data($options['name'], $options['dir']??null);
 
             break;
 
