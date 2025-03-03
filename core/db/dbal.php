@@ -44,11 +44,149 @@ class dbConnection {
     }
 };
 
-// configuration is included from parent script
-// require_once(__DIR__ . '/../../config/db.php');
-// if(defined('DB_HOST')) {
-    // $AppDBConnection = new dbConnection(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-// }
+
+/*
+ * $pdo = new PDO('mysql:host=localhost;dbname=testdb', 'username', 'password');
+ * $query = new QueryBuilder($pdo);
+ *
+ * $results = $query->table('users')
+ *     ->where('age', '>=', 18)
+ *     ->where('status', '=', 'active', 'AND')
+ *     ->whereIn('role', ['admin', 'editor'], false, 'OR')
+ *     ->orderBy('created_at', 'DESC')
+ *     ->limit(10, 0)
+ *     ->get();
+ * 
+ * print_r($results);
+ * 
+ * SELECT * FROM `users` 
+ * WHERE age >= :param0 AND status = :param1 OR role IN (:param2, :param3) 
+ * ORDER BY created_at DESC 
+ * LIMIT 0, 10
+ * 
+ */
+
+class dbQuery {
+    private PDO $pdo;
+    private string $table = '';
+    private array $conditions = [];
+    private array $params = [];
+    private array $orderBy = [];
+    private string $limit = '';
+
+    public function __construct(PDO $pdo) {
+        $this->pdo = $pdo;
+    }
+
+    public function table(string $table): self {
+        $this->table = $table;
+        return $this;
+    }
+
+    public function where(string $column, string $operator, mixed $value, string $logic = 'AND'): self {
+        $placeholder = ":param" . count($this->params);
+        $this->conditions[] = ($this->conditions ? $logic . " " : "") . "$column $operator $placeholder";
+        $this->params[$placeholder] = $value;
+        return $this;
+    }
+
+    public function whereEq(string $column, mixed $value, string $logic = 'AND'): self {
+        return $this->where($column, '=', $value, $logic);
+    }
+
+    public function whereEqGt(string $column, mixed $value, string $logic = 'AND'): self {
+        return $this->where($column, '>=', $value, $logic);
+    }
+
+    public function whereEqLt(string $column, mixed $value, string $logic = 'AND'): self {
+        return $this->where($column, '<=', $value, $logic);
+    }
+
+    public function whereLike(string $column, string $value, string $logic = 'AND'): self {
+        return $this->where($column, 'LIKE', "%$value%", $logic);
+    }
+
+    public function whereInArray(string $column, array $values, bool $not = false, string $logic = 'AND'): self {
+        if (empty($values)) return $this;
+        
+        $placeholders = [];
+        foreach ($values as $index => $value) {
+            $placeholder = ":param" . (count($this->params) + $index);
+            $placeholders[] = $placeholder;
+            $this->params[$placeholder] = $value;
+        }
+        
+        $notStr = $not ? "NOT " : "";
+        $this->conditions[] = ($this->conditions ? $logic . " " : "") . "$column $notStr IN (" . implode(", ", $placeholders) . ")";
+        return $this;
+    }
+
+    public function whereIn(string $column, array $values, string $logic = 'AND'): self {
+        return $this->whereInArray($column, $values, false, $logic);
+    }
+
+    public function whereNotIn(string $column, array $values, string $logic = 'AND'): self {
+        return $this->whereInArray($column, $values, true, $logic);
+    }
+
+    public function orderBy(string|array $column, string|array $direction = 'ASC'): self {
+        if(is_array($column)) {
+            foreach ($column as $index => $col) {
+                $dir = $direction[$index] ?? 'ASC';
+                $this->orderBy[] = "$col $dir";
+            }
+            return $this;
+        } else {
+            $this->orderBy[] = "$column $direction";
+        }
+
+        return $this;
+    }
+
+    public function limit(int $limit, int $offset = 0): self {
+        $this->limit = "LIMIT $offset, $limit";
+        return $this;
+    }
+
+    public function get(): array {
+        $sql = "SELECT * FROM `$this->table`";
+        if ($this->conditions) {
+            $sql .= " WHERE " . implode(" ", $this->conditions);
+        }
+        if ($this->orderBy) {
+            $sql .= " ORDER BY " . implode(",", $this->orderBy);
+        }
+        if ($this->limit) {
+            $sql .= " " . $this->limit;
+        }
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($this->params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function toSql(): string {
+        $sql = "SELECT * FROM `$this->table`";
+        if ($this->conditions) {
+            $sql .= " WHERE " . implode(" ", $this->conditions);
+        }
+        if ($this->orderBy) {
+            $sql .= " ORDER BY " . implode(",", $this->orderBy);
+        }
+        if ($this->limit) {
+            $sql .= " " . $this->limit;
+        }
+        return $sql;
+    }
+
+    public function getParams(): array {
+        return $this->params;
+    }
+}
+
+
+
+
 
 abstract class dbAbstractEntityClass {
     protected $_table;
@@ -197,117 +335,9 @@ abstract class dbAbstractEntityClass {
 
     function getid() { return ( $this->id ); }
     function setid($aid) { $this->id = $aid; }
+
+    function query(): dbQuery {
+        return new dbQuery($this->_table);
+    }
 };
 
-
-class entityTest extends dbAbstractEntityClass {
-
-    // fields
-    protected $username = null;
-    protected $password = null;
-    protected $email = null;
-
-    function __construct($adata = array()) {
-        parent::__construct('test', $adata);
-
-        $this->loadFields( $adata );
-    }
-
-    function loadFields($adata) {
-        parent::loadFields($adata);
-        if(isset($adata['username']))$this->username = $adata['username'];
-        if(isset($adata['password']))$this->password = $adata['password'];
-        if(isset($adata['email']))$this->email = $adata['email'];
-    }
-
-    function getusername() { return $this->username; }
-    function setusername( $ausername ) { $this->username = $ausername; }
-
-    function getpassword() { return $this->password; }
-    function setpassword($apassword) { $this->password = $apassword; }
-
-    function getemail() { return $this->email; }
-    function setemail( $aemail ) { $this->email = $aemail; }
-
-    // test functions
-
-    function insert() {
-        if($this->id != null) {
-            echo "Trying to insert() a record that already exists";
-            return (null);
-        }
-
-        if(!$this->isdbConnected()) {
-            // echo "Database is not connected!\n";
-            if(!$this->getConnection()->Connect()) {
-                echo "Could not connect to database";
-                return (null);
-            }
-        }
-            
-        $sql = "INSERT INTO ".$this->_table ." (username, password, email) VALUES ( " .
-            ":username, :password, :email );";
-
-        echo "SQL: $sql \n";
-
-        $st = $this->getConnection()->prepare ( $sql );
-        $st->bindValue( ":username", $this->username, PDO::PARAM_STR );
-        $st->bindValue( ":password", $this->password, PDO::PARAM_STR );
-        $st->bindValue( ":email", $this->email, PDO::PARAM_STR );
-        $st->execute();
-        
-        echo "Inserted record\n";
-        $this->setid( $this->getConnection()->getConnection()->lastInsertId() );
-    }
-    
-    function update() {
-        if($this->id == null) {
-            echo "Trying to update() a record that does not exist";
-            return (null);
-        }
-
-        if(!$this->isdbConnected()) {
-            // echo "Database is not connected!\n";
-            if(!$this->getConnection()->Connect()) {
-                echo "Could not connect to database";
-                return (null);
-            }
-        }
-            
-        $sql = "UPDATE ".$this->_table ." SET username=:username, password=:password, email=:email WHERE id=:id;";
-
-        echo "SQL: $sql \n";
-
-        $st = $this->getConnection()->prepare ( $sql );
-        $st->bindValue( ":username", $this->username, PDO::PARAM_STR );
-        $st->bindValue( ":password", $this->password, PDO::PARAM_STR );
-        $st->bindValue( ":email", $this->email, PDO::PARAM_STR );
-        $st->bindValue( ":id", $this->id, PDO::PARAM_INT );
-
-        $st->execute();
-        
-        echo "Updated record\n";
-    }
-
-    function delete() {
-        if($this->id == null) {
-            echo "Trying to delete() an empty record";
-            return (null);
-        }
-
-        if(!$this->isdbConnected()) {
-            // echo "Database is not connected!\n";
-            if(!$this->getConnection()->Connect()) {
-                echo "Could not connect to database";
-                return (null);
-            }
-        }
-    
-        $sql = "DELETE FROM " . $this->_table . " WHERE id = :id;";
-        $st = $this->getConnection()->prepare($sql);
-        $st->bindValue(":id", $this->id, PDO::PARAM_INT);
-        $st->execute();
-
-        return (true);
-    }
-}
