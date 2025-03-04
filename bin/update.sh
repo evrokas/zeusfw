@@ -164,6 +164,16 @@ if [[ $answer == [yY] ]]; then
     # update userspace content
     pushd $BASEDIR/web/content
 
+    echo -n "Do you want to clean old feed data? [y/N] "
+    read cleanup
+
+    if [[ $cleanup == [yY] ]]; then
+        for temp in `ls *.feeder.yaml`; do
+            php $MAKER --name $temp feed:clean
+        done
+    fi
+
+
     for temp in `ls *.feeder.yaml`; do
 	    echo Processing feeder $temp;
 
@@ -183,20 +193,30 @@ if [[ $answer == [yY] ]]; then
             if [[ $confirm == [yY] ]]; then 
                 if [[ -f ../classes/yaml/$schema ]]; then 
                     echo "Creating feeder data $temp (app)"
-                    php $MAKER --name $temp --dir ../classes/yaml feed:gen:yaml
+                    php $MAKER --name $temp feed:gen:yaml
                 elif [[ -f ../core/classes/yaml/$schema ]]; then
                     echo "Creating feeder data $temp (core)"
-                    php $MAKER --name $temp --dir ../core/classes/yaml feed:gen:yaml
+                    php $MAKER --name $temp feed:gen:yaml
                 else
                     echo Could not locate schema file $schema. Aborting...
+                    exit
+                fi
+
+                if [ $? -eq 0 ]; then
+                    echo "Loading was successful"
+                else
+                    echo "Load failed"
                     exit
                 fi
             fi
         fi
 
         echo "Loading feeder data $temp"
-	    php $MAKER --name $temp --dir ../classes/yaml feed:clean
-	    php $MAKER --name $temp --dir ../classes/yaml feed:load
+
+        # cannot call feed:clean because it cleans all entries from the table
+	    # php $MAKER --name $temp  feed:clean
+        
+	    php $MAKER --name $temp  feed:load
     done
 
     popd
