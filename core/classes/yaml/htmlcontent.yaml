@@ -37,7 +37,7 @@ table:
       default: false
     
     - name: params
-      type: text
+      type: json
     
 ---
 
