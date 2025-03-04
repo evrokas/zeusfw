@@ -16,7 +16,7 @@ class DIR {
         'type:', 'author:', 'title:', 'desc:', 'viewmode:',     // content fields
         'template:',        // YAML template to create feeder
         'dir:',             // YAML templates folder
-        'update:'           // when 'feed:gen:yaml' force updating fields field1:field2:field3:...
+        'update:',          // when 'feed:gen:yaml' force updating fields field1:field2:field3:...
     );
     $options = array();
 
@@ -778,9 +778,10 @@ function generate_content($author, $type, $name, $title, $desc, $viewmode) {
     echo(print_r($s, 1));
 }
 
-function generate_feed($template, $name, $key, $output = null, $specials_list = array(), $leaf_path = array()) {
+function generate_feed($template, $name, $key, $output = null, $specials_list = array(), $root_path = array()) {
 
-    $leaf_path = array_reverse($leaf_path);
+    $leaf_path = array_reverse($root_path);
+
     // echo $template;
     $arr = array();
 
@@ -795,7 +796,7 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
     // print_r($tem);
     if(!$tem) {
         echo("ERROR: could not parse class YAML file. ($template)\n");
-        exit;
+        exit(-1);
 
     }
 
@@ -858,7 +859,6 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
                         if(count($leaf_path)>3)
                             $stemplate = str_replace("{{leaf^^^}}",  $leaf_path[3], $stemplate);
 
-                        $root_path = array_reverse($leaf_path);
                         if(count($root_path)>0)
                             $stemplate = str_replace(["{{root}}"],  $root_path[0], $stemplate);
                         if(count($root_path)>1)
@@ -912,21 +912,27 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
             $inn = yaml_parse_file($output);
             // echo "READ from $output: "; print_r($inn);
 
-            // remeove data entries from input array, when must be updated by default values
-            // echo(print_r($specials_list['__update'], 1));
-            foreach($specials_list['__update'] as $upd) {
-                echo "default update field: $upd\n";
-
-                foreach($inn['data'] as $earr => $earrval) {
-                    // echo "trying to reset default value for field $earr: "; print_r($earrval);
-                    echo "value of $upd field: >>" . print_r($earrval[$upd],1) . "<<\n";
-                    if(key_exists($upd, $earrval)) {
-                        echo "must remove key $upd  from array $earr\n";
-                        // echo "field : " . $inn['data'][$earr][$upd] . "\n";
-                        unset($inn['data'][$earr][$upd]);
+            // special case, update all fields
+            if((count($specials_list['__update']) === 1) 
+                && ($specials_list['__update'][0] === 'all')) {
+                $inn['data'] = [];
+            } else {
+                // remeove data entries from input array, when must be updated by default values
+                // echo(print_r($specials_list['__update'], 1));
+                foreach($specials_list['__update'] as $upd) {
+                    echo "default update field: $upd\n";
+                    
+                    foreach($inn['data'] as $earr => $earrval) {
+                        // echo "trying to reset default value for field $earr: "; print_r($earrval);
+                        echo "value of $upd field: >>" . print_r($earrval[$upd],1) . "<<\n";
+                        if(key_exists($upd, $earrval)) {
+                            echo "must remove key $upd  from array $earr\n";
+                            // echo "field : " . $inn['data'][$earr][$upd] . "\n";
+                            unset($inn['data'][$earr][$upd]);
+                        }
                     }
+                    echo "unsetted force update: " . print_r($earrval, 1);
                 }
-                echo "unsetted force update: " . print_r($earrval, 1);
             }
             // print_r($inn);
 
@@ -983,14 +989,14 @@ function generate_feed_from_yaml($name, $dir=null, $update = array()) {
 
     if(!$dir && !isset($yfeed['schemadir'])) {
         echo("ERROR: Please set schema class directory (either with --dir directoive of `schemadir` field in yaml file.\n");
-        exit;
+        exit(-1);
     }
 
     if(!$dir) {
         $dir = $yfeed['schemadir'];
         $dir = str_replace(['@core', '@app'], [DIR::$fw, DIR::$app], $dir);
         // $dir = str_replace('@app', DIR::$app, $dir);
-        echo("$name: Using schema file: $dir\n");
+        echo("$name: (generate_feed_from_yaml) Using schema file: $dir\n");
     }
 
      
@@ -1030,6 +1036,7 @@ function generate_feed_from_yaml($name, $dir=null, $update = array()) {
     // if(isset($yfeed['order'])) {
         // foreach($yfeed['order'] as $feeder) {
     // echo("Generating sections ... " . print_r($yfeed['sections'],1));
+    // echo("Generating fullSections ... " . print_r($fullSections, 1));
     if(isset($yfeed['sections'])) {
         foreach($fullSections as $leaves) {
             $feeder = implode('-', $leaves);
@@ -1052,13 +1059,13 @@ function clean_feed_data($name, $dir=null) {
     $yfeed = yaml_parse_file($name);
     if(!$yfeed) {
         echo("ERROR: YAML `$name` file could not be parsed.\n");
-        exit;
+        exit(-1);
     }
 
 
     if(!$dir && !isset($yfeed['schemadir'])) {
         echo("ERROR: Please set schema class directory (either with --dir directoive of `schemadir` field in yaml file.\n");
-        exit;
+        exit(-1);
     }
 
     if(!$dir) {
@@ -1073,17 +1080,17 @@ function clean_feed_data($name, $dir=null) {
 
 
     $schemaFile = $yfeed['schema'];
-    // echo("schema file: $schemaFile\n");
+    echo("schema file: $schemaFile $dir/$schemaFile\n");
 
     if(!file_exists($dir . '/' . $schemaFile)) {
-        echo("ERROR: Class yaml description file `$dir/$schemaFile` is not available.\n");
-        exit;
+        echo("ERROR: (clean_feed_data) Class yaml description file `$dir/$schemaFile` is not available.\n");
+        exit(-1);
     }
 
     $schema = yaml_parse_file($dir . '/' . $schemaFile);
     if(!$schema) {
         echo("ERROR: Schema YAML `$schemaFile` file is not a YAML file.\n");
-        exit;
+        exit(-1);
     }
 
     // echo("Schema: " . print_r($schema, 1));
@@ -1103,12 +1110,13 @@ function clean_feed_data($name, $dir=null) {
     $pdo = dbConnection::getConnection();
 
     $cmd = "DELETE feed_hashes, $schemaName FROM feed_hashes JOIN $schemaName ON feed_hashes.guid = $schemaName.guid";
+    // $cmd = "DELETE feed_hashes, $schemaName FROM feed_hashes JOIN $schemaName ON feed_hashes.guid = $schemaName.guid";
     // echo("SQL delete command: $cmd\n");
 
     $results = $pdo->query( $cmd, );
     if(!$results) {
         echo("ERROR: SQL query for delete failed.\n");
-        exit;
+        exit(-1);
     }
 
     echo("Table `$schemaName` and corresponding `feed_hashes` data are cleared succsufully!\n");
@@ -1123,7 +1131,7 @@ function load_feed_data($name) {
     // print_r( $yfeed );
     if(!$yfeed) {
         echo("ERROR: could not parse feed YAML file. ($name)\n");
-        exit;
+        exit(-1);
     }
 
 
@@ -1145,7 +1153,7 @@ function load_feed_data($name) {
         $yschema = yaml_parse_file( $ydata['schema'])['table'];
         if(!$yschema) {
             echo("ERROR: could not parse class YAML file." . $ydata['schema'] . "\n");
-            exit;
+            exit(-1);
         }
         $schemaClass = $yschema['class'];
 
@@ -1224,8 +1232,8 @@ function load_feed_data($name) {
                     $old_feeder_class = $schemaClass::sgetById($fh->getfeedid());
                     // echo "found old class: " . print_r($old_feeder_class, 1);
 
-                    echo "old data\n";
-                    print_r($old_feeder_class);
+                    // echo "old data\n";
+                    // print_r($old_feeder_class);
 
                     $fld = $feeder_class[$fkey]->getFields();
                     // print_r( $fld );
@@ -1251,7 +1259,7 @@ function load_feed_data($name) {
                 }
 
             } else {
-                echo("adding " . $feeder_class[$fkey]->getname() . "\t[$fkey]\n" );
+                echo("$name: adding " . $feeder_class[$fkey]->getname() . "\t[$fkey]\t{$feeder_hash[$fkey]}\n" );
                 
                 // echo("Inserting feeder_class[ $fkey ] = " . print_r($feeder_class[$fkey], 1));
                 $feeder_class[$fkey]->insert();
@@ -1497,7 +1505,7 @@ function makesure_dir_exists($dir) {
                 'data:export' => 'export data from SQL database table to data folder',
                 'content:gen' => 'generate content template',
                 'content:view' => 'show content data',
-                'feed:gen' => 'generate feeder template',
+                'feed:gen' => 'generate feeds from feeder template, merge with existing',
                 'feed:gen:yaml' => 'generate feed templates from yaml file', 
                 'feed:view' => 'show feed data',
                 'feed:load' => 'load feed data to database',
