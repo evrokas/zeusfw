@@ -84,7 +84,7 @@ class dbQuery {
     private array $orderBy = [];
     private string $limit = '';
 
-    public function __construct(PDO $pdo, string $table = null, $called_class_name) {
+    public function __construct(PDO $pdo, string $table = null, $called_class_name = '') {
         $this->pdo = $pdo;
         $this->table = $table;
         $this->className = $called_class_name;
@@ -99,6 +99,8 @@ class dbQuery {
         $placeholder = ":param" . count($this->params);
         $this->conditions[] = ($this->conditions ? $logic . " " : "") . "$column $operator $placeholder";
         $this->params[$placeholder] = $value;
+        // echopre("params[$placeholder] = $value");
+
         return $this;
     }
 
@@ -118,6 +120,9 @@ class dbQuery {
         return $this->where($column, 'LIKE', "%$value%", $logic);
     }
 
+    public function whereLikeRaw(string $column, string $value, string $logic = 'AND'): self {
+        return $this->where($column, 'LIKE', "$value", $logic);
+    }
     public function whereInArray(string $column, array $values, bool $not = false, string $logic = 'AND'): self {
         if (empty($values)) return $this;
         
@@ -126,6 +131,7 @@ class dbQuery {
             $placeholder = ":param" . (count($this->params) + $index);
             $placeholders[] = $placeholder;
             $this->params[$placeholder] = $value;
+            // echopre("params[$placeholder] = $value");
         }
         
         $notStr = $not ? "NOT " : "";
@@ -140,6 +146,34 @@ class dbQuery {
     public function whereNotIn(string $column, array $values, string $logic = 'AND'): self {
         return $this->whereInArray($column, $values, true, $logic);
     }
+
+    // json functions
+    public function whereJsonValue(string $column, string $jsonPath, string $operator, mixed $value, string $logic = 'AND'): self {
+        $placeholder = ":param" . count($this->params);
+        $this->conditions[] = ($this->conditions ? " $logic " : "") . "JSON_UNQUOTE(JSON_EXTRACT($column, '$.$jsonPath')) $operator $placeholder";
+        $this->params[$placeholder] = $value;
+        return $this;
+    }
+
+    public function whereJsonContains(string $column, mixed $value, string $logic = 'AND'): self {
+        $placeholder = ":param" . count($this->params);
+        $this->conditions[] = ($this->conditions ? " $logic " : "") . "JSON_CONTAINS($column, $placeholder)";
+        $this->params[$placeholder] = json_encode($value);
+        return $this;
+    }
+
+    public function whereJsonPathContains(string $column, mixed $value, string $jsonPath, string $logic = 'AND'): self {
+        $placeholder = ":param" . count($this->params);
+        $this->conditions[] = ($this->conditions ? " $logic " : "") . "JSON_CONTAINS($column, $placeholder, $jsonPath)";
+        $this->params[$placeholder] = json_encode($value);
+        return $this;
+    }
+
+    public function whereJsonKeyExists(string $column, string $key, string $logic = 'AND'): self {
+        $this->conditions[] = ($this->conditions ? " $logic " : "") . "$column->'$.$key' IS NOT NULL";
+        return $this;
+    }
+
 
     public function orderBy(string|array $column, string|array $direction = 'ASC'): self {
         if(is_array($column)) {
@@ -171,6 +205,10 @@ class dbQuery {
         if ($this->limit) {
             $sql .= " " . $this->limit;
         }
+
+        echopre("SQL: $sql");
+        echopre("ARGS: [" . implode('] [', $this->params) . ']');
+
         return $sql;
     }
 
@@ -189,6 +227,10 @@ class dbQuery {
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($this->params);
+        if(!$this->className) {
+            echopre("ERROR: Class name is not given in cget()");
+            exit(-1);
+        }
         return $stmt->fetchAll(PDO::FETCH_CLASS, $this->className);
     }
 
