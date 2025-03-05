@@ -1,3 +1,4 @@
+./old
 core/classes/sql/*
 core/classes/*.php
 core/classes/yaml/old/*
