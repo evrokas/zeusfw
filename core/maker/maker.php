@@ -1052,6 +1052,18 @@ function generate_feed_from_yaml($name, $dir=null, $update = array()) {
     }
 }
 
+function clean_feed_hashes($name, $dir = null) {
+    if(!DIR::$app)require_option('app-dir');
+
+    dbConnection::init(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+    dbConnection::Connect();
+
+    $pdo = dbConnection::getConnection();
+
+    $cmd = "TRUNCATE feed_hashes";
+}
+
+
 function clean_feed_data($name, $dir=null) {
 
     if(!DIR::$app)require_option('app-dir');
@@ -1108,16 +1120,35 @@ function clean_feed_data($name, $dir=null) {
     dbConnection::Connect();
 
     $pdo = dbConnection::getConnection();
-
-    $cmd = "DELETE feed_hashes, $schemaName FROM feed_hashes JOIN $schemaName ON feed_hashes.guid = $schemaName.guid";
-    // $cmd = "DELETE feed_hashes, $schemaName FROM feed_hashes JOIN $schemaName ON feed_hashes.guid = $schemaName.guid";
+    
+    // first delete record in $schemaName that have their equal to feed_hashes
+    $cmd = "DELETE $schemaName FROM $schemaName INNER JOIN feed_hashes ON ($schemaName.guid = feed_hashes.guid) WHERE (feed_hashes.feedname=?)";
     // echo("SQL delete command: $cmd\n");
 
-    $results = $pdo->query( $cmd, );
-    if(!$results) {
-        echo("ERROR: SQL query for delete failed.\n");
-        exit(-1);
-    }
+    $stmt = $pdo->prepare( $cmd );
+    $stmt->execute( [$name] );
+
+    // $cmd = "TRUNCATE $schemaName";
+    // $cmd = "DELETE feed_hashes, $schemaName FROM feed_hashes JOIN $schemaName ON feed_hashes.guid = $schemaName.guid";
+    // $cmd = "DELETE feed_hashes, $schemaName FROM feed_hashes JOIN $schemaName ON feed_hashes.guid = $schemaName.guid";
+    // $results = $pdo->query( $cmd );
+
+    // if(!$results) {
+    //     echo("ERROR: SQL query for $schemaName delete failed.\n");
+    //     exit(-1);
+    // }
+    // // then delete records on feed_hashes that have been generated from $schemaName feeder
+    $cmd = "DELETE feed_hashes FROM feed_hashes WHERE feed_hashes.feedname=?";
+    // echo("SQL delete command: $cmd\n");
+    $stmt = $pdo->prepare( $cmd );
+    $stmt->execute( [$name] );
+
+    // if(!$results) {
+    //     echo("ERROR: SQL query for feed_hashes delete failed.\n");
+    //     exit(-1);
+    // }
+
+
 
     echo("Table `$schemaName` and corresponding `feed_hashes` data are cleared succsufully!\n");
     exit(0);
@@ -1127,8 +1158,11 @@ function load_feed_data($name) {
     // echo("load yaml feeds to database\n");
     // echo "yfile: " . $name;
 
-    $yfeed = yaml_parse_file($name);
+    // $yfeed = yaml_parse_file($name);
+    $yfeed = yaml_parse_file($name, 0);
     // print_r( $yfeed );
+    // exit;
+
     if(!$yfeed) {
         echo("ERROR: could not parse feed YAML file. ($name)\n");
         exit(-1);
@@ -1186,9 +1220,9 @@ function load_feed_data($name) {
             // converit to json data
             foreach($ydata['data'][$fkey] as $fldkey => $fld) {
                 if(is_array($fld)) {
-                    // echo("Loading array in key: $fkey => " . print_r($fld,1));
+                    echo("Loading array in key: $fkey => " . print_r($fld,1));
                     $ydata['data'][$fkey][$fldkey] = json_encode($fld, JSON_UNESCAPED_UNICODE);
-                    // echo(" ==> converted to json ==> " . $ydata['data'][$fkey][$fldkey] . "\n");
+                    echo(" ==> converted to json ==> " . $ydata['data'][$fkey][$fldkey] . "\n");
                 }
             }
 
@@ -1215,7 +1249,12 @@ function load_feed_data($name) {
         dbConnection::Connect();
 
         // echo("Classes: " . print_r(get_declared_classes(), 1));
+        if(!isset($yfeed['title'])) {
+            echo("ERROR: Feed title is not set in $name\n");
+            exit(-1);
+        }
 
+        echo("Feed name: {$yfeed['title']}\n");
         foreach($yfeed['key']['value'] as $fkey) { 
             // echo("Feeder key: $fkey  name: " . $feeder_class[$fkey]->getname() . "   GUID: " . $feeder_class[$fkey]->getguid() . " HASH: " . $feeder_hash[$fkey] . "\n");
             // echo(print_r($feeder_class, 1));
@@ -1236,7 +1275,7 @@ function load_feed_data($name) {
                     // print_r($old_feeder_class);
 
                     $fld = $feeder_class[$fkey]->getFields();
-                    // print_r( $fld );
+                    print_r( $fld );
 
                     $old_feeder_class->loadFields( $fld );
                     $old_feeder_class->update();
@@ -1261,13 +1300,15 @@ function load_feed_data($name) {
             } else {
                 echo("$name: adding " . $feeder_class[$fkey]->getname() . "\t[$fkey]\t{$feeder_hash[$fkey]}\n" );
                 
-                // echo("Inserting feeder_class[ $fkey ] = " . print_r($feeder_class[$fkey], 1));
+                echo("Inserting feeder_class[ $fkey ] = " . print_r($feeder_class[$fkey], 1));
                 $feeder_class[$fkey]->insert();
+
                 $fexp = time() + 1 * 24 * 60 * 60;
                 
                 $fhash = new feedhashesClass(['guid' => $feeder_class[$fkey]->getguid(),
                     'hash' => $feeder_hash[$fkey], 
                     'feedclass' => $schemaClass,
+                    'feedname' => $name,
                     'feedid' => $feeder_class[$fkey]->getid(),
                     'expiry' => date('Y-m-d H:i:s', $fexp)]
                 );
@@ -1509,7 +1550,8 @@ function makesure_dir_exists($dir) {
                 'feed:gen:yaml' => 'generate feed templates from yaml file', 
                 'feed:view' => 'show feed data',
                 'feed:load' => 'load feed data to database',
-                'feed:clean' => 'clean feed data from the database',
+                'feed:hashes:clean' => 'clean feed_hashes from the database',
+                'feed:clean' => 'clean feed data with no corresponding hash from the database',
                 'tables:list:fw' => 'dump database tables fw',
                 'tables:list:web' => 'dump database tables web',
                 'tables:list:all' => 'dump database tables from fw & web',
@@ -1668,7 +1710,7 @@ function makesure_dir_exists($dir) {
             )
              {
                 echo "Usage: --name [feeder yaml template] [--dir [class yaml dir]] [--update key1[|key2|...]]\n";
-                exit;
+                exit(-1);
             }
             $arr = array();
             if(isset($options['update'])) {
@@ -1682,10 +1724,19 @@ function makesure_dir_exists($dir) {
         case 'feed:load':
             if(!isset($options['name'])) {
                 echo "Usage: --name [feeder yaml template]\n";
-                exit;
+                exit(-1);
             }
 
             load_feed_data($options['name']);
+            break;
+
+        case 'feed:hashes:clean':
+            if(!isset($options['name'])) {
+                echo("Usage: --name [feeder yaml tamplte] [--dir [class yaml dir]]\n");
+                exit(-1);
+            }
+
+            clean_feed_hashes($options['name'], $options['dir']??null);
             break;
 
         case 'feed:clean':
@@ -1693,7 +1744,7 @@ function makesure_dir_exists($dir) {
                 // || !isset($options['dir'])
             ) {
                 echo("Usage: --name [feeder yaml template] [--dir [class yaml dir]]\n");
-                exit;
+                exit(-1);
             }
             clean_feed_data($options['name'], $options['dir']??null);
 
