@@ -150,27 +150,27 @@ class dbQuery {
     // json functions
     public function whereJsonValue(string $column, string $jsonPath, string $operator, mixed $value, string $logic = 'AND'): self {
         $placeholder = ":param" . count($this->params);
-        $this->conditions[] = ($this->conditions ? " $logic " : "") . "JSON_UNQUOTE(JSON_EXTRACT($column, '$.$jsonPath')) $operator $placeholder";
+        $this->conditions[] = ($this->conditions ? " $logic " : "") . "JSON_UNQUOTE(JSON_EXTRACT(CAST($column AS JSON), '$.$jsonPath')) $operator $placeholder";
         $this->params[$placeholder] = $value;
         return $this;
     }
 
     public function whereJsonContains(string $column, mixed $value, string $logic = 'AND'): self {
         $placeholder = ":param" . count($this->params);
-        $this->conditions[] = ($this->conditions ? " $logic " : "") . "JSON_CONTAINS($column, $placeholder)";
+        $this->conditions[] = ($this->conditions ? " $logic " : "") . "JSON_CONTAINS(CAST($column AS JSON), $placeholder)";
         $this->params[$placeholder] = json_encode($value);
         return $this;
     }
 
     public function whereJsonPathContains(string $column, mixed $value, string $jsonPath, string $logic = 'AND'): self {
         $placeholder = ":param" . count($this->params);
-        $this->conditions[] = ($this->conditions ? " $logic " : "") . "JSON_CONTAINS($column, $placeholder, $jsonPath)";
+        $this->conditions[] = ($this->conditions ? " $logic " : "") . "JSON_CONTAINS(CAST($column AS JSON), $placeholder, $jsonPath)";
         $this->params[$placeholder] = json_encode($value);
         return $this;
     }
 
     public function whereJsonKeyExists(string $column, string $key, string $logic = 'AND'): self {
-        $this->conditions[] = ($this->conditions ? " $logic " : "") . "$column->'$.$key' IS NOT NULL";
+        $this->conditions[] = ($this->conditions ? " $logic " : "") . "CAST($column AS JSON)->'$.$key' IS NOT NULL";
         return $this;
     }
 
@@ -206,8 +206,8 @@ class dbQuery {
             $sql .= " " . $this->limit;
         }
 
-        echopre("SQL: $sql");
-        echopre("ARGS: [" . implode('] [', $this->params) . ']');
+        // echopre("SQL: $sql");
+        // echopre("ARGS: [" . implode('] [', $this->params) . ']');
 
         return $sql;
     }
