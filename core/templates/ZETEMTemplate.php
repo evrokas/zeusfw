@@ -79,7 +79,8 @@ class Renderer {
 	   	require $cached_file;
 	}
 
-	static function render($file, $data = array(), $stemplates = null) {
+	static function render($file, $data = array(), $stemplates = null): string
+	{
 		ob_start();
 		$cached_file = self::cache($file, $stemplates);
 		extract($data, EXTR_SKIP);
@@ -94,7 +95,8 @@ class Renderer {
 	
 	// render a template only if the corresponding template exists, otherwise
 	// return 404 content
-	static function renderSafe($file, $data = array(), $stemplated = null) {
+	static function renderSafe($file, $data = array(), $stemplated = null): string
+	{
 		if(self::existsTemplate($file))
 			return self::render($file, $data, $stemplated);
 		else
