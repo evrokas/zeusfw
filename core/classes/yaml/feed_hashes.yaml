@@ -16,6 +16,9 @@ table:
     type: text
     required: true
 
+  - name: feedname
+    type: text
+
   - name: feedid
     type: int
     required: true
