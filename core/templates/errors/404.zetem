@@ -1,4 +1,13 @@
-<h2><p>404 - Page not found!</p></h2>
+
+{% if(is_null($error)): %}
+    <h2>
+        <p>404 - Page not found!</p>
+    </h2>
+{% else: %}
+    <h2>
+        <p>404 - <h5>{{$error}}</h5></p>
+    </h2>
+{% endif %}
 
 <p>Click <a href={{rel_url("/")}}>here</a> to redirect to home page</p>
 
