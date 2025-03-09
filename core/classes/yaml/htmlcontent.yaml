@@ -37,7 +37,11 @@ table:
       default: false
     
     - name: params
-      type: json
+      # type: "@json"
+      type: text
+
+    - name: seq
+      type: int
     
 ---
 
