@@ -113,16 +113,8 @@ function randomEmail() {
 function logpre($str) {
 
 }
-function echopre($str) {
-    // if(is_array($str)) {
-    //     $out = "";
-    //     foreach($str as $key => $value) {
-    //         $out .= "$key = $value";
-    //     }
-    //     $str = 'array: {'.$out.'}';
-    // }
-
-    echo "<pre>$str</pre>";
+function echopre($str, $tag = 'pre') {
+    echo "<$tag>$str</$tag>";
 }
 
 
