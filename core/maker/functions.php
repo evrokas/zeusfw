@@ -363,6 +363,7 @@ function createFieldDefinition($field, bool $includeFieldName = false) {
         "@cuser" => "CHAR(32) NOT NULL",
         "@guid" => "CHAR(36) NOT NULL",
         "@delete" => "DATETIME DEFAULT NULL",
+        "@json" => "JSON NOT NULL DEFAULT json_array()",
     ];
     
     $name = $field['name'];
