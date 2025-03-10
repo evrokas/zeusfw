@@ -113,8 +113,12 @@ function randomEmail() {
 function logpre($str) {
 
 }
-function echopre($str, $tag = 'pre') {
-    echo "<$tag>$str</$tag>";
+function echopre($str, $tag = 'pre', $html = false) {
+    if($html)$str = htmlentities($str);
+    echo "<$tag>".$str."</$tag>";
+    /* // echo "<textarea disabled="true"><?php echo htmlentities($str);?></textarea>";
+     */
+    // echo "<blockquote class='prefixed'><code><pre>".htmlentities(  $str ) . "<pre></code></blockquote>";
 }
 
 
