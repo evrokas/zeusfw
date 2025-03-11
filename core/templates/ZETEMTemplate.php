@@ -103,6 +103,20 @@ class Renderer {
 			return error_404();
 	}
 
+
+	static function renderRaw($file, $data = array(), $stemplates = null): string
+	{
+		$comments = self::$enable_comments;
+		self::$enable_comments = false;
+
+		$result = self::render($file, $data, $stemplates);
+
+		self::$enable_comments = $comments;
+
+		return $result;
+	}
+
+	
 	/* return true if template file exists, false otherwise */
 	static function existsTemplate($tname) {
 		// echopre(" **** checking for exist template: $tname");
@@ -147,11 +161,63 @@ class Renderer {
 		}
 	//   return ( $farr );
 	}
-
+	
 	static function getTemplateSuggestions($args, callable $callback, &$tsuggestions) {
 		$callback($args, $tsuggestions);
 	}
 	
+
+	// create template suggestions from keywords in array $keyords, ie
+	// $keywords = ['alpha', 'beta', 'gamma', 'delta'];
+	// $prefix = 'template';
+	// $templateSuggestions = getTemplateSuggestions($keywords, $prefix);
+	// print_r($templateSuggestions);
+	// Example Output with Prefix (template):
+	// Array
+	// (
+	//     [0] => template--alpha--beta--gamma--delta
+	//     [1] => template--alpha--beta--gamma
+	//     [2] => template--alpha--beta--delta
+	//     [3] => template--alpha--gamma--delta
+	//     [4] => template--beta--gamma--delta
+	//     [5] => template--alpha--beta
+	//     [6] => template--alpha--gamma
+	//     [7] => template--alpha--delta
+	//     [8] => template--beta--gamma
+	//     [9] => template--beta--delta
+	//     [10] => template--gamma--delta
+	//     [11] => template--alpha
+	//     [12] => template--beta
+	//     [13] => template--gamma
+	//     [14] => template--delta
+	// )
+
+	static function getTemplateSuggestionsShuffle(array $keywords, string $prefix = ''): array {
+		$suggestions = [];
+		$count = count($keywords);
+	
+		// Generate all non-empty subsets
+		for ($i = 1; $i < (1 << $count); $i++) {
+			$subset = [];
+			for ($j = 0; $j < $count; $j++) {
+				if ($i & (1 << $j)) {
+					$subset[] = $keywords[$j];
+				}
+			}
+			$suggestion = implode('-', $subset);
+			$suggestions[] = $prefix ? "{$prefix}--{$suggestion}" : $suggestion;
+		}
+	
+		// Sort by number of elements descending, then lexicographically
+		usort($suggestions, function ($a, $b) {
+			$countA = substr_count($a, '-');
+			$countB = substr_count($b, '-');
+			return $countB <=> $countA ?: strcmp($a, $b);
+		});
+	
+		return array_reverse($suggestions);
+	}
+
 	static function getTemplate($suggestions) {
 		// echo self::emmitComment('Template suggestions: ' . implode(' * ', $suggestions));
 		foreach(array_reverse($suggestions) as $s) {
