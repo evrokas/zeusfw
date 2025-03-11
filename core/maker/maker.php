@@ -1009,7 +1009,11 @@ function generate_feed_from_yaml($name, $dir=null, $update = array()) {
 
     // echo "generate upon key: ";
     // print_r($key);;
-
+    if(isset($yfeed['order'])) {
+        echo("ERROR: deprecated `order` field. Please check!");
+        exit(-1);
+    }
+    
     if(isset($yfeed['sections'])) {
         $section = $yfeed['sections'];
         // echo("Generating sections: " . print_r($yfeed['sections'], 1));
