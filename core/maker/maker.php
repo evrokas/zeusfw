@@ -920,18 +920,18 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
                 // remeove data entries from input array, when must be updated by default values
                 // echo(print_r($specials_list['__update'], 1));
                 foreach($specials_list['__update'] as $upd) {
-                    echo "default update field: $upd\n";
+                    // echo "default update field: $upd\n";
                     
                     foreach($inn['data'] as $earr => $earrval) {
                         // echo "trying to reset default value for field $earr: "; print_r($earrval);
-                        echo "value of $upd field: >>" . print_r($earrval[$upd],1) . "<<\n";
+                        // echo "value of $upd field: >>" . print_r($earrval[$upd],1) . "<<\n";
                         if(key_exists($upd, $earrval)) {
-                            echo "must remove key $upd  from array $earr\n";
+                            // echo "must remove key $upd  from array $earr\n";
                             // echo "field : " . $inn['data'][$earr][$upd] . "\n";
                             unset($inn['data'][$earr][$upd]);
                         }
                     }
-                    echo "unsetted force update: " . print_r($earrval, 1);
+                    // echo "unsetted force update: " . print_r($earrval, 1);
                 }
             }
             // print_r($inn);
@@ -1013,7 +1013,7 @@ function generate_feed_from_yaml($name, $dir=null, $update = array()) {
         echo("ERROR: deprecated `order` field. Please check!");
         exit(-1);
     }
-    
+
     if(isset($yfeed['sections'])) {
         $section = $yfeed['sections'];
         // echo("Generating sections: " . print_r($yfeed['sections'], 1));
@@ -1224,9 +1224,9 @@ function load_feed_data($name) {
             // converit to json data
             foreach($ydata['data'][$fkey] as $fldkey => $fld) {
                 if(is_array($fld)) {
-                    echo("Loading array in key: $fkey => " . print_r($fld,1));
+                    // echo("Loading array in key: $fkey => " . print_r($fld,1));
                     $ydata['data'][$fkey][$fldkey] = json_encode($fld, JSON_UNESCAPED_UNICODE);
-                    echo(" ==> converted to json ==> " . $ydata['data'][$fkey][$fldkey] . "\n");
+                    // echo(" ==> converted to json ==> " . $ydata['data'][$fkey][$fldkey] . "\n");
                 }
             }
 
@@ -1258,7 +1258,7 @@ function load_feed_data($name) {
             exit(-1);
         }
 
-        echo("Feed name: {$yfeed['title']}\n");
+        echo("Feed name: `{$yfeed['title']}`\n");
         foreach($yfeed['key']['value'] as $fkey) { 
             // echo("Feeder key: $fkey  name: " . $feeder_class[$fkey]->getname() . "   GUID: " . $feeder_class[$fkey]->getguid() . " HASH: " . $feeder_hash[$fkey] . "\n");
             // echo(print_r($feeder_class, 1));

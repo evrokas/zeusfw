@@ -114,11 +114,15 @@ function logpre($str) {
 
 }
 function echopre($str, $tag = 'pre', $html = false) {
-    if($html)$str = htmlentities($str);
+    if($html)$str = htmlspecialchars($str);
     echo "<$tag>".$str."</$tag>";
     /* // echo "<textarea disabled="true"><?php echo htmlentities($str);?></textarea>";
      */
     // echo "<blockquote class='prefixed'><code><pre>".htmlentities(  $str ) . "<pre></code></blockquote>";
+}
+function echoprecode($str) {
+    $str = htmlentities($str);
+    echo "<pre><code>".$str."</code></pre>";
 }
 
 
