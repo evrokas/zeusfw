@@ -396,6 +396,11 @@ function createFieldDefinition($field, bool $includeFieldName = false) {
         $required = $required ? " NOT NULL " : '';
         if(!is_null($default))
             $default = " DEFAULT " . "" . addslashes($default) . "";
+        else
+            $default = (!$required) ? " DEFAULT NULL " : "";
+
+            /* CHECK FOR ERROR IN DEFINITION */
+
             // $default = " DEFAULT " . ($default==="null" ? $default : "'" . addslashes($default) . "'");
 
         $onUpdate = isset($field['on_update']) ? " ON UPDATE " . $field['on_update'] : null;
@@ -497,11 +502,17 @@ function syncTableWithYAML($yamlData, $pdo) {
                 $existing['Type'] = 'boolean';
                 if(isset($existing['Default']) && ($existing['Default'] == 0))$existing['Default'] = "0";
             }
+            $existingDefinition = trim($existing['Type']) . 
+                            ($existing['Null'] === 'NO' ? ' NOT NULL' : '') .
+                // ($existing['Default'] !== null ? " DEFAULT " . trim($existing['Default']) . "b" : 'a') .
+                ($existing['Default'] !== null ? " DEFAULT " . trim($existing['Default']) . "" : (($existing['Null'] === "YES")? " DEFAULT NULL ":'')) .
 
-            $existingDefinition = trim($existing['Type']) . ($existing['Null'] === 'NO' ? ' NOT NULL' : '') .
-                ($existing['Default'] !== null ? " DEFAULT " . trim($existing['Default']) . "" : '') .
+            // $existingDefinition = trim($existing['Type']) . ($existing['Null'] === 'NO' ? ' NOT NULL' : '') .
+                // ($existing['Default'] !== null ? " DEFAULT " . trim($existing['Default']) . "" : ($existing['Null'] === 'YES'?" DEFAULT NULL ":'')) .
+
                 (isset($existing['Extra']) ?  " " . trim($existing['Extra']) : '');
 
+                /* CHECK FOR ERROR IN DEFINITION */
 /*
             $existingDefinition = trim($existing['Type']) . ' ' .
                 ($existing['Null'] === 'NO' ? 'NOT NULL' : '') .
@@ -511,6 +522,8 @@ function syncTableWithYAML($yamlData, $pdo) {
 
             if (strtolower(trim($existingDefinition)) !== strtolower(trim($columnDefinition))) {
                 // Alter column
+                // echo("existing `$name`: " . print_r($existing, 1));
+
                 $sql[] = "/* old definition $existingDefinition */";
                 $sql[] = "/* new definition $columnDefinition */";
 
