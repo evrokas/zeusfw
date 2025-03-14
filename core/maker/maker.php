@@ -111,6 +111,7 @@ class DIR {
     
 
     require('functions.php');
+    require('messages.php');
 
     function mlog($s, $nl = true, $li=false) {
         if($li)echo __FILE__."(".__FUNCTION__."):".__LINE__.": ";
@@ -1565,8 +1566,10 @@ function makesure_dir_exists($dir) {
                 'tables:new:web' => '[n/a] show tables from web that have not been added to database, yet',
                 'tables:new:all' => '[n/a] show tables from fw & web that have not been added to database, yet',
 
-                'tables:missing' => '[n/a] show database tables that are missing .yaml representation'
-                
+                'tables:missing' => '[n/a] show database tables that are missing .yaml representation',
+     
+                'msg:new' => '[user] [message] create new message for `user` with `message`',
+
             ];
 
             foreach($commands as $key => $value) {
@@ -1889,7 +1892,7 @@ function makesure_dir_exists($dir) {
         case 'form:view:html':
             if(!$optparams[1]) {
                 mlog('Usage: ' . $argv[0] . ' db-schema.yaml  file-to-process');
-                exit;
+                exit(-1);
             }
             $file = $optparams[1];
             if(!file_exists($file)) {
@@ -1911,6 +1914,16 @@ function makesure_dir_exists($dir) {
             break;
 
         case 'gen:form:all':
+            echo "Unimplemented function\n";
+            break;
+
+        case 'msg:new':
+            if(!$optparams[1] || !$optparams[2] || !$optparams[3]) {
+                mlog("Usage: {$argv[0]} `user` `message title` `message body`");
+                exit(-1);
+            }
+
+            message_new($optparams[1], $optparams[2], $optparams[3]);
             break;
 
         default:
