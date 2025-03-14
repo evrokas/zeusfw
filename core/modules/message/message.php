@@ -6,10 +6,13 @@ class messageModule extends moduleClass {
     }
 
     public function render($params = array()) {
-        // return "message 1";
-        return $this->renderTemplate($params);
-    }
+        // echopre("message module params: " . print_r($params, 1));
+        // $msgsList = array_reverse(messageClass::sgetAllFilter('message', ['category' => $params['__arguments']['type']]));
+        $msgsList = array_reverse(messageClass::sgetAllFilter('message'));
 
+        // return "message 1";
+        return $this->renderTemplate(['messages' => $msgsList]);
+    }
 }
 
 function register_message_module() {
