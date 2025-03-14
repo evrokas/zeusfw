@@ -44,52 +44,9 @@ class moduleClass {
     }
     function renderTemplate($aparams = array()) {
         // helper function to render a template
-        global $kernel;
-
-        $mods = $kernel->getConfig('modconf');
-        if(isset($mods[$this->modulename]))
-            $modconfig = $mods[$this->modulename];
-        else $modconfig = null;
-
-        if(isset($_SESSION['route_match']) && isset($_SESSION['route_match']['_routename'])) {
-            $routename = $_SESSION['route_match']['_routename'];
-        } else $routename = ''; 
-
-        if($modconfig) {
-            // echopre( print_r( $modconfig, 1));
-            // echopre( print_r($_SESSION['route_match']['_routename'], 1));
-            if(isset($modconfig['display'])) {
-                $display = false;
-                // echopre( print_r( $modconfig['display'], 1));
-                if(array_search($routename, array_keys($modconfig['display'])) !== false) {
-                    // echopre('Display');
-                    $display = true;
-                    $mconf = $modconfig['display'][$routename];
-                    if(isset($mconf['arguments'])) {
-                        echopre("Arguments: " . print_r($mconf['arguments'], 1));
-                        $aparams += $mconf['arguments'];
-                        // array_push($aparams, $mconf['arguments']);
-                    }
-                } else $display = false;
-            } else 
-            if(isset($modconfig['hide'])) {
-                $display = true;
-                if(array_search($routename, array_keys($modconfig['hide'])) !== false) {
-                    $display = false;
-                }
-            } else $display = true;              
-        } else $display = true;
-
-        if($display) {
-            // echopre("params: " . print_r($aparams, 1));
-            return (
-            // $this->modulename . ": renderTemplate(): " . $this->template . ": " .
-            Renderer::render($this->template, $aparams));
-        }
-        else return '';
+        return Renderer::render($this->template, $aparams);
     }
 }
-
 
 function registerModules() {
     global $kernel;
