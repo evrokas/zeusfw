@@ -307,6 +307,53 @@ class Kernel {
         return $output;
     }
     
+    function renderModule($module): string|null {
+        $mods = $this->getConfig('modconf');
+        if(isset($mods[$module->getName()]))
+            $modconfig = $mods[$module->getName()];
+        else $modconfig = null;
+
+        if(isset($_SESSION['route_match']) && isset($_SESSION['route_match']['_routename'])) {
+            $routename = $_SESSION['route_match']['_routename'];
+        } else $routename = ''; 
+
+        $aparams = [];
+
+        if($modconfig) {
+            // echopre( print_r( $modconfig, 1));
+            // echopre( print_r($_SESSION['route_match']['_routename'], 1));
+            if(isset($modconfig['display'])) {
+                $display = false;
+                // echopre( print_r( $modconfig['display'], 1));
+                if(array_search($routename, array_keys($modconfig['display'])) !== false) {
+                    // echopre('Display');
+                    $display = true;
+                    $mconf = $modconfig['display'][$routename];
+                    if(isset($mconf['arguments'])) {
+                        // echopre("Arguments: " . print_r($mconf['arguments'], 1));
+                        $aparams['__arguments'] = $mconf['arguments'];
+                        // echopre("Arguments params: " . print_r($aparams, 1));
+                        // array_push($aparams, $mconf['arguments']);
+                    }
+                } else $display = false;
+            } else 
+            if(isset($modconfig['hide'])) {
+                $display = true;
+                if(array_search($routename, array_keys($modconfig['hide'])) !== false) {
+                    $display = false;
+                }
+            } else $display = true;              
+        } else $display = true;
+
+        if($display) {
+            return (
+            // $this->modulename . ": renderTemplate(): " . $this->template . ": " .
+            $module->render( $aparams ) );
+            // Renderer::render($this->template, $aparams));
+        }
+        else return '';
+    }
+
     function renderBlock($name, $content = null, $tab = 0, $depth = []) {
         $output = '';
         // echopre("depth: " . print_r($depth, 1));
@@ -317,7 +364,9 @@ class Kernel {
             $module = $this->getModule( $name );
             // echopre("found module: " . print_r($module, 1));
             if($module) {
-                $output = $module->render();
+                // echopre("rendering module $name");
+                // $output = $module->render();
+                $output = $this->renderModule($module); //->renderModule();
                 // $output = $module->run();
             }
             // echopre("module output: $output");
