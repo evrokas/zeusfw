@@ -87,3 +87,37 @@ fi
 
 cd ..
 
+read -e -p "Do you want to create links to Zeus Framework folder? [y/N] " create_links
+
+zfwdir_in="/var/www/html/apps/zeusfw"
+
+if [[ $create_links == [yY] ]]; then
+    echo Creating links ...
+
+    while true; do
+
+        read -e -i "$zfwdir_in" -p "Enter Zeus Framework folder: [$zfwdir_in] " zfwdir
+        if [ -d $zfwdir ]; then
+            # folder exists, test for contents
+            if [ -f $zfwdir"/core/bootstrap.php" ]; then
+                # bootstrap.php found, folder is correct, proceed(!)
+
+                echo Creating link of Zeus FW folder $zfwdir to ./fw
+                echo Creating link in ./web/core to ./fw
+
+                break;
+            else
+                echo Folder is not a valid Zeus Framework folder. bootstrap.php was not found in $zfwdir
+            fi
+        else
+            echo Folder does not exist.
+        fi
+
+        # Ask if the user wants to try again
+        read -erp "Would you like to try again? (Y/n): " retry
+        if [[ "$retry" == [Nn] ]]; then
+            echo "No links created."
+            break;
+        fi
+    done
+fi
