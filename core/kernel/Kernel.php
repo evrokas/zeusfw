@@ -470,6 +470,8 @@ class Kernel {
     }
 
     function renderPage() {
+        $t1 = hrtime();
+
         $regions_response = $this->renderRegions();
         // echopre("regions response: " . print_r($regions_response, 1));
 
@@ -554,7 +556,14 @@ class Kernel {
             'foot_links' => $foot_links,
             'regions' => $regions_response
         ]);
-    
+
+        $t2 = hrtime();
+
+        if($this->safeGetConfig('time_profile')) {
+            echo "Time : " . print_r($t2,1)." ~ ".print_r($t1,1)."\n";
+            echo ($t2[1] - $t1[1])/1000000.0." msec";
+        }
+        
     }
 
     // status can be: error || warning || notice
