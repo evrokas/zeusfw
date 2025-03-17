@@ -144,7 +144,8 @@ class Feeder {
                                         // echopre("Template suggestions: " . print_r($txsugg, 1));
                                         // $tsugg = [];
                                         $tsugg = Renderer::getTemplateSuggestionsShuffle([
-                                                $routePath,                                                $params['name'], 
+                                                $routePath,
+                                                $params['name'], 
                                                 // $heading['render']['template'],
                                                 $index, 
                                                 $heading['name']
@@ -166,7 +167,8 @@ class Feeder {
                             
                                         $eldata = $el;
                                         $eldata['__class'] = [
-                                            'route' => $routePath,                                           'params' => $params/* ['name'] */,
+                                            'route' => $routePath,
+                                            'params' => $params/* ['name'] */,
                                             'table' => $heading['name'],
                                             'index' => $index,
                                         ];
@@ -189,7 +191,7 @@ class Feeder {
                                         // break;
 
                                     case 'cache':
-                                        echopre("render value: " . print_r($rendervalue, 1));
+                                        echopre("cache render value: " . print_r($rendervalue, 1));
                                         if(is_array($rendervalue)) {
                                             // echopre("render value is: " . print_r($rendervalue, 1), "p");
                                             if(!isset($rendervalue['key'])) {
@@ -223,7 +225,7 @@ class Feeder {
                                     if(!empty($contentText)) {
                                         echopre("[$index]: adding to output stream: `$contentText`");
                                         $result[] = $contentText;
-                                        $contentText = '';
+                                        // $contentText = '';
                                     }
                                 }
                             }
