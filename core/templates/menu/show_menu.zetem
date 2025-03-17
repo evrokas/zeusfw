@@ -17,8 +17,9 @@
                             {% endif %}
                                 <input type="checkbox" id="btn-{{$menuitem['key']}}">
                                 <!-- <input type="radio" name="radio-level-{{$aalevel}}" id="btn-{{$menuitem['key']}}"> -->
-
+{#
                                 <label for="btn-{{$menuitem['key']}}" class="show">
+                                    #}
                                     <span>
 
                                         {% if(isset($menuitem['text'])): %}
@@ -26,9 +27,9 @@
                                         {% endif %}
                                         <i class="bx bx-chevron-right"></i>
                                     </span>
-
+{#
                                 </label>
-
+#}
                         {% if(isset($menuitem['url'])): %}
                             </a>
                         {% endif %}
