@@ -1000,8 +1000,8 @@ function generate_feed_from_yaml($name, $dir=null, $update = array()) {
         echo("$name: (generate_feed_from_yaml) Using schema file: $dir\n");
     }
 
-     
     
+    // echo("schema: {$yfeed['schema']}\n");
     $ytemplate = rtrim($dir, '/') . '/' . $yfeed['schema'];
 
     if(isset($yfeed['key'])) {
@@ -1280,7 +1280,7 @@ function load_feed_data($name) {
                     // print_r($old_feeder_class);
 
                     $fld = $feeder_class[$fkey]->getFields();
-                    print_r( $fld );
+                    // print_r( $fld );
 
                     $old_feeder_class->loadFields( $fld );
                     $old_feeder_class->update();
