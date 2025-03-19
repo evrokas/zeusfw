@@ -1,0 +1,28 @@
+---
+table:
+  name: feed_order
+  class: feedorderClass
+  # extention: __FWDIR__ . '/feedorderClassEx.php'
+
+  fields:
+  - name: guid
+    type: '@guid'
+
+  - name: name
+    type: text
+    
+  - name: lang
+    type: text
+
+  - name: feedname
+    type: text
+
+  - name: feedid
+    type: int
+
+  - name: orderno
+    type: int
+
+---
+
+# helper class/table to order feeds
