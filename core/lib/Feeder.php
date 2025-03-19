@@ -76,7 +76,6 @@ class Feeder {
     static function processFeed($index, $heading, $arr, $params, $routePath, &$cache_table): array {   //, $key, $paramsData): array {
         $result = [];
 
-
         // iterate over all data elements fetched from database feeder
         foreach($arr as $el) {
             // echopre("el: " . print_r($el, 1));
@@ -84,7 +83,7 @@ class Feeder {
             // proceed with dumping data according to feeder params directions
             if(isset($heading['render'])) {
                 // echopre("[render] types: " . print_r(array_keys($heading['render']),1));
-                $contentText = null;
+                $contentText = '';
                 foreach($heading['render'] as $renderkey => $rendervalue) {
                     // $contentData = null;
                     // echopre("key: $renderkey => $rendervalue");
@@ -95,9 +94,22 @@ class Feeder {
                             // $contentText = $el[ $heading['render']['text'] ];
                             break;
                         case 'raw-text':
-                            // echopre("[$index]: rendering text: " . $heading['render']['raw-text']);
+                            // echopre("[$index]: rendering text: " . print_r($heading['render']['raw-text'],1));
                             // $contentText = Renderer::render('feeder-field-text.zetem', ['text' => $el[ $heading['render']['text'] ]]);
-                            $contentText = $el[ $heading['render']['raw-text'] ];
+                            // $data = $el[ $heading['render']['raw-text'] ];
+                            $data = $heading['render']['raw-text'];
+                            // echo("data: " . print_r($data, 1));
+                            if(!is_array($data)) {
+                                $contentText = $el[ $heading['render']['raw-text'] ];
+                                // $contentText = $data;
+                            } else {
+                                // so data is array
+                                foreach($data as $dataValue) {
+                                    $contentText[ $dataValue ] = $el[ $dataValue ];
+                                }
+                            }
+                            
+                                                            
                             break;
                         case 'feed':
                             // echopre("[$index]: rendering <b>feed</b>: " . $heading['render']['feed'] . " => " . $el['name']??"unknown element name");
@@ -186,7 +198,7 @@ class Feeder {
                             // store text in cache array, key is the cache key
 
                             // clear print text
-                            $contentText = null;
+                            $contentText = '';
                             break;
 
                     default:
@@ -195,7 +207,7 @@ class Feeder {
 
                     if(!isset($heading['render']['cache']) && !empty($contentText)) {
                         // echopre("[$index]: adding to output stream: `$contentText`");
-                        $result[] = $contentText;
+                        $result[] = array_merge($result, $contentText);
                         $contentText = '';
                     }
                 }
@@ -204,7 +216,7 @@ class Feeder {
 
             if(!empty($contentText)) {
                 // echopre("putting `$contentText` in results array");
-                $result[] = $contentText;
+                $result[] = array_merge($result, $contentText);
             }
 
         }
@@ -246,13 +258,19 @@ class Feeder {
                         $q = self::prepareKeysFilter($q, $heading['keys']);
                     }
 
+                    if(isset($heading['order'])) {
+                        // echopre("ordering list by {$heading['order']}");
+                        $q = $q->orderBy( $heading['order'] );
+                    }
+
                     // now get feeds with query $q, filtering on language
                     // $arr = $q->whereEq('lang', $kernel->getCurrentLanguage())->cget();
                     $q= $q->whereEq('lang', $kernel->getCurrentLanguage());
+                    // echopre("SQL: " . $q->toSql());
+
                     $arr = $q->get();
 
                     // echopre("arr: " . print_r($arr, 1));
-                    // echopre("SQL: " . $q->toSql());
                     $res = self::processFeed($index, $heading, $arr, $params, $routePath, $cache_table);//, $key, $paramsData);
 
                     $result = array_merge($result, $res);
@@ -356,7 +374,8 @@ class Feeder {
         $template_sugg = [$sugg, $template];
 
         $template_args = [
-            'content' => implode('<hr><hr>', $result),
+            // 'content' => implode('<hr><hr>', $result),
+            'content' => implode(' ', $result),
             // 'author' => $author,
             // 'date' => $date,
             // 'tags' => implode(' | ', $tags)
