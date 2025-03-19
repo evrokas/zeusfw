@@ -74,8 +74,18 @@ class contentPageClass {
     }
 
     static function getContent($file) {
+        global $kernel;
+
         $content = "";
         $content .= "<!-- begin content (file: " . $file . ") -->";
+
+        if($kernel->safeGetConfig('page_content_info')) {
+            $content .= Renderer::renderSafe('contentpage-info.zetem', [
+                                                'filename' => $file,
+                                                'filepath' => (self::existsContent( $file )) ? self::$content_files[ $file ] : null
+            ]);
+        }
+
         $content .= self::getFileContents($file);
         $content .= "<!-- end content (file: " . $file . ") -->";
         
