@@ -86,7 +86,7 @@ class Feeder {
                 $contentText = '';
                 foreach($heading['render'] as $renderkey => $rendervalue) {
                     // $contentData = null;
-                    // echopre("key: $renderkey => $rendervalue");
+                    // echopre("key: $renderkey => " . print_r($rendervalue, 1));
                     switch($renderkey) {
                         case 'text':
                             // echopre("[$index]: rendering text: " . $heading['render']['text']);
@@ -146,7 +146,7 @@ class Feeder {
                             // exit;
                             // echopre('suggestion: ' . print_r($sugg, 1));
                             // $template .= '.zetem';
-                            // echopre("selected template: $template");
+                            // echopre("selected template: $ttemplate");
                             $tem_sugg = [$tsugg, $ttemplate];
                 
                             $eldata = $el;
@@ -158,11 +158,12 @@ class Feeder {
                             ];
 
                             // echopre("printing template `$ttemplate` with array: " . print_r($eldata, 1));
-
                             if($renderkey === 'raw-template') {
                                 $contentText = Renderer::renderRaw($ttemplate, $eldata, $tem_sugg);
+                                // echopre("raw output content: " . $contentText);
                             } else {
                                 $contentText = Renderer::render($ttemplate, $eldata, $tem_sugg);
+                                // echopre("output content: " . $contentText);
                             }
 
                             // echopre("render templates: " . print_r($tem_sugg, 1));
@@ -235,12 +236,12 @@ class Feeder {
             // echopre("[$index]: requesting content: type: {$heading['type']} => {$heading['name']}");
 
             if(!isset($heading['type'])) {
-                echopre("ERROR: type is not set in content $index");
+                // echopre("ERROR: type is not set in content $index");
                 exit(-1);
             }
 
             if(!isset($heading['name']) && !($heading['type'] === "cache")) {
-                echopre("ERROR: name is not set in $index type {$heading['type']}");
+                // echopre("ERROR: name is not set in $index type {$heading['type']}");
                 exit(-1);
             }
 
@@ -309,7 +310,9 @@ class Feeder {
 
                     if($templ) {
                         foreach($cache_table as $entrykey => $entrydata) {
-                            $args = ['info' => $entrydata];
+                            // $args = ['info' => $entrydata];
+                            // $args = [$entrydata];
+                            $args = $entrydata;
                             // echoprecode("rendering entry: " . print_r($args, 1));
                             $str = Renderer::render($templ.'.zetem', $args);
 
