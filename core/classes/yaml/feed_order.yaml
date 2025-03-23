@@ -23,6 +23,9 @@ table:
   - name: orderno
     type: int
 
+  - name: params
+    type: text
 ---
 
 # helper class/table to order feeds
+# actually you can interpret 'params' as json encoded string
