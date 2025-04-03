@@ -10,21 +10,22 @@
                             <a href="{{(isset($menuitem['url']))?rel_url($menuitem['url']):'#';}}">
                         {% endif %}
 
-                            {% if(isset($menuitem['icon'])): %}
-                                {% if(isset($menuitem['icon']['class'])): %}
-                                    {{ $menuitem['icon']['class'] }}
-                                {% endif %}
-                            {% endif %}
                                 <input type="checkbox" id="btn-{{$menuitem['key']}}">
                                 <!-- <input type="radio" name="radio-level-{{$aalevel}}" id="btn-{{$menuitem['key']}}"> -->
 {#
                                 <label for="btn-{{$menuitem['key']}}" class="show">
                                     #}
                                     <span>
-
+                                        {% if(isset($menuitem['icon'])): %}
+                                            {% if(isset($menuitem['icon']['class'])): %}
+                                                {{ $menuitem['icon']['class'] }}
+                                            {% endif %}
+                                        {% endif %}
+        
                                         {% if(isset($menuitem['text'])): %}
                                             {{getLangText($menuitem['text'])}}
                                         {% endif %}
+                                        
                                         <i class="bx bx-chevron-right"></i>
                                     </span>
 {#
