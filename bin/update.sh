@@ -178,8 +178,12 @@ if [[ $answer == [yY] ]]; then
     read cleanup
 
     if [[ $cleanup == [yY] ]]; then
+        feed_clean_no=0;
         for temp in `ls *.feeder.yaml`; do
             php $MAKER --name $temp feed:clean
+            if [ $? -eq 0 ]; then
+                feed_clean_no=$((feed_clean_no+1));
+            fi
         done
     fi
 
@@ -213,7 +217,7 @@ if [[ $answer == [yY] ]]; then
                 fi
 
                 if [ $? -eq 0 ]; then
-                    echo "Feed createion was successful"
+                    echo "Feed creation was successful"
                 else
                     echo "Feed creation failed"
                     exit
@@ -234,6 +238,8 @@ if [[ $answer == [yY] ]]; then
             exit
         fi
     done
+
+    echo "Cleaned $feed_clean_no feeds";
 
     popd
 fi
