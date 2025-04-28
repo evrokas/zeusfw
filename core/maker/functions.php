@@ -255,104 +255,6 @@ function generateHTMLFormTemplate($yamlData) {
     return $formHtml;
 }
 
-function generateHTMLForm1($yamlData) {
-    $method = $yamlData['table']['method'] ?? 'post';
-    $action = $yamlData['table']['action'] ?? '';
-
-    // Start the form
-    $formHtml = "<form method=\"$method\" action=\"$action\">\n";
-
-    foreach ($yamlData['table']['fields'] as $field) {
-        $name = $field['name'];
-        $label = $field['label'] ?? ucfirst($name);
-        $formType = $field['form_type'] ?? 'text';
-
-
-        $formRequired = $field['form_required'] ?? false;
-        $formDefault = $field['form_default'] ?? '';
-
-        // ** give priority to form_required adn form_default, if not exist, fall back to required adn default fields
-        // $formRequired = $field['form_required'] ?? $field['required'] ?? false ? 'required' : '';
-        // $formDefault = $field['form_default'] ?? $field['default'] ?? '';
-
-        $options = $field['options'] ?? [];
-
-        // Generate the label
-        $formHtml .= "  <label for=\"$name\">$label</label>\n";
-
-        // Generate the input field based on type
-        switch ($formType) {
-            case 'text':
-            case 'password':
-            case 'email':
-            case 'number':
-            case 'date':
-            case 'time':
-            case 'url':
-            case 'color':
-                $required = $formRequired ? 'required' : '';
-                $formHtml .= "  <input type=\"$formType\" id=\"$name\" name=\"$name\" value=\"$formDefault\" $required>\n";
-                break;
-
-            case 'textarea':
-                $required = $formRequired ? 'required' : '';
-                $formHtml .= "  <textarea id=\"$name\" name=\"$name\" $required>$formDefault</textarea>\n";
-                break;
-
-            case 'select':
-                $formHtml .= "  <select id=\"$name\" name=\"$name\">\n";
-                foreach ($options as $option) {
-                    $selected = ($formDefault == $option) ? 'selected' : '';
-                    $formHtml .= "    <option value=\"$option\" $selected>$option</option>\n";
-                }
-                $formHtml .= "  </select>\n";
-                break;
-
-            case 'radio':
-                foreach ($options as $option) {
-                    $checked = ($formDefault == $option) ? 'checked' : '';
-                    $formHtml .= "  <input type=\"radio\" id=\"$name-$option\" name=\"$name\" value=\"$option\" $checked>\n";
-                    $formHtml .= "  <label for=\"$name-$option\">$option</label>\n";
-                }
-                break;
-
-            case 'checkbox':
-                if(!empty($options)) {
-                    foreach ($options as $option) {
-                        $isChecked = is_array($formDefault) && in_array($option, $formDefault) ? 'checked' : '';
-                        $formHtml .= "  <input type=\"checkbox\" id=\"$name-$option\" name=\"{$name}[]\" value=\"$option\" $isChecked>\n";
-                        $formHtml .= "  <label for=\"$name-$option\">$option</label>\n";
-                    }
-                } else {
-                    $isChecked = ($formDefault === "true")? 'checked': '';
-                    $formHtml .= "  <input type=\"checkbox\" id=\"$name\" name=\"{$name}\" $isChecked>\n";
-                    // $formHtml .= "  <label for=\"$name\">$label</label>\n";
-                }
-                break;
-
-            case 'file':
-                $formHtml .= "  <input type=\"file\" id=\"$name\" name=\"$name\">\n";
-                break;
-
-            case 'hidden':
-                $formHtml .= "  <input type=\"hidden\" id=\"$name\" name=\"$name\" value=\"$formDefault\">\n";
-                break;
-
-            default:
-                // Unsupported form type
-                $formHtml .= "  <!-- Unsupported form type: $formType -->\n";
-        }
-
-        $formHtml .= "  <br>\n"; // Add a line break after each field
-    }
-
-    // Close the form
-    $formHtml .= "  <button type=\"submit\">Submit</button>\n";
-    $formHtml .= "</form>\n";
-
-    return $formHtml;
-}
-
 
 // creeate field definition according to yaml table
 // return string with SQL field definition
@@ -397,7 +299,7 @@ function createFieldDefinition($field, bool $includeFieldName = false) {
         if(!is_null($default))
             $default = " DEFAULT " . "" . addslashes($default) . "";
         else
-            $default = (!$required) ? " DEFAULT NULL " : "";
+            $default = "";  //(!$required) ? " DEFAULT NULL " : "";
 
             /* CHECK FOR ERROR IN DEFINITION */
 
