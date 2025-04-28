@@ -54,7 +54,7 @@ class breadcrumbsModule extends moduleClass {
                     // 'text' => $pathitem['text'],
                     'text' => getLangText($pathitem['route_title']??$pathitem['text']??null),
                     'attributes' => new Attributes(['class' => 'breadcrumb-item']),
-                    'url' => $pathitem['url']
+                    'url' => '#'    //is_array($pathitem['url'])?$pathitem['url'][0]:$pathitem['url']
                 ];
             $loop++;
         }
