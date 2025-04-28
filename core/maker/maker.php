@@ -111,6 +111,7 @@ class DIR {
     
 
     require('functions.php');
+    require('messages.php');
 
     function mlog($s, $nl = true, $li=false) {
         if($li)echo __FILE__."(".__FUNCTION__."):".__LINE__.": ";
@@ -920,18 +921,18 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
                 // remeove data entries from input array, when must be updated by default values
                 // echo(print_r($specials_list['__update'], 1));
                 foreach($specials_list['__update'] as $upd) {
-                    echo "default update field: $upd\n";
+                    // echo "default update field: $upd\n";
                     
                     foreach($inn['data'] as $earr => $earrval) {
                         // echo "trying to reset default value for field $earr: "; print_r($earrval);
-                        echo "value of $upd field: >>" . print_r($earrval[$upd],1) . "<<\n";
+                        // echo "value of $upd field: >>" . print_r($earrval[$upd],1) . "<<\n";
                         if(key_exists($upd, $earrval)) {
-                            echo "must remove key $upd  from array $earr\n";
+                            // echo "must remove key $upd  from array $earr\n";
                             // echo "field : " . $inn['data'][$earr][$upd] . "\n";
                             unset($inn['data'][$earr][$upd]);
                         }
                     }
-                    echo "unsetted force update: " . print_r($earrval, 1);
+                    // echo "unsetted force update: " . print_r($earrval, 1);
                 }
             }
             // print_r($inn);
@@ -999,8 +1000,8 @@ function generate_feed_from_yaml($name, $dir=null, $update = array()) {
         echo("$name: (generate_feed_from_yaml) Using schema file: $dir\n");
     }
 
-     
     
+    // echo("schema: {$yfeed['schema']}\n");
     $ytemplate = rtrim($dir, '/') . '/' . $yfeed['schema'];
 
     if(isset($yfeed['key'])) {
@@ -1009,6 +1010,10 @@ function generate_feed_from_yaml($name, $dir=null, $update = array()) {
 
     // echo "generate upon key: ";
     // print_r($key);;
+    if(isset($yfeed['order'])) {
+        echo("ERROR: deprecated `order` field. Please check!");
+        exit(-1);
+    }
 
     if(isset($yfeed['sections'])) {
         $section = $yfeed['sections'];
@@ -1052,6 +1057,42 @@ function generate_feed_from_yaml($name, $dir=null, $update = array()) {
     }
 }
 
+
+function print_feed_info($name) {
+    echo("Information about feed `$name`\n");
+    $yfeed = yaml_parse_file($name);
+    // print_r( $yfeed );
+    // echo "yaml path " . $dir. "\n";
+    // echo "Real path: " . realpath($name) . "\n";
+    // $dir = trim($dir, " /\\");
+
+    // echo "Schema: {$yfeed['schema']}\n";
+    // echo "Schema dir: {$yfeed['schemadir']}\n";
+
+    if(!isset($yfeed['schemadir'])) {
+        echo("ERROR: Please set schema class directory (either with --dir directoive of `schemadir` field in yaml file.\n");
+        exit(-1);
+    }
+
+    $dir = $yfeed['schemadir'];
+    $dir = str_replace(['@core', '@app'], [DIR::$fw, DIR::$app], $dir);
+    // $dir = str_replace('@app', DIR::$app, $dir);
+    // echo("$name: (generate_feed_from_yaml) Using schema file from dir: $dir\n");
+
+    $schemafile = $dir . '/' . $yfeed['schema'];
+    echo("Feeder schema file: $schemafile\n");
+
+    if(!file_exists($schemafile)) {
+        echo("ERROR: schema file `$schemafile` does not exist.\n");
+    }
+
+    $schema = yaml_parse_file($schemafile);
+    // echo("Schema contents: " . print_r($schema, 1));
+
+    foreach($schema['table']['fields'] as $field) {
+        echo("Field: {$field['name']}\t({$field['type']})\n");
+    }
+}
 function clean_feed_hashes($name, $dir = null) {
     if(!DIR::$app)require_option('app-dir');
 
@@ -1220,9 +1261,9 @@ function load_feed_data($name) {
             // converit to json data
             foreach($ydata['data'][$fkey] as $fldkey => $fld) {
                 if(is_array($fld)) {
-                    echo("Loading array in key: $fkey => " . print_r($fld,1));
+                    // echo("Loading array in key: $fkey => " . print_r($fld,1));
                     $ydata['data'][$fkey][$fldkey] = json_encode($fld, JSON_UNESCAPED_UNICODE);
-                    echo(" ==> converted to json ==> " . $ydata['data'][$fkey][$fldkey] . "\n");
+                    // echo(" ==> converted to json ==> " . $ydata['data'][$fkey][$fldkey] . "\n");
                 }
             }
 
@@ -1254,7 +1295,7 @@ function load_feed_data($name) {
             exit(-1);
         }
 
-        echo("Feed name: {$yfeed['title']}\n");
+        echo("Feed name: `{$yfeed['title']}`\n");
         foreach($yfeed['key']['value'] as $fkey) { 
             // echo("Feeder key: $fkey  name: " . $feeder_class[$fkey]->getname() . "   GUID: " . $feeder_class[$fkey]->getguid() . " HASH: " . $feeder_hash[$fkey] . "\n");
             // echo(print_r($feeder_class, 1));
@@ -1275,7 +1316,7 @@ function load_feed_data($name) {
                     // print_r($old_feeder_class);
 
                     $fld = $feeder_class[$fkey]->getFields();
-                    print_r( $fld );
+                    // print_r( $fld );
 
                     $old_feeder_class->loadFields( $fld );
                     $old_feeder_class->update();
@@ -1316,6 +1357,144 @@ function load_feed_data($name) {
             }
         }
 
+    }
+}
+function sync_feed_fields($name) {
+    echo("sync yaml feed fields to schema (yfile: $name)\n");
+
+    // $yfeed = yaml_parse_file($name);
+    $yfeed = yaml_parse_file($name, 0);
+    // print_r( $yfeed );
+    // exit;
+
+    if(!$yfeed) {
+        echo("ERROR: could not parse feed YAML file. ($name)\n");
+        exit(-1);
+    }
+
+
+    // find source files
+    $files = array();
+    foreach($yfeed['source'] as $src) {
+        // echo "source dir: " . $src . "\n";
+        $files= array_merge($files, glob($src . '/*.yml'));
+    }
+    // print_r('yml files: ' . print_r($files, 1));
+
+    // return;
+
+
+    if(array_key_exists('key', $yfeed)) {
+        if(!array_key_exists('value', $yfeed['key'])) {
+            $yfeed['key']['value'] = array('default');
+        } 
+    } else {
+        $yfeed['key'] = ['value'=>array('default')];
+    }
+    // print_r($yfeed);
+
+
+    foreach($files as $yfile) {
+        echo("feed file `$yfile`\n");
+        $ydata = yaml_parse_file($yfile);
+        $pinfo = pathinfo($ydata['schema']);
+        // echo "{$pinfo['basename']}: schema: " . $ydata['schema'] . "\n";
+        // print_r($ydata);
+        // print_r($ydata['data']);
+        // print_r( pathinfo($ydata['schema']));
+        $yschema = yaml_parse_file( $ydata['schema'] )['table'];
+        if(!$yschema) {
+            echo("ERROR: could not parse class YAML file." . $ydata['schema'] . "\n");
+            exit(-1);
+        }
+
+        // echo('schema y-file: '. print_r($yschema, 1));
+
+        $schema_fields = [];
+        foreach($yschema['fields'] as $schema_field) {
+
+            $schema_fields[] = $schema_field['name'];
+        }
+
+        // echo("Fields in schema: " . implode(',', $schema_fields) . "\n");
+
+        // echo('schema class: ' . $schemaClass . "\n");
+        
+        // echo("pathinfo: " . print_r($pinfo, 1) . "\n");
+        // $phpfile = dirname($pinfo['dirname']) . '/' . $pinfo['filename'] . '.php';
+        // echo "basename: " . $phpfile . "\n";
+
+        // include_once( $phpfile );
+
+        // $feeder_class = array();
+        // $feeder_hash = array();
+        // continue;
+
+        foreach($yfeed['key']['value'] as $fkey) { 
+            
+            // these fields are present only in schema, so add them in feed
+            $fields_in_schema = $schema_fields;
+
+            // these fields are present only in feed, so remove them from feed
+            $fields_in_feed = [];
+            
+            // check to see if a data field is an array, if it is
+            // converit to json data
+            foreach($ydata['data'][$fkey] as $fldkey => $fld) {
+                // echo "processing field [$fkey][$fldkey]\n";
+                $fields_in_feed[] = "$fldkey";
+            }
+
+            // echo("Fields in feed: " . implode(',', $fields_in_feed). "\n");
+
+            $fields_only_in_feed = array_diff($fields_in_feed, $schema_fields);
+            // echo("Fields only in feed: " . implode(',', $fields_only_in_feed) . "\n");
+
+            $fields_only_in_schema = array_diff($schema_fields, $fields_in_feed);
+            // echo("Fields only in schema: " . implode(',', $fields_only_in_schema) . "\n");
+
+            echo(count($fields_only_in_feed) . " fields are about to be removed [$fkey][".implode(',', $fields_only_in_feed)."]\n");
+            echo(count($fields_only_in_schema) . " fields are about to be added [$fkey][".implode(',', $fields_only_in_schema)."]\n");
+
+            if(!empty($fields_only_in_feed)) {
+                // so must remove field definitions from feed file
+
+                // echo("Original feed : " . print_r($ydata, 1));
+
+                foreach($fields_only_in_feed as $ff) {
+                    // echo("\tremoving field `$ff`\n");
+                    if(key_exists($ff, $ydata['data'][$fkey])) {
+                        // echo("\t\tremoved\n");
+                        unset($ydata['data'][$fkey][$ff]);
+                    }
+                }
+
+                if(!empty($fields_only_in_schema)) {
+                    foreach($fields_only_in_schema as $ff) {
+                        // echo("\tadding field `$ff`\n");
+                        $ydata['data'][$fkey][$ff] = null;
+                    }
+                }
+                
+                $temp_name = tempnam('tmp', 'feed-');
+
+                // echo("Final feed : " . print_r($ydata, 1));
+                yaml_emit_file($temp_name, $ydata, YAML_UTF8_ENCODING);
+
+                $tfile = str_replace('/', '-', $yfile);
+                echo("temp file $tfile\n");
+                rename($yfile, "/tmp/". $tfile . ".old");
+                rename($temp_name, $yfile);
+            }
+        }
+
+        // continue;
+
+        // echo("Classes: " . print_r(get_declared_classes(), 1));
+        if(!isset($yfeed['title'])) {
+            echo("ERROR: Feed title is not set in $name\n");
+            exit(-1);
+        }
     }
 }
 
@@ -1552,6 +1731,8 @@ function makesure_dir_exists($dir) {
                 'feed:load' => 'load feed data to database',
                 'feed:hashes:clean' => 'clean feed_hashes from the database',
                 'feed:clean' => 'clean feed data with no corresponding hash from the database',
+                'feed:info' => 'print info for feed',
+                'feed:sync:fields' => 'synchronize fields from database to .yml files, add/remove fields according to schema',
                 'tables:list:fw' => 'dump database tables fw',
                 'tables:list:web' => 'dump database tables web',
                 'tables:list:all' => 'dump database tables from fw & web',
@@ -1561,8 +1742,10 @@ function makesure_dir_exists($dir) {
                 'tables:new:web' => '[n/a] show tables from web that have not been added to database, yet',
                 'tables:new:all' => '[n/a] show tables from fw & web that have not been added to database, yet',
 
-                'tables:missing' => '[n/a] show database tables that are missing .yaml representation'
-                
+                'tables:missing' => '[n/a] show database tables that are missing .yaml representation',
+     
+                'msg:new' => '[user] [message] create new message for `user` with `message`',
+
             ];
 
             foreach($commands as $key => $value) {
@@ -1749,6 +1932,24 @@ function makesure_dir_exists($dir) {
             clean_feed_data($options['name'], $options['dir']??null);
 
             break;
+        case 'feed:info':
+            if(!isset($options['name'])) {
+                echo("Usage: --name [feeder yaml tempalte]\n");
+                exit(-1);
+            }
+
+            print_feed_info($options['name']);
+            break;
+        
+        case 'feed:sync:fields':
+            if(!isset($options['name'])) {
+                echo("Usage: --name [feeder yaml template]\n");
+                exit(-1);
+            }
+
+            sync_feed_fields($options['name']);
+            break;
+
 
         case 'data:export':
 
@@ -1885,7 +2086,7 @@ function makesure_dir_exists($dir) {
         case 'form:view:html':
             if(!$optparams[1]) {
                 mlog('Usage: ' . $argv[0] . ' db-schema.yaml  file-to-process');
-                exit;
+                exit(-1);
             }
             $file = $optparams[1];
             if(!file_exists($file)) {
@@ -1907,6 +2108,16 @@ function makesure_dir_exists($dir) {
             break;
 
         case 'gen:form:all':
+            echo "Unimplemented function\n";
+            break;
+
+        case 'msg:new':
+            if(!$optparams[1] || !$optparams[2] || !$optparams[3]) {
+                mlog("Usage: {$argv[0]} `user` `message title` `message body`");
+                exit(-1);
+            }
+
+            message_new($optparams[1], $optparams[2], $optparams[3]);
             break;
 
         default:

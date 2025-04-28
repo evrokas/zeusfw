@@ -1,4 +1,20 @@
 
-<div class="message">
-    message {{$type}}
+<div class="announcements">
+    <div class="announce-header">
+        Announcements
+    </div>
+
+    <ul>
+        {% foreach($messages as $msg): %}
+            <li>
+                <div class="title">
+                    {{$msg->getmdate()|date('d-m-y')}}: {{$msg->gettitle()}}
+                </div>
+
+                <div class="body">
+                    {{$msg->getmessage()}}
+                </div>
+            </li>
+        {% endforeach %}
+    </ul>
 </div>

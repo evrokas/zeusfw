@@ -39,14 +39,19 @@ db_new_fw_tables=`php $MAKER --app-dir=$BASEDIR tables:new:fw`
 if [[ ! -z $db_new_fw_tables ]]; then
     echo "The following core tables are missing from the database: " $db_new_fw_tables
     
-    read -p "Do you want to import the above tables? [y/N] " import
+    read -p "Do you want to import the above tables? [y/N/all] " import
     echo
 
-    if [[ $import == [yY] ]]; then
+    if [[ $import == [yYaA] ]]; then
         for temp in $db_new_fw_tables; do
             sqlfile="$BASEDIR/web/core/classes/sql/$temp.sql";
 
-            read -p "Do you want to import table $temp? [y/N] " tableimport
+            if [[ $import == [yY] ]]; then
+                read -p "Do you want to import table $temp? [y/N] " tableimport
+            else
+                tableimport="y";
+            fi
+
             if [[ $tableimport == [yY] ]]; then
                 if [ -f $sqlfile ]; then
                     echo "Importing table $temp from $sqlfile"
@@ -111,14 +116,19 @@ db_new_web_tables=`php $MAKER --app-dir=$BASEDIR tables:new:web`
 if [[ ! -z $db_new_web_tables ]]; then
     echo "The following tables are missing from the database: " $db_new_web_tables
 
-    read -p "Do you want to import the above tables? [y/N] " import
+    read -p "Do you want to import the above tables? [y/N/all] " import
     echo
     
-    if [[ $import == [yY] ]]; then
+    if [[ $import == [yYaA] ]]; then
         for temp in $db_new_web_tables; do
             sqlfile="$BASEDIR/web/classes/sql/$temp.sql";
 
-            read -p "Do you want to import table $temp? [y/N] " tableimport
+            if [[ $import == [yY] ]]; then
+                read -p "Do you want to import table $temp? [y/N] " tableimport
+            else
+                tableimport="y";
+            fi
+
             if [[ $tableimport == [yY] ]]; then
                 if [ -f $sqlfile ]; then
                     echo "Importing table $temp from $sqlfile"
@@ -168,8 +178,12 @@ if [[ $answer == [yY] ]]; then
     read cleanup
 
     if [[ $cleanup == [yY] ]]; then
+        feed_clean_no=0;
         for temp in `ls *.feeder.yaml`; do
             php $MAKER --name $temp feed:clean
+            if [ $? -eq 0 ]; then
+                feed_clean_no=$((feed_clean_no+1));
+            fi
         done
     fi
 
@@ -203,9 +217,9 @@ if [[ $answer == [yY] ]]; then
                 fi
 
                 if [ $? -eq 0 ]; then
-                    echo "Loading was successful"
+                    echo "Feed creation was successful"
                 else
-                    echo "Load failed"
+                    echo "Feed creation failed"
                     exit
                 fi
             fi
@@ -217,7 +231,15 @@ if [[ $answer == [yY] ]]; then
 	    # php $MAKER --name $temp  feed:clean
         
 	    php $MAKER --name $temp  feed:load
+        if [ $? -eq 0 ]; then
+            echo "Feed loading succesfull"
+        else
+            echo "Feed loading failed"
+            exit
+        fi
     done
+
+    echo "Cleaned $feed_clean_no feeds";
 
     popd
 fi

@@ -1,0 +1,11 @@
+{#
+ # inject info in the page laoded by contentPageClass
+ # for development purposes.
+ # Feature is enabled by 'page_content_info' field in site.info.yaml
+ # $filename    name of the file printed
+ # $filepath    path to the file
+ #}
+
+<div class="page-id">
+    <div class="name">{{$filename}} | {{$filepath}}</div>
+</div>

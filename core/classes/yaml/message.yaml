@@ -11,7 +11,7 @@ table:
       type: '@cuser'
 
     - name: recepient
-      type: text
+      type: '@cuser'
 
     - name: mdate
       type: '@cdate'
@@ -29,7 +29,8 @@ table:
       type: '@delete'
 
     - name: readed
-      type: boolean default 0
+      type: boolean
+      default: false
 
     - name: category
       type: text

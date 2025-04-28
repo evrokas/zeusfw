@@ -347,7 +347,7 @@ abstract class dbAbstractEntityClass {
     static function sgetAllFilter($tableName, $filterArray = [], $sortsArray = [], $conditionals = []) {
         if(!self::sgetConnection()) {
             echo "Database is not connected!\n";
-            if(!self::sgetConnection()->Connect()) {
+            if(!self::sdbConnect()) {
                 echo "Could not connect to database";
                 return (null);
             }
