@@ -1,101 +1,5 @@
 <?php
 
-function generateHTMLForm0($yamlData) {
-    $method = $yamlData['form']['method'] ?? 'post';
-    $action = $yamlData['form']['action'] ?? '';
-
-    // Start the form
-    $formHtml = "<form method=\"$method\" action=\"$action\">\n";
-
-    foreach ($yamlData['form']['inputs'] as $field) {
-        $name = $field['name'];
-        $label = $field['label'] ?? ucfirst($name);
-        $formType = $field['type'] ?? 'text';
-        $formRequired = $field['required'] ?? false;
-        $formDefault = $field['default'] ?? '';
-        $options = $field['options'] ?? [];
-
-        // Generate the label
-        $formHtml .= "  <label for=\"$name\">$label</label>\n";
-
-        // Generate the input field based on type
-        switch ($formType) {
-            case 'text':
-            case 'password':
-            case 'email':
-            case 'number':
-            case 'date':
-            case 'time':
-            case 'url':
-            case 'color':
-                $required = $formRequired ? 'required' : '';
-                $formHtml .= "  <input type=\"$formType\" id=\"$name\" name=\"$name\" value=\"$formDefault\" $required>\n";
-                break;
-
-            case 'textarea':
-                $required = $formRequired ? 'required' : '';
-                $formHtml .= "  <textarea id=\"$name\" name=\"$name\" $required>$formDefault</textarea>\n";
-                break;
-
-            case 'select':
-                $formHtml .= "  <select id=\"$name\" name=\"$name\">\n";
-                foreach ($options as $option) {
-                    $selected = ($formDefault == $option) ? 'selected' : '';
-                    $formHtml .= "    <option value=\"$option\" $selected>$option</option>\n";
-                }
-                $formHtml .= "  </select>\n";
-                break;
-
-            case 'radio':
-                foreach ($options as $option) {
-                    $checked = ($formDefault == $option) ? 'checked' : '';
-                    $formHtml .= "  <input type=\"radio\" id=\"$name-$option\" name=\"$name\" value=\"$option\" $checked>\n";
-                    $formHtml .= "  <label for=\"$name-$option\">$option</label>\n";
-                }
-                break;
-
-            case 'checkbox':
-                foreach ($options as $option) {
-                    $isChecked = is_array($formDefault) && in_array($option, $formDefault) ? 'checked' : '';
-                    $formHtml .= "  <input type=\"checkbox\" id=\"$name-$option\" name=\"{$name}[]\" value=\"$option\" $isChecked>\n";
-                    $formHtml .= "  <label for=\"$name-$option\">$option</label>\n";
-                }
-                break;
-
-            case 'file':
-                $formHtml .= "  <input type=\"file\" id=\"$name\" name=\"$name\">\n";
-                break;
-
-            case 'hidden':
-                $formHtml .= "  <input type=\"hidden\" id=\"$name\" name=\"$name\" value=\"$formDefault\">\n";
-                break;
-
-            default:
-                // Unsupported form type
-                $formHtml .= "  <!-- Unsupported form type: $formType -->\n";
-        }
-
-        $formHtml .= "  <br>\n"; // Add a line break after each field
-    }
-
-    // Add buttons
-    if (!empty($yamlData['form']['buttons'])) {
-        foreach ($yamlData['form']['buttons'] as $button) {
-            $buttonType = $button['type'] ?? 'button';
-            $buttonLabel = $button['label'] ?? 'Button';
-            $buttonAction = $button['action'] ?? '';
-
-            $actionAttribute = $buttonType === 'button' && !empty($buttonAction) ? "onclick=\"$buttonAction\"" : '';
-            $formHtml .= "  <button type=\"$buttonType\" $actionAttribute>$buttonLabel</button>\n";
-        }
-    }
-
-    // Close the form
-    $formHtml .= "</form>\n";
-
-    return $formHtml;
-}
-
 function generateHTMLFormArray($yamlData) {
     $formArray = []; // Super array to hold all form elements
 
@@ -110,6 +14,9 @@ function generateHTMLFormArray($yamlData) {
         $formRequired = $field['required'] ?? false;
         $formDefault = $field['default'] ?? '';
         $options = $field['options'] ?? [];
+        $dynamicOptions = $field['dynamic_options'] ?? [];
+        $staticOptions = $field['static_options'] ?? [];
+
 
         $inputElement = [
             'label' => $label,
@@ -118,6 +25,8 @@ function generateHTMLFormArray($yamlData) {
             'required' => $formRequired,
             'default' => $formDefault,
             'options' => $options,
+            'dynamic_options' => $dynamicOptions,
+            'static_options' => $staticOptions
         ];
 
         $formArray['inputs'][] = $inputElement;
@@ -128,12 +37,16 @@ function generateHTMLFormArray($yamlData) {
         foreach ($yamlData['form']['buttons'] as $button) {
             $buttonType = $button['type'] ?? 'button';
             $buttonLabel = $button['label'] ?? 'Button';
+            $buttonValue = $button['value'] ?? $buttonLabel;
             $buttonAction = $button['action'] ?? '';
+            $buttonButType = $button['button_type'] ?? "submit";
 
             $buttonElement = [
                 'type' => $buttonType,
                 'label' => $buttonLabel,
+                'value' => $buttonValue,
                 'action' => $buttonAction,
+                'button_type' => $buttonButType
             ];
 
             $formArray['buttons'][] = $buttonElement;
@@ -152,6 +65,8 @@ function generateHTMLFormTemplate($yamlData) {
     $formHtml = "<form method=\"$method\" action=\"$action\">\n";
 
     foreach ($yamlData['table']['fields'] as $field) {
+        // echo("field: " . print_r($field, 1));
+
         $name = $field['name'];
         $label = $field['label'] ?? ucfirst($name);
         $formType = $field['form_type'] ?? 'text';
@@ -165,6 +80,9 @@ function generateHTMLFormTemplate($yamlData) {
         // $formDefault = $field['form_default'] ?? $field['default'] ?? '';
 
         $options = $field['options'] ?? [];
+        $dynamicOptions = $field['dynamic_options'] ?? [];
+        $staticOptions = $field['static_options'] ?? [];
+
 
         // Generate the label
         $formHtml .= "  <label for=\"$name\">$label</label>\n";
@@ -194,9 +112,20 @@ function generateHTMLFormTemplate($yamlData) {
 
             case 'select':
                 $formHtml .= "  <select id=\"$name\" name=\"$name\">\n";
-                foreach ($options as $option) {
+                if(!empty($options)) {
+                    foreach ($options as $option) {
+                        $selected = ($formDefault == $option) ? 'selected' : '';
+                        $formHtml .= "    <option value=\"$option\" $selected>$option</option>\n";
+                    }
+                } else
+                if(!empty($staticOptions)) {
                     $selected = ($formDefault == $option) ? 'selected' : '';
-                    $formHtml .= "    <option value=\"$option\" $selected>$option</option>\n";
+                    echopre("staticOptions: " . print_r($staticOptions, 1));
+                    exit;
+                } else
+                if(!empty($dynamicOptions)) {
+                    echopre("dynamicOptions: " . print_r($staticOptions, 1));
+                    exit;
                 }
                 $formHtml .= "  </select>\n";
                 
@@ -299,7 +228,8 @@ function createFieldDefinition($field, bool $includeFieldName = false) {
         if(!is_null($default))
             $default = " DEFAULT " . "" . addslashes($default) . "";
         else
-            $default = "";  //(!$required) ? " DEFAULT NULL " : "";
+            $default = (!$required) ? " DEFAULT NULL " : "";
+            // $default = "";  //(!$required) ? " DEFAULT NULL " : "";
 
             /* CHECK FOR ERROR IN DEFINITION */
 
@@ -509,8 +439,14 @@ function generateClassCode($yamlData) {
                       } else return (null);
               }");
   
-              mlog("  static function sgetAll() {
-                  \$sql = \"SELECT * FROM " . $table['name'] . ";\";
+              mlog("  static function sgetAll(\$whereClause = null, \$limit = null) {
+                  \$sql = \"SELECT * FROM " . $table['name'] . "\";
+                    if(\$whereClause)
+                        \$sql = \$sql . \" WHERE \" . \$whereClause;
+
+                    if(\$limit)
+                        \$sql = \$sql . \" LIMIT \" . \$limit;
+
                   \$st = dbConnection::getConnection()->prepare( \$sql );
                   \$st->execute();
           
@@ -679,16 +615,17 @@ function generateClassCode($yamlData) {
 
 function form_load($yData) {
     echo("loading form `{$yData['form']['name']}`\n");
-	
+	print_r("yData: " . print_r($yData['form'], 1));
+
     $formArray = generateHTMLFormArray($yData);
 
-    // print_r($formArray);
+    print_r($formArray);
     // $serializedArray = serialize( $formArray );
 
     // print_r($serializedArray);
     // echo("\n---\n");
     // $s = JsonSerializable()
-    $jsonArray = json_encode( $formArray);
+    $jsonArray = json_encode($formArray);
     // print_r($jsonArray);
     
     if(isset($yData['table']['class'])) {
