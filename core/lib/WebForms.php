@@ -33,16 +33,34 @@ class formsClass {
             $formArray['attributes']['action'] = rel_url("/webform/processform/".$form->getguid());
             return generateHTMLForm( $formArray );
         } else {
-            return ("Form '$formname' not found!");
+            return "Form '$formname' not found!";
         }
     }
 
+    static function getFormRenderArray($formname):array|null {
+        $form = self::getForm( $formname );
+        if($form) {
+                $data = $form->getdata();
+                $formArray = json_decode($data, true);
+                $formArray['attributes']['action'] = rel_url("/webform/processform/".$form->getguid());
+                
+                return $formArray;
+
+        } else {
+            return null;
+        }
+    }
+
+    static function renderFormArray($formArray) {
+        return generateHTMLForm( $formArray );
+    } 
+
     // $formname string form name, $results array of results
     static function storeFormResults($form, $results) {
-
+        
         $formArray = json_decode($form->getdata(), true);
         $formClass = $form->getform_class();
-        echopre("formClass: $formClass");
+        echopre("store form results, formClass: $formClass");
         $classData = new $formClass( $results );
         // echopre(print_r($classData, 1));
         
@@ -58,16 +76,20 @@ class formsClass {
     static function processform($params) {
         echopre("Processing form: " . $params['guid']);
 
+        echopre("post:" . print_r($_POST, 1));
 
-        if(isset($_POST) && isset($_POST['Submit'])) {
+        if(isset($_POST) && isset($_POST['submit'])) {
             $form = self::getFormByGUID($params['guid']);
             
             echopre("Found form " . print_r($form, 1));
             echopre(print_r($_POST, 1));
             
+            echopre(print_r($_SESSION, 1));
+
+            // $_POST['cuser'] = $_SESSION['']
+
             self::storeFormResults($form, $_POST);
 
-            // echopre("post:" . print_r($_POST, 1));
             // echopre("session:" . print_r($_SESSION, 1));
         }
 
@@ -93,9 +115,9 @@ class formsClass {
         $results = $formClass::sgetAllFilter($formArray['name']);
         // echopre("Results: " . print_r($results, 1));
 
-        unset($formArray['buttons']);
+        // unset($formArray['buttons']);
 
-        $output = ['Clinics table results'];
+        $output = [$formClass . ' table results'];
         $html = [];
         $formArray['inputs_list'] = [];
 
