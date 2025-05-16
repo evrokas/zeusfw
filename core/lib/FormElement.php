@@ -7,12 +7,14 @@ abstract class FormElement {
     protected $template_table;
     protected $template_suggestions;
     protected $template_suggestions_table;
+    protected $default_value;
 
-    public function __construct($formname, $element) {
+    public function __construct($formname, $element, $default = null) {
         $this->formname = $formname;
         $this->element = $element;
         [$this->template, $this->template_suggestions] = $this->getTemplate($formname);
         [$this->template_table, $this->template_suggestions_table] = $this->getTableTemplate($formname);
+        $this->default_value = $default;
 
         // echo("element name: " . $this->element['name'] . "\n");
         // echo("template suggestions: " . print_r($this->template_suggestions, 1) . "\n");
@@ -24,11 +26,14 @@ abstract class FormElement {
         Renderer::getTemplateSuggestions([
                 'form' => $formname,
                 'type' => $this->element['type'], 
+                'button_type' => $this->element['button_type']??null,
                 'name' => $this->element['name']
             ], 
             function($args, &$suggestions) {
                 $suggestions[] = 'form_element';
                 $suggestions[] = 'form_element_' . $args['type'];
+                if($args['button_type'])
+                    $suggestions[] = 'form_element_' . $args['type'] . '--' . $args['button_type'];
                 $suggestions[] = 'form_element_' . $args['name'];
                 $suggestions[] = 'form_element_' . $args['form'] . '_' . $args['name'];
         }, $tem_suggestions);
@@ -75,7 +80,7 @@ abstract class FormElement {
         $variables = [
             'label' => $this->element['label'] ?? ucFirst($this->element['name']),
             'attributes' => $this->element['table-attributes'] ?? [],
-            'value' => $this->element['default'],
+            'value' => $this->default_value ?? $this->element['default'],
         ];
 
         return ($this->renderTableItem($variables));
@@ -104,7 +109,7 @@ class InputElement extends FormElement {
 
         if (isset($this->element['default'])) {
             $attributes['value'] = $this->element['default'];
-        }
+        } else $attributes['value'] = $this->default_value ?? null;
 
         $variables = [
             'label' => $this->element['label'] ?? ucfirst($this->element['name']),
@@ -118,19 +123,140 @@ class InputElement extends FormElement {
         return $this->render($variables);
     }
 }
+function sanitize(string $str): string {
+    return str_replace([' '], ['_'], $str);
+}
 
+
+function formBuildWhereClause(array $filters): string {
+    $conditions = [];
+    
+    foreach ($filters as $key => $value) {
+        // Handle logical operators (AND/OR/NOT)
+        if (in_array(strtolower($key), ['and', 'or', 'not'])) {
+            $operator = strtoupper($key);
+            $subConditions = [];
+            
+            foreach ($value as $subFilter) {
+                $subConditions[] = formBuildWhereClause($subFilter);
+            }
+            
+            if ($operator === 'NOT') {
+                $conditions[] = "NOT (" . implode(' AND ', $subConditions) . ")";
+            } else {
+                $conditions[] = "(" . implode(" $operator ", $subConditions) . ")";
+            }
+        }
+        // Handle field conditions
+        else {
+            // Check for operator syntax (e.g., {operator: ">", value: 10})
+            if (is_array($value) && isset($value['operator']) && isset($value['value'])) {
+                $operator = strtoupper($value['operator']);
+                $val = $value['value'];
+            } else {
+                $operator = '=';
+                $val = $value;
+            }
+
+            // Format value based on type
+            if (is_array($val)) {
+                $formattedVal = "(" . implode(', ', array_map(fn($v) => is_string($v) ? "'$v'" : $v, $val)) . ")";
+            } else {
+                $formattedVal = is_string($val) ? "'$val'" : $val;
+            }
+
+            $conditions[] = "$key $operator $formattedVal";
+        }
+    }
+    
+    return implode(' AND ', $conditions);
+}
+
+/* // Example usage
+$yaml = <<<YAML
+query:
+  operation: select
+  table: doctors
+  fields:
+    - guid
+    - doctor_name
+  filters:
+    and:
+      - or:
+          - doctor_specialty: "Cardiology"
+          - doctor_specialty: "Neurology"
+      - years_experience: { operator: ">=", value: 10 }
+      - hospital_id: { operator: "IN", value: [123, 456] }
+
+// Build WHERE clause
+$where = !empty($query['filters']) ? buildWhereClause($query['filters']) : '';
+ */
 class SelectElement extends FormElement {
     public function generateHTML() {
         $attributes = $this->element['attributes'] ?? [];
         $attributes['name'] = $this->element['name'];
 
         $options = [];
-        foreach ($this->element['options'] as $option) {
-            $options[] = [
-                'value' => str_replace([' '], ['_'], $option),
-                'label' => $option,
-                'selected' => ($option == $this->element['default'])
-            ];
+        if(!empty($this->element['options'])) {
+            foreach ($this->element['options'] as $option) {
+                $options[] = [
+                    'value' => str_replace([' '], ['_'], $option),
+                    'label' => $option,
+                    'selected' => ($option == $this->element['default'])
+                ];
+            }
+        } else
+        if(!empty($this->element['static_options'])) {
+            // echopre(print_r($this->element, 1));
+
+            $tableNameClass = $this->element['static_options']['params']['tableclass'] ?? null;
+            $values = $this->element['static_options']['params']['values'] ?? null;
+            $label = $this->element['static_options']['params']['label'] ?? null;
+            $filters = $this->element['static_options']['params']['filter'] ?? null;
+
+            if(!class_exists($tableNameClass))return "Table $tableNameClass does not exist.";
+            if(!$label)return "Empty label field";
+            if(!is_array(($label)))
+                $label = [$label];
+
+            $tableClass = new ($tableNameClass)();
+
+            if($filters) {
+                $filterClause = formBuildWhereClause($filters);
+                // echopre("filters: " . print_r($filterClause, 1));
+            }
+
+            $opts = $tableClass::sgetAll( $filterClause ?? null );
+            // $optsFields = ($tableClass)->getFields();
+            $value = $this->element['static_options']['params']['value'] ?? 'select_value';
+
+            // echopre("value: " . print_r($value, 1));
+            if(!empty($opts)) {
+                foreach($opts as $option) {
+                    // echopre("options: " . print_r($option, 1));
+                    $topt = [
+                        // 'value' => str_replace([' '], ['_'], implode('__', $values)),
+                        // 'label' => str_replace([' '], ['_'], implode('__', $values)),
+                        'label' => sanitize( $option->getFieldValue('get'.$value) ),
+                        'selected' => false
+                    ];
+                    
+                    $tlabel = [];
+                    foreach($label as $label_option) {
+                        $toptlabel = $option->getFieldValue('get'.$label_option);
+                        $topt = array_merge($topt, [$label_option => $toptlabel ] );
+                        $tlabel[] = $toptlabel;
+
+                        // $topt[ $option->getFieldValue'label'] = str_replace([' '], ['_'], $option->getFieldValue('get'.$val));
+                    }
+                    $topt['value'] = sanitize( $option->getFieldValue('get'.$value) );
+                    $topt['label'] = implode(' ', $tlabel);
+
+                    $options[] = $topt;
+                    // echopre("final options:" . print_r($options, 1));
+                }
+                
+            }
         }
 
         $variables = [
@@ -156,7 +282,7 @@ class TextareaElement extends FormElement {
             'tag' => 'textarea', // The HTML tag for this element
             'attributes' => $attributes,
             'options' => [], // No options for textarea tags
-            'default' => $this->element['default'] ?? '' // Content inside the textarea
+            'default' => $this->default_value ?? $this->element['default'] ?? '' // Content inside the textarea
         ];
 
         return $this->render($variables);
@@ -171,7 +297,7 @@ class BasicInputElement extends FormElement {
 
         if (isset($this->element['default'])) {
             $attributes['value'] = $this->element['default'];
-        }
+        } else $attributes['value'] = $this->default_value ?? null;
 
         $variables = [
             'label' => $this->element['label'] ?? ucfirst($this->element['name']),
@@ -286,17 +412,21 @@ class ButtonElement extends FormElement {
 
     public function generateHTML() {
         $attributes = $this->element['attributes'] ?? [];
-        // $attributes['name'] = $this->element['name'];
-        $attributes['name'] = $this->element['label'];
-        $attributes['type'] = $this->element['type']; // submit, reset, or button
+        $attributes['name'] = $this->element['name'];
+        // $attributes['name'] = $this->element['label'];
+        // $attributes['type'] = $this->element['type']; // submit, reset, or button
+        $attributes['type'] = $this->element['button_type']; // submit, reset, or button
 
         if (isset($this->element['value'])) {
             $attributes['value'] = $this->element['value'];
         } else $attributes['value'] = $this->element['label'];
 
         $variables = [
-            // 'label' => $this->element['label'] ?? ucfirst($this->element['name']),
-            'tag' => 'input',
+            'label' => $this->element['label'] ?? ucfirst($this->element['name']),
+            // 'tag' => 'input',
+            'type' => $this->element['button_type'],
+            'value' => $this->element['value'],
+            'tag' => 'button',
             'attributes' => $attributes,
             'options' => [],
             'default' => ''
@@ -332,84 +462,7 @@ class RangeElement extends FormElement {
     }
 }
 
-/* 
-function renderHTMLForm1($formArray) {
-    // Extract form attributes
-    $formAttributes = $formArray['attributes'] ?? [];
-    $formInputs = $formArray['inputs'] ?? [];
-    $formButtons = $formArray['buttons'] ?? [];
-
-    // Initialize HTML output
-    $htmlOutput = [];
-
-    // Start the form tag
-    $formAttributesString = '';
-    foreach ($formAttributes as $key => $value) {
-        $formAttributesString .= $key . '="' . htmlspecialchars($value) . '" ';
-    }
-    $htmlOutput[] = "<form $formAttributesString>";
-
-    // Render inputs using respective FormElement classes
-    foreach ($formInputs as $input) {
-        $className = ucfirst($input['type']) . 'Element';
-
-        if (class_exists($className)) {
-            $element = new $className($input);
-            $htmlOutput[] = $element->render();
-        } else {
-            $htmlOutput[] = "<!-- Unsupported input type: " . htmlspecialchars($input['type']) . " -->";
-        }
-    }
-
-    // Render buttons using ButtonElement class
-    foreach ($formButtons as $button) {
-        $buttonElement = new ButtonElement($button);
-        $htmlOutput[] = $buttonElement->render();
-    }
-
-    // Close the form tag
-    $htmlOutput[] = "</form>";
-
-    // Join all parts into a single HTML string
-    return implode("\n", $htmlOutput);
-}
-
- */
-/* 
-function generateHTMLForm1($formArray) {
-    $formAttributes = $formArray['attributes'] ?? [];
-    $inputs = $formArray['inputs'] ?? [];
-    $buttons = $formArray['buttons'] ?? [];
-    $elements = [];
-
-    // Generate inputs
-    foreach ($inputs as $input) {
-        switch ($input['type']) {
-            case 'text':
-            case 'password':
-                $elements[] = (new TextInput($input['attributes']))->render();
-                break;
-            case 'textarea':
-                $elements[] = (new TextArea($input['attributes'], $input['default'] ?? ''))->render();
-                break;
-            // Add more input types as needed
-        }
-    }
-
-    // Generate buttons
-    foreach ($buttons as $button) {
-        $elements[] = (new Button($button['attributes'], $button['label']))->render();
-    }
-
-    return [
-        'attributes' => $formAttributes,
-        'elements' => $elements,
-    ];
-}
-
- */
-
-function generateHTMLForm($formArray) {
+function generateHTMLForm($formArray, $default_values = array() ) {
     $formName = $formArray['name'] ?? null;
     if(!$formName) {
         echo "Form is not named. Please set form name and try again.\n";
@@ -427,7 +480,7 @@ function generateHTMLForm($formArray) {
 
         if(class_exists($className)) {
             // echo(" Generating class for input {$input['name']}\n");
-            $element = new $className( $formName, $input );
+            $element = new $className( $formName, $input, $default_values[ $input['name'] ] ?? null);
             $elements[] = $element->generateHTML();
             // $elements[] = $element->render();
         } else {
@@ -436,6 +489,7 @@ function generateHTMLForm($formArray) {
     }
 
     foreach($buttons as $button) {
+        // echopre("button: " . print_r($button, 1));
         $buttonElement = new ButtonElement( $formName, $button );
         $controls[] = $buttonElement->generateHTML();
         // $elements[] = $buttonElement->render();
@@ -494,7 +548,7 @@ function generateHTMLFormTable($formArray) {
     foreach($inputs_lists as $inputs) {
         $row_elements = [];
         foreach($inputs as $input) {
-            // echopre("processing form input: " . print_r($input,1));
+            echopre("processing form input: " . print_r($input,1));
             $className = ucfirst($input['type']) . 'Element';
             if(!class_exists($className))$className = 'BasicInputElement';
 
@@ -535,4 +589,24 @@ function generateHTMLFormTable($formArray) {
                                 // 'controls' => $controls
                             ],
                         [$template_suggestions, $template]);
+}
+
+function generateFormButton($button_type, $label, $value) {
+    $result = ['type' => 'button',
+            'button_type' => $button_type,
+            'label' => $label,
+            'value' => $value ];
+ 
+    return $result;
+}
+
+function formArrayAddButton($formArray, $button) {
+    // echopre("adding button: " . print_r($button, 1));
+    // echopre("form array: " . print_r($formArray, 1));
+    if(!isset($formArray['buttons']))
+        $formArray['buttons'] = [];
+
+    $formArray['buttons'][] = $button;
+
+    return $formArray;
 }
