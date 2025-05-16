@@ -317,7 +317,7 @@ abstract class dbAbstractEntityClass {
         } else return (null);
     }
 
-    function getAll() {
+    function getAll($whereClause = null, $limit = null) {
         if(!$this->isdbConnected()) {
             // echo "Database is not connected!\n";
             if(!$this->dbConnect()) {
@@ -326,7 +326,14 @@ abstract class dbAbstractEntityClass {
             }
         }
 
-        $sql = "SELECT * FROM " . $this->_table . ";";
+        $sql = "SELECT * FROM " . $this->_table;
+        if($whereClause)
+            $sql = $sql . " " . $whereClause;
+
+        if($limit)
+            $sql = $sql . " " . $limit;
+
+        // echopre("sql: `$sql`\n");
         $st = $this->getConnection()->prepare( $sql );
         $st->execute();
 
@@ -414,6 +421,15 @@ abstract class dbAbstractEntityClass {
     function getid() { return ( $this->id ); }
     function setid($aid) { $this->id = $aid; }
 
+    function getFieldValue($field_name) {
+        // echopre("requesting method: $field_name: " . method_exists($this, $field_name));
+        if(method_exists($this, $field_name)) {
+            return $this->{$field_name}();
+        } else {
+            echo "Method `$field_name` not found";
+            exit;
+        }
+    }
 
     function query() {
         return new dbQuery(dbConnection::getConnection(), $this->_table, get_called_class());
