@@ -52,7 +52,10 @@ function formatDate($str) {
 }
 
 function formatBrowserDate($str) {
-    return (date("Y-m-d", strtotime($str)));
+    if(is_string($str))
+        return (date("Y-m-d", strtotime($str)));
+    else if(is_int($str))
+        return (date("Y-m-d", $str));
 }
 
 function randomChar($str) {
