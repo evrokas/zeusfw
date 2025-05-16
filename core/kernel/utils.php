@@ -364,54 +364,134 @@ function is_json($string) {
 
 if(!function_exists('json_validate')) {
 // more robust function
-function json_validate($string)
-{
-    // decode the JSON data
-    $result = json_decode($string);
+    function json_validate($string)
+    {
+        // decode the JSON data
+        $result = json_decode($string);
 
-    // switch and check possible JSON errors
-    switch (json_last_error()) {
-        case JSON_ERROR_NONE:
-            $error = ''; // JSON is valid // No error has occurred
-            break;
-        case JSON_ERROR_DEPTH:
-            $error = 'The maximum stack depth has been exceeded.';
-            break;
-        case JSON_ERROR_STATE_MISMATCH:
-            $error = 'Invalid or malformed JSON.';
-            break;
-        case JSON_ERROR_CTRL_CHAR:
-            $error = 'Control character error, possibly incorrectly encoded.';
-            break;
-        case JSON_ERROR_SYNTAX:
-            $error = 'Syntax error, malformed JSON.';
-            break;
-        // PHP >= 5.3.3
-        case JSON_ERROR_UTF8:
-            $error = 'Malformed UTF-8 characters, possibly incorrectly encoded.';
-            break;
-        // PHP >= 5.5.0
-        case JSON_ERROR_RECURSION:
-            $error = 'One or more recursive references in the value to be encoded.';
-            break;
-        // PHP >= 5.5.0
-        case JSON_ERROR_INF_OR_NAN:
-            $error = 'One or more NAN or INF values in the value to be encoded.';
-            break;
-        case JSON_ERROR_UNSUPPORTED_TYPE:
-            $error = 'A value of a type that cannot be encoded was given.';
-            break;
-        default:
-            $error = 'Unknown JSON error occured.';
-            break;
+        // switch and check possible JSON errors
+        switch (json_last_error()) {
+            case JSON_ERROR_NONE:
+                $error = ''; // JSON is valid // No error has occurred
+                break;
+            case JSON_ERROR_DEPTH:
+                $error = 'The maximum stack depth has been exceeded.';
+                break;
+            case JSON_ERROR_STATE_MISMATCH:
+                $error = 'Invalid or malformed JSON.';
+                break;
+            case JSON_ERROR_CTRL_CHAR:
+                $error = 'Control character error, possibly incorrectly encoded.';
+                break;
+            case JSON_ERROR_SYNTAX:
+                $error = 'Syntax error, malformed JSON.';
+                break;
+            // PHP >= 5.3.3
+            case JSON_ERROR_UTF8:
+                $error = 'Malformed UTF-8 characters, possibly incorrectly encoded.';
+                break;
+            // PHP >= 5.5.0
+            case JSON_ERROR_RECURSION:
+                $error = 'One or more recursive references in the value to be encoded.';
+                break;
+            // PHP >= 5.5.0
+            case JSON_ERROR_INF_OR_NAN:
+                $error = 'One or more NAN or INF values in the value to be encoded.';
+                break;
+            case JSON_ERROR_UNSUPPORTED_TYPE:
+                $error = 'A value of a type that cannot be encoded was given.';
+                break;
+            default:
+                $error = 'Unknown JSON error occured.';
+                break;
+        }
+
+        if ($error !== '') {
+            // throw the Exception or exit // or whatever :)
+            exit($error);
+        }
+
+        // everything is OK
+        return $result;
+    }
+}
+
+
+function getDebugTrace() {
+    $trace = debug_backtrace(DEBUG_BACKTRACE_PROVIDE_OBJECT);
+    $output = ["\nDebug backtrace:"];
+    
+    foreach ($trace as $index => $frame) {
+        $file = $frame['file'] ?? '[internal]';
+        $line = $frame['line'] ?? 0;
+        $function = $frame['function'] ?? '';
+        
+        // Build function name with class/type if available
+        $called = '';
+        if (isset($frame['class'])) {
+            $called = $frame['class'] . $frame['type'];
+        }
+        $called .= $function;
+
+        // Format arguments
+        $args = array_map(function ($arg) {
+            return formatArgument($arg);
+        }, $frame['args'] ?? []);
+
+        $output[] = sprintf(
+            "#%d %s(%d): %s(%s)",
+            $index,
+            basename($file),
+            $line,
+            $called,
+            implode(', ', $args)
+        );
     }
 
-    if ($error !== '') {
-        // throw the Exception or exit // or whatever :)
-        exit($error);
+    // return '<pre>' . implode("\n", $output) . '</pre>';
+    return implode("\n", $output);
+}
+
+function formatArgument($arg, $depth = 0, $maxDepth = 3) {
+    if ($depth > $maxDepth) {
+        return '...';
     }
 
-    // everything is OK
-    return $result;
+    $type = gettype($arg);
+    switch ($type) {
+        case 'string':
+            $short = strlen($arg) > 25 ? substr($arg, 0, 25) . '...' : $arg;
+            return "'$short'";
+            
+        case 'array':
+            $count = count($arg);
+            if ($count === 0) return '[]';
+            
+            $items = [];
+            foreach (array_slice($arg, 0, 5) as $key => $value) {
+                $items[] = sprintf(
+                    '%s => %s',
+                    formatArgument($key, $depth + 1),
+                    formatArgument($value, $depth + 1)
+                );
+            }
+            if ($count > 5) $items[] = '...';
+            return sprintf('array(%d) [%s]', $count, implode(', ', $items));
+            
+        case 'object':
+            return 'object(' . get_class($arg) . ')';
+            
+        case 'resource':
+            return 'resource(' . get_resource_type($arg) . ')';
+            
+        case 'boolean':
+            return $arg ? 'true' : 'false';
+            
+        case 'NULL':
+            return 'null';
+            
+        default: // integer, double, etc
+            return (string)$arg;
+    }
 }
-}
+
