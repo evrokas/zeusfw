@@ -60,11 +60,12 @@ class Renderer {
 		// "Cache path: " . self::$cache_path . PHP_EOL . 
 		// "Comments : " . self::$enable_comments);
 
-		self::$template_files = array();
-		foreach(self::$template_path as $tpath) {
-			// add templates to template_files
-			self::findTemplates($tpath, self::$template_files);
-		}
+		// self::$template_files = array();
+		// foreach(self::$template_path as $tpath) {
+		// 	// add templates to template_files
+		// 	self::findTemplates($tpath, self::$template_files);
+		// }
+		self::scanTemplates();
 
 		self::filterRegister('asset', 'Renderer::filter_asset');
 		self::filterRegister('upper', 'Renderer::filter_uppercase');
@@ -73,6 +74,15 @@ class Renderer {
 		self::filterRegister('t', 'Renderer::filter_translate');
 
 	}
+
+	static function scanTemplates() {
+		self::$template_files = array();
+		foreach(self::$template_path as $tpath) {
+			// add templates to template_files
+			self::findTemplates($tpath, self::$template_files);
+		}
+	}
+
 	static function view($file, $data = array(), $stemplate = null) {
 		$cached_file = self::cache($file, $stemplate);
 	    extract($data, EXTR_SKIP);
@@ -290,10 +300,13 @@ class Renderer {
 	}
 
 	static function includeFiles($file) {
+		global $kernel;
+
 		$code = self::emmitComment(" begin include file : $file from " . self::$template_files[ $file ] ." ", false);
 		// $code .= file_get_contents(self::$template_path . $file);
 		$code .= file_get_contents(self::$template_files[ $file ]);
 	
+
 		preg_match_all('/{% ?(extends|include) ?\'?(.*?)\'? ?%}/i', $code, $matches, PREG_SET_ORDER);
 		// echo "Process include files\n";
         foreach ($matches as $value) {
