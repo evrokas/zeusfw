@@ -1,3 +1,11 @@
+{#
+  html text template
+
+  variables:
+    $modulename     name of module calling the template
+    $text           text to be displayed
+#}
+
 <div class="module-{{$modulename}}">
     {{$text}}
 </div>
