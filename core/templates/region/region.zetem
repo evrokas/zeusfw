@@ -5,7 +5,6 @@
         blocks              string of rendered blocks output
     
 #}
-
 <div {{attributes($attributes)}}>
     {{ $blocks }}
 </div>
