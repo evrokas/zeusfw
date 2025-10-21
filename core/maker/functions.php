@@ -16,6 +16,7 @@ function generateHTMLFormArray($yamlData) {
         $options = $field['options'] ?? [];
         $dynamicOptions = $field['dynamic_options'] ?? [];
         $staticOptions = $field['static_options'] ?? [];
+        $attributes = $field['attributes'] ?? [];
 
 
         $inputElement = [
@@ -26,7 +27,8 @@ function generateHTMLFormArray($yamlData) {
             'default' => $formDefault,
             'options' => $options,
             'dynamic_options' => $dynamicOptions,
-            'static_options' => $staticOptions
+            'static_options' => $staticOptions,
+            'attributes' => $attributes
         ];
 
         $formArray['inputs'][] = $inputElement;
