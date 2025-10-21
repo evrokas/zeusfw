@@ -136,7 +136,7 @@ class RouterClass {
                         // echo "<pre>Router permissions: " . $routedata['permissions']
                         // }
                 if(isset($routedata['access'])) {
-                    echopre("Router permissions: " . $routedata['access']);
+                    // echopre("Router permissions: " . $routedata['access']);
                     if(SecurityClass::userIsPermitted($routedata['access'])) {
                         // echo "<pre>User permitted!</pre>";
                     } else {
@@ -226,7 +226,7 @@ class RouterClass {
             }
 
             if(self::getError()) {
-                echopre("trace: " . print_r(getDebugTrace(), 1));
+                // echopre("trace: " . print_r(getDebugTrace(), 1));
 
                 http_response_code(self::getError());
 
