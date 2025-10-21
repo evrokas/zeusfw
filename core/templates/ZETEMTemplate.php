@@ -156,7 +156,7 @@ class Renderer {
 			// $farr[  str_replace('.zetem', '', $f[ array_key_last($f) ]) ] = $fnam;
 			if(isset( $farr [ $f[ array_key_last($f)] ])) {
 				// echo "Override template name exists. (". $f[ array_key_last($f)]. " @ " . $fnam->getPathName() . ")\n";
-				// echo "Duplicate template name exists. (". $f[ array_key_last($f)]. " @ " . $fnam->getPathName() . ")\n";
+				// echo Duplicate template name exists. (". $f[ array_key_last($f)]. " @ " . $fnam->getPathName() . ")\n";
 				$dupl++;
 				// exit;
 			}
