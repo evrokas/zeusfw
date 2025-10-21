@@ -91,7 +91,7 @@ function randomNumber($ndigits) {
     return ($s);
 }
 
-function randomAlnum($nchars, $nwords) {
+function randomAlnum($nchars, $nwords=1) {
     static $alpha = 'abcdefghhjklmnopqrstuvwxyz0123456789ABCDEFGHJKLMNOPQRSTUVWXYZ';
     
     $words = array();
@@ -117,8 +117,26 @@ function logpre($str) {
 
 }
 function echopre($str, $tag = 'pre', $html = false) {
+    $bt = debug_backtrace();
+    $caller = array_shift($bt);
+
+    $fn = $caller['file'];
+    $ln = $caller['line'];
+
+    $fs = explode('/', $fn);
+    $ap = explode('/', __APPDIR__);
+    // $fn .= implode(':', $ap);
+
+    while($fs[0] === $ap[0]) {
+        array_shift($fs);
+        array_shift($ap);
+    }
+
+    $fn = implode('/', $fs);
+
+
     if($html)$str = htmlspecialchars($str);
-    echo "<$tag>".$str."</$tag>";
+    echo "<$tag>"."$fn:$ln: " .$str."</$tag>";
     /* // echo "<textarea disabled="true"><?php echo htmlentities($str);?></textarea>";
      */
     // echo "<blockquote class='prefixed'><code><pre>".htmlentities(  $str ) . "<pre></code></blockquote>";
@@ -355,6 +373,57 @@ function core_get_file_in_lib(string $filename, string $module = null) {
 
   return ($output);
 }
+
+/**
+ * string $filename     file name to return path to
+ * string $module       prefix folder to add to file path
+ * return               file path in lib path, prefixed with module
+ */
+function core_get_dir_in_lib(string $module = null) {
+    global $kernel;
+
+    // get library path from configuration
+    $output = $kernel->getConfig('libpath');
+    if(!$output) {
+        echopre("ERROR: libpath is not set in configuration");
+        $kernel->addStatus('error', 'KERNEL ERROR: libpath is not set in configuration');
+
+        exit;
+    }
+
+    $output = trim($output);
+    $output = trim($output, '/');
+
+    $output =  __APPDIR__ . '/web/' . $output;
+
+
+    // test if lib path exists
+    if(!is_dir($output)) {
+        echopre("Create folder: $output");
+        $msk = umask();
+        umask(0022);
+        mkdir($output, 0777, true);
+        umask($msk);
+    }
+
+    if($module) {
+        $output .= '/' . $module;
+    
+        // test if module path exists
+        if(!is_dir($output)) {
+            echopre("Create folder: $output");
+            $msk = umask();
+            umask(0022);
+            mkdir($output, 0777, true);
+            umask($msk);
+        }
+    }
+
+    // echopre("lib path: $output");
+
+  return ($output);
+}
+
 
 // https://stackoverflow.com/questions/6041741/fastest-way-to-check-if-a-string-is-json-in-php
 function is_json($string) {

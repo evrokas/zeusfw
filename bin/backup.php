@@ -34,10 +34,12 @@ $exportGroups = [
     'static' => ['content', 'feed_class', 'feed_hashes', 'locations'],
 
     // fixed is content that never changes in the production but should not be transferred from development to production
-    'fixed' => ['users', 'pageanalytics'],
+    'fixed' => ['users', 'pageanalytics', 'doctors', 'bankaccounts', 'clinics',
+                ],
 
     // dynamic is content that changes in the production server and must be transferred from production to testing
-    'dynamic' => ['patients', 'appointments'],
+    'dynamic' => ['patients', 'appointments', 'dictionary',
+                ],
 
     // volatile is content that changes in each server and is never transferred to the othis servers
     'volatile' => ['analytics', 'user_tokens']
@@ -78,7 +80,7 @@ if($git) {
 
 
 
-echo("Command arguments: " . print_r($exportGroup, 1) . '\n' . print_r($single, 1));
+echo("Command arguments: " . print_r($exportGroup, 1) . "\n" . print_r($single, 1));
 // Validate selected group
 if (!$exportGroup || !array_key_exists($exportGroup, $exportGroups)) {
     echo "Error: Invalid or missing export group. Available groups: " . implode(', ', array_keys($exportGroups)) . "\n";

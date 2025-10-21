@@ -260,8 +260,8 @@ class Kernel {
     }
 
     function renderRegion($structure, $regionName) {
-        if (!isset($structure[$regionName])) {
-            echopre("Region '$regionName' not found,");
+        if (!isset($structure[$regionName])) {  
+            // echopre("Region '$regionName' not found,");
             $output = "Region '$regionName' not found.";
             return $output;
         }
@@ -271,9 +271,13 @@ class Kernel {
         // echopre("Rendering region: $regionName\n");
         foreach ($structure[$regionName] as $key => $value) {
             if (is_array($value)) {
+                // echopre("rendering section " . $key);
                 $output .= $this->renderBlock($key, $value, 0, ['region' => $regionName]); // Section
             } else {
-                $output .= $this->renderBlock($value, null, 0, ['region' => $regionName]); // Block
+                // echopre("rendering block `$value`");
+                $out = $this->renderBlock($value, null, 0, ['region' => $regionName]); // Block
+                // echopre("block output: " . $out);
+                $output .= $out;
             }
         }
 
@@ -302,6 +306,7 @@ class Kernel {
                     [$sugg, $template]);
         } else $region_output_all = '';
 
+        // echopre("region_output_all ($regionName): " . $region_output_all);
         $output = $region_output_all;
 
         return $output;
@@ -324,8 +329,9 @@ class Kernel {
             // echopre( print_r($_SESSION['route_match']['_routename'], 1));
             if(isset($modconfig['display'])) {
                 $display = false;
-                // echopre( print_r( $modconfig['display'], 1));
-                if(array_search($routename, array_keys($modconfig['display'])) !== false) {
+                // echopre( "module: " .$module->getName() . ", display: " . print_r( $modconfig['display'], 1));
+                if((array_search($routename, array_keys($modconfig['display'])) !== false)
+                    || (array_search('__all__', array_keys($modconfig['display']))) ) {
                     // echopre('Display');
                     $display = true;
                     $mconf = $modconfig['display'][$routename];
@@ -339,6 +345,7 @@ class Kernel {
             } else 
             if(isset($modconfig['hide'])) {
                 $display = true;
+                // echopre( "module: " . $module->getName() . ", hide: " . print_r( $modconfig['hide'], 1));
                 if(array_search($routename, array_keys($modconfig['hide'])) !== false) {
                     $display = false;
                 }
@@ -351,7 +358,10 @@ class Kernel {
             $module->render( $aparams ) );
             // Renderer::render($this->template, $aparams));
         }
-        else return '';
+        else { 
+            // echopre("module " . $module->getName() . " does not return output");
+            return '';
+        }
     }
 
     function renderBlock($name, $content = null, $tab = 0, $depth = []) {
@@ -364,7 +374,7 @@ class Kernel {
             $module = $this->getModule( $name );
             // echopre("found module: " . print_r($module, 1));
             if($module) {
-                // echopre("rendering module $name");
+                // echopre("rendering module 1 $name");
                 // $output = $module->render();
                 $output = $this->renderModule($module); //->renderModule();
                 // $output = $module->run();
@@ -405,6 +415,7 @@ class Kernel {
                                     $section_list = implode('-', $section_name);
                                     $suggestions[] = 'section--' . $section_list;
                                     $suggestions[] = $args['region'].'--section--' . $section_list;
+                                    // $suggestions[] = $section_list;
                                 }
                             }
                         }, $sugg);
@@ -420,6 +431,8 @@ class Kernel {
                             //     $sectionAttributes->addAttribute( ['class' => "section-" . $sect] );
                             // }
                             // echopre("depth: " . print_r($depth['section'], 1));
+                            $sectionAttributes->addAttribute(['class' => $depth[ 'section' ][array_key_last($depth['section']) ]]);
+                            
                             $sectionAttributes->addAttribute(['class' => 'section-' . $depth[ 'section' ][array_key_last($depth['section']) ]]);
                             $section_output_all = Renderer::render($template, 
                                 [
