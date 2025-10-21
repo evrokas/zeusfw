@@ -114,7 +114,16 @@ modules:
 
 modconf:
   module1:
-    display: [page1, page2]
+    display:
+        route1:
+            arguments:
+                - [argument_name1]: [argument_value1]
+                - [argument_name2]: [argument_value2]
+        route2:
+            arguments:
+                - [argument_name3]: [argument_value3]
+                - [argument_name4]: [argument_value4]
+        __all__:        [ all routes appart from routes defined above, order is not important ]
     hide: [page1, page2]
 
     access:
