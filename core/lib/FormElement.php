@@ -25,7 +25,7 @@ abstract class FormElement {
         $tem_suggestions = [];
         Renderer::getTemplateSuggestions([
                 'form' => $formname,
-                'type' => $this->element['type'], 
+                'type' => $this->element['type'] ?? null, 
                 'button_type' => $this->element['button_type']??null,
                 'name' => $this->element['name']
             ], 
@@ -473,6 +473,9 @@ function generateHTMLForm($formArray, $default_values = array() ) {
     $buttons = $formArray['buttons'] ?? [];
     $elements = [];
     $controls = [];
+    $formelements = [];
+
+
 
     foreach($inputs as $input) {
         $className = ucfirst($input['type']) . 'Element';
@@ -482,11 +485,15 @@ function generateHTMLForm($formArray, $default_values = array() ) {
             // echo(" Generating class for input {$input['name']}\n");
             $element = new $className( $formName, $input, $default_values[ $input['name'] ] ?? null);
             $elements[] = $element->generateHTML();
+            $formelements[ $input['name' ] ] = $element;
+
             // $elements[] = $element->render();
         } else {
             $elements[] = "<!-- unsupported input type: " . htmlspecialchars($input['type']) . " -->";
         }
     }
+
+    // echopre("form elements: " . print_r($formelements, 1));
 
     foreach($buttons as $button) {
         // echopre("button: " . print_r($button, 1));
@@ -509,6 +516,7 @@ function generateHTMLForm($formArray, $default_values = array() ) {
     return Renderer::render($template, [
                                 'attributes' => $formAttributes, 
                                 'elements' => $elements,
+                                'formelements' => $formelements,
                                 'controls' => $controls
                             ],
                         [$template_suggestions, $template]);
@@ -548,7 +556,7 @@ function generateHTMLFormTable($formArray) {
     foreach($inputs_lists as $inputs) {
         $row_elements = [];
         foreach($inputs as $input) {
-            echopre("processing form input: " . print_r($input,1));
+            // echopre("processing form input: " . print_r($input,1));
             $className = ucfirst($input['type']) . 'Element';
             if(!class_exists($className))$className = 'BasicInputElement';
 
@@ -566,7 +574,9 @@ function generateHTMLFormTable($formArray) {
         // echopre("row: " . print_r($row_elements, 1));
         $elements[] = implode(' ', $row_elements);
     }
-    // foreach($buttons as $button) {
+
+    //   ** DO NOT render buttons **
+    //  foreach($buttons as $button) {
     //     $buttonElement = new ButtonElement( $formName, $button );
     //     $controls[] = $buttonElement->generateHTML();
     //     // $elements[] = $buttonElement->render();
@@ -610,3 +620,4 @@ function formArrayAddButton($formArray, $button) {
 
     return $formArray;
 }
+
