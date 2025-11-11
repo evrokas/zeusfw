@@ -157,7 +157,7 @@ class pageAnalyticsClassEx extends pageAnalyticsClass {
         
         $sql .= " WHERE page = :pagename";
 
-        echopre(print_r($sql, 1));
+        // echopre(print_r($sql, 1));
 
         $st = dbConnection::getConnection()->prepare($sql);
         foreach($values as $key => $val) {
