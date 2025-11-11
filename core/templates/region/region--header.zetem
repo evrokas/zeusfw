@@ -5,7 +5,7 @@
         blocks              string of rendered blocks output
 #}
 
-{# <h2>Region: <span> {{ $region_name }}</span></h2> #}
-<div {{attributes($attributes)}}>
+<!-- this is region--header -->
+<div {{attributes($attributes)}} test>
     {{ $blocks }}
 </div>
