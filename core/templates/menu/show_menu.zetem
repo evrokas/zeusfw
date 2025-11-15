@@ -10,7 +10,7 @@
                             <a href="{{(isset($menuitem['url']))?rel_url($menuitem['url']):'#';}}">
                         {% endif %}
 
-                                <input type="checkbox" id="btn-{{$menuitem['key']}}">
+                                <input type="checkbox" id="btn-{{$menuitem['key']}}"  role="toggle-dropdown-{{$aalevel}}" onclick="toggle_dropdown(this)">
                                 <!-- <input type="radio" name="radio-level-{{$aalevel}}" id="btn-{{$menuitem['key']}}"> -->
                                 <label for="btn-{{$menuitem['key']}}" class="show">
                                     <span>
