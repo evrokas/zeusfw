@@ -258,7 +258,7 @@ class dbQuery {
 
 
 abstract class dbAbstractEntityClass {
-    protected $_table;
+    public $_table;
     // protected $_fields;
 
     // table fields
