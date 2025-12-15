@@ -388,10 +388,11 @@ class Database {
         foreach($this->fields as $fld) {
             mlog("\$st->bindValue( \":".$fld['name']."\", \$this->".$fld['name'].", PDO::PARAM_STR );");
         }
-        mlog("\$st->execute();");
+        mlog("\$res = \$st->execute();");
         
-//         echo "Inserted record\n";
+        echo "Inserted record\n";
         mlog("\$this->setid( \$this->getConnection()->lastInsertId() );");
+        mlog(" return \$res;");
         mlog("}");
 
 
@@ -424,8 +425,9 @@ class Database {
                 mlog("          \$st->bindValue( \":".$fld['name']."\", \$this->".$fld['name'].", PDO::PARAM_STR );");
             }
             mlog("          \$st->bindValue( \":"."id"."\", \$this->"."id".", PDO::PARAM_INT );");
-            mlog("          \$st->execute();
-        }
+            mlog("          \$res = \$st->execute();
+                            return \$res;
+                }
             ");
 
 
@@ -445,8 +447,8 @@ class Database {
         mlog("\$sql = \"DELETE FROM " . $this->name . " WHERE id = :id;\";");
         mlog("\$st = \$this->getConnection()->prepare(\$sql);");
         mlog("\$st->bindValue( \":"."id"."\", \$this->"."id".", PDO::PARAM_INT );");
-        mlog("\$st->execute();");
-        mlog("
+        mlog("\$res = \$st->execute();");
+        mlog("  return \$res;
         return (true);
         }
     }

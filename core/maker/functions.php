@@ -390,7 +390,80 @@ function syncTableWithYAML($yamlData, $pdo) {
 }
 
 
+// use ZETEM templates to create code
 function generateClassCode($yamlData) {
+    global $options;
+    $functionNames = [
+        "constructor",
+        "sgetById",
+        "sgetAll",
+        "table",
+        "loadFields",
+        "getFields",
+        "getAllFields",
+        "setget_functions",
+        "insert",
+        "update",
+        "delete"
+    ];
+
+    // function names
+    // constructor sgetById sgetAll table loadFields getFields getAllFields setput_functions insert update delete
+
+    include __DIR__ . "/../templates/ZETEMTemplate.php";
+    Renderer::init(__DIR__ . '/templates', false, __DIR__ . '/cache/', false, "php");
+
+
+    $fldnames = array();
+    $flddef = array();
+
+    $table = $yamlData['table'];
+
+    foreach($table['fields'] as $fld) {
+        $fldnames[] = $fld['name'];
+        $flddef[] = $fld['type'];
+    }
+
+
+    $args = [
+            'className' => $table['class'],
+            'tableName' => $table['name'],
+            'fieldsList' => array_map(function($fld){return $fld['name'];}, $table['fields']),
+            // 'templateName' => 'class.zetem',
+            // 'templatePath' => 'class.zetem'
+    ];
+
+    $funcdefs = [];
+
+    foreach($functionNames as $fname) {
+        $funcdefs[ $fname ] = Renderer::render($fname.'.zetem', $args);
+    }
+
+    foreach($functionNames as $fname) {
+        $args[ $fname ] = $funcdefs[ $fname ];
+    }
+
+    ob_start();
+
+    $classText = Renderer::render('class.zetem',
+        $args
+        // [
+        //     'className' => $table['class'],
+        //     'tableName' => $table['name'],
+        //     'fieldsList' => array_map(function($fld){return $fld['name'];}, $table['fields']),
+        //     'templateName' => 'class.zetem',
+        //     'templatePath' => 'class.zetem',
+        // ]
+    );
+
+    mlog($classText);
+
+    // echo($classText);
+    return ob_get_clean();
+}
+
+// old (obsolete) code just dump class code
+function generateClassCode0($yamlData) {
     global $options;
     $fldnames = array();
     $flddef = array();
@@ -542,10 +615,11 @@ function generateClassCode($yamlData) {
           foreach($table['fields'] as $fld) {
               mlog("\$st->bindValue( \":".$fld['name']."\", \$this->".$fld['name'].", PDO::PARAM_STR );");
           }
-          mlog("\$st->execute();");
+          mlog("\$res = \$st->execute();");
           
   //         echo "Inserted record\n";
           mlog("\$this->setid( \$this->getConnection()->lastInsertId() );");
+          mlog("return \$res;");
           mlog("}");
   
   
@@ -578,7 +652,7 @@ function generateClassCode($yamlData) {
                   mlog("          \$st->bindValue( \":".$fld['name']."\", \$this->".$fld['name'].", PDO::PARAM_STR );");
               }
               mlog("          \$st->bindValue( \":"."id"."\", \$this->"."id".", PDO::PARAM_INT );");
-              mlog("          \$st->execute();
+              mlog("          return \$st->execute();
           }
               ");
   
@@ -603,15 +677,14 @@ function generateClassCode($yamlData) {
           mlog("\$sql = \"DELETE FROM " . $table['name'] . " WHERE id = :id;\";");
           mlog("\$st = \$this->getConnection()->prepare(\$sql);");
           mlog("\$st->bindValue( \":"."id"."\", \$this->"."id".", PDO::PARAM_INT );");
-          mlog("\$st->execute();");
+          mlog(" return \$st->execute();");
           mlog("
-          return (true);
+          //return (true);
           }
       }
       ");
   
           return( ob_get_clean() );
-  
       }
 
 
