@@ -10,7 +10,15 @@
  *   so to allow for more folders to be searched for templates
  */
 
+if(!class_exists("Renderer")) {
+
 class Renderer {
+	static $comment_block = [
+		"html" => ["start" => "<!--", "end" => "-->"],
+		"php" => ['start' => "/*", "end" => "*/"],
+		"js" => ["start" => "/*", "end" => "*/"],
+	];
+
 	static $blocks = array();
 	static $template_path = array();
 	static $cache_path = 'cache/';
@@ -22,39 +30,32 @@ class Renderer {
 
 	static $filterCallbackArray = array();	// filter callbacks
 
+	static $cstart;
+	static $cend;
 	// $template_path is the path for the template files
-	static function init($template_path) {
+	static function init($template_path, $enable_cache, $cache_path, $enable_comments = false, $cblock_type = 'html') {
 		// $template_path can be string or array of strings, but self::$template_path
 		// should be an array
-		global $kernel;
 
 		// if config['enable_template_cache'] is false, then do not _set_ $cache_path,
 		// so the code that follows takes that into account
-		if($kernel->getConfig('enable_template_cache')) {
+		if(!$enable_cache) {
 			self::$cache_enabled = true;
+			self::$cache_path = $cache_path;
+		} else self::$cache_enabled = false;
 
-			if($kernel->safeGetConfig('template_cache_path') != '') {
-				self::$cache_path = $kernel->getConfig('template_cache_path');
-			}
-		} 
-
-		$enable_comments = $kernel->getConfig('enable_template_comments');
+		// $enable_comments = $kernel->getConfig('enable_template_comments');
 		
 		if(isset($template_path)) {
 			if(is_array($template_path))self::$template_path = $template_path;
 			else array_push(self::$template_path, $template_path);
 		}
 
-		// if(isset($cache_path)) {
-		// 	if(is_bool((boolval($cache_path))) {
-		// 		if(!$cache_path)self::$cache_enabled = false;
-		// 	} else {
-		// 		self::$cache_path = $cache_path;
-		// 		self::$cache_enabled = true;
-		// 	}
-		// }
-
 		if(isset($enable_comments))self::$enable_comments = $enable_comments;
+
+		self::$cstart = self::$comment_block[ $cblock_type ]['start'];
+		self::$cend = self::$comment_block[ $cblock_type ]['end'];
+		// echo "Comment start " . self::$cstart;
 
 		// echo self::emmitComment("Template path: ".print_r(self::$template_path,1) . PHP_EOL .
 		// "Cache path: " . self::$cache_path . PHP_EOL . 
@@ -254,14 +255,14 @@ class Renderer {
 			
 			if($stemplates != null && self::$enable_comments) {
 				// echopre("generating template from beginning, ". print_r($stemplates, 1));
-				$code = "<!--- template suggestions: ---!>";
+				$code = self::$cstart . " template suggestions: " . self::$cend;
 				foreach($stemplates[0] as $sugg) {
-					$code .= "<!--- ";
+					$code .= self::$cstart;
 
 					if($sugg .'.zetem'== $stemplates[1])$code .= " * ";
 					else $code .= " - ";
 					
-					$code .= $sugg.'.zetem' . " ---!>";
+					$code .= $sugg.'.zetem' . self::$cend;
 				}
 
 				// $code = self::emmitComment("Template suggestions:\n" . implode("\n * ", $stemplates[0]));
@@ -284,7 +285,7 @@ class Renderer {
 	static function emmitComment($acomment, $acode = "", $anl = true) {
 		if(!self::$enable_comments)return $acode;
 
-		$acode = $acode . ($anl?PHP_EOL:'') . "<!-- " . $acomment . " -->" . ($anl?PHP_EOL:'');
+		$acode = $acode . ($anl?PHP_EOL:'') . self::$cstart . $acomment . self::$cend . ($anl?PHP_EOL:'');
 
 	  return ($acode);
 	}
@@ -295,6 +296,7 @@ class Renderer {
 		$code = self::compileYield($code);
 		$code = self::compileEscapedEchos($code);
 		$code = self::compileEchos($code);
+		// $code = self::compilePHPplain($code);
 		$code = self::compilePHP($code);
 		return $code;
 	}
@@ -326,6 +328,10 @@ class Renderer {
 	static function compilePHP($code) {
 		return preg_replace('~\{%\s*(.+?)\s*\%}~is', '<?php $1 ?>', $code);
 	}
+	static function compilePHPplain($code) {
+		// echo "test";
+		return preg_replace('~\{\!\%\s*(.+?)\s*\%\!\}~is', '$1', $code);
+	}
 
 	static function compileEchos0($code) {
 		return preg_replace('~\{{\s*(.+?)\s*\}}~is', '<?php echo $1 ?>', $code);
@@ -333,7 +339,7 @@ class Renderer {
 	static function compileEchos($code) {
 		// inside {{ }} there can be a number of options
 		// logic added on Nov 2024, with the help of ChatGPT which provided the regex patterns,
-		// and some of the underlying logic, heailty modified by Evangelos Rokas
+		// and some of the underlying logic, heavily modified by Evangelos Rokas
 
 		// cases:
 		// {{ $variable }}
@@ -395,7 +401,6 @@ class Renderer {
 			$code
 		);
 		return $ret;
-		return preg_replace('~\{{\s*(.+?)\s*\}}~is', '<?php echo $1 ?>', $code);
 	}
 
 	// call recursively filters in $filters in reverse order with initial input $token
@@ -481,3 +486,5 @@ class Renderer {
 	}
 
 }
+
+}	/* check for class_exist */
