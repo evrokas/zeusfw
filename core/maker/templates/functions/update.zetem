@@ -1,0 +1,30 @@
+{#
+ # function update()
+ #
+ # arguments:
+ #  $tableName      name of database table
+ #  $fieldsList     list of fields (array)
+ #}
+
+
+function update() {
+    if($this->id == null) {
+        echo 'Trying to update() a record that does not exist';
+        return (null);
+    }
+    
+    $sql = "UPDATE {{$tableName}} SET ";
+    
+    $sql .= "{% echo implode(',', array_map(function($fn) {return $fn.'=:'.$fn;}, $fieldsList) ); %}";
+
+    $sql .= " WHERE id=:id";
+
+    $st = $this->getConnection()->prepare ( $sql );
+            
+    {% foreach($fieldsList as $fieldName): %}
+        $st->bindValue( ":{{$fieldName}}", $this->{{$fieldName}}, PDO::PARAM_STR );
+    {% endforeach %}
+    $st->bindValue( ":id", $this->id, PDO::PARAM_INT );
+
+    return $st->execute();
+}

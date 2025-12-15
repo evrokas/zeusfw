@@ -1,0 +1,9 @@
+{#
+ # function table()
+ #
+ # arguments:
+ #  $tableName      name of database table
+ #}
+
+ 
+static function table() { return "{{$tableName}}";}

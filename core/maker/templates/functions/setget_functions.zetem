@@ -1,0 +1,17 @@
+{#
+ # function setters and getters functions
+ #
+ # arguments:
+ #  $fieldsList      name of database table
+ #}
+
+
+{% foreach($fieldsList as $fieldName): %}
+
+{# setter function #}
+function set{{$fieldName}}( $a{{$fieldName}} ) { $this->{{$fieldName}} = $a{{$fieldName}}; }
+
+{# getter functions #}
+function get{{$fieldName}}() { return $this->{{$fieldName}}; }
+
+{% endforeach %}

@@ -1,0 +1,18 @@
+{#
+ # function getFields()
+ #
+ # arguments:
+ #  $fieldsList      name of database table
+ #}
+
+
+function getFields() {
+    $resp = array();
+    $resp = array_merge($resp, parent::getFields());
+
+    {% foreach($fieldsList as $fieldName): %}
+        $resp = array_merge($resp, ['{{$fieldName}}' => $this->{{$fieldName}}]);
+    {% endforeach %}
+
+    return $resp;
+}

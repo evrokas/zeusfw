@@ -6,3 +6,5 @@ core/classes/yaml/test/*
 
 core/symlinks/*
 !core/symlinks/README
+
+core/maker/cache

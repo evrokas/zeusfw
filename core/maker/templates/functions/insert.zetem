@@ -1,0 +1,41 @@
+{#
+ # function insert()
+ #
+ # arguments:
+ #  $tableName      name of database table
+ #  $fieldsList     list of fields (array)
+ #}
+
+
+function insert() {
+    if($this->id != null) {
+        echo 'Trying to insert() a record that already exists';
+        return (null);
+    }
+
+    $sql = "INSERT INTO {{$tableName}} ( ";
+
+    {#
+        $sql .= {% implode(', ', {{$fieldsList}}) %};  -->
+
+    #} 
+    $sql .= "{% echo implode(',', $fieldsList) %}"; 
+
+    $sql .= " ) VALUES ( ";
+
+    $sql .= "{% echo implode(',', array_map(function($fn) {return ':'.$fn;}, $fieldsList) ) %}";
+
+    $sql .= ");";
+
+    $st = $this->getConnection()->prepare ( $sql );
+
+
+    {% foreach($fieldsList as $fieldName): %}
+        $st->bindValue( ":{{$fieldName}}", $this->{{$fieldName}}, PDO::PARAM_STR );
+    {% endforeach %}
+
+    $res = $st->execute();
+    $this->setid( $this->getConnection()->lastInsertId() );
+    return $res;
+}
+

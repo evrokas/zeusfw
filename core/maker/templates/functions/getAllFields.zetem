@@ -1,0 +1,17 @@
+{#
+ # function getAllFields()
+ #
+ # arguments:
+ #  $fieldsList      name of database table
+ #}
+
+
+function getAllFields() {
+    $resp = array();
+    $resp = array_merge($resp, parent::getAllFields());
+    {% foreach($fieldsList as $fieldName): %}
+        $resp = array_merge($resp, ['{{$fieldName}}' => $this->{{$fieldName}}]);
+    {% endforeach %}
+
+    return $resp;
+}

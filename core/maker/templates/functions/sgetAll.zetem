@@ -1,0 +1,30 @@
+{#
+ # function sgetAll($whereClause = null, $limit = null)
+ #
+ # arguments:
+ #  $tableName      name of database table
+ #  $className      name of the class object
+ #}
+
+
+static function sgetAll($whereClause = null, $limit = null) {
+    $sql = "SELECT * FROM {{$tableName}}";
+    if($whereClause)
+        $sql = $sql . " WHERE " . $whereClause;
+
+    if($limit)
+        $sql = $sql . " LIMIT " . $limit;
+
+    $st = dbConnection::getConnection()->prepare( $sql );
+    $st->execute();
+        
+    $list = array();
+        
+    while( $row = $st->fetch() ) {
+        $rclass = new {{$className}}( "{{$tableName}}" );
+        $rclass->loadFields( $row );
+        $list[] = $rclass;
+    }
+        
+    return ($list);
+}

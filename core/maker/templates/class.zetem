@@ -1,0 +1,68 @@
+{# 
+ # this is the class ZETEM template
+ #
+ # $className   class name ie. patientsClass
+ # $tableName   table name ie. patients
+ # $fieldsList  list of fields
+ #
+ # $templateName name of the template
+ # $templatePath path of the template
+ #
+ #}
+
+ {#
+    /*
+    <!-- 
+    *  Class Template
+    *  DO NOT EDIT BY HAND. IT WILL BE OVEWRITTEN.
+    *  EDIT THE ZETEM TEMPLATE INSTEAD
+    *
+    * also have:
+    *   constructor 
+    *   sgetById
+    *   sgetAll 
+    *   table 
+    *   loadFields 
+    *   getFields 
+    *   getAllFields 
+    *   setput_functions 
+    *   insert 
+    *   update 
+    *   delete
+
+    -->
+    */ 
+ <?php
+     
+#}
+     
+ {{ "<?php\n" }}
+
+class {{$className}} extends dbAbstractEntityClass {
+
+{% foreach($fieldsList as $fieldName): %}
+    private ${{$fieldName}};
+{% endforeach %}
+
+    {{ $constructor }}
+
+    {{ $sgetById }}
+
+    {{ $sgetAll }}
+
+    {{ $table }}
+
+    {{ $loadFields }}
+    
+    {{ $getFields }}
+
+    {{ $getAllFields }}
+
+    {{ $setget_functions }}
+
+    {{ $insert }}
+
+    {{ $update }}
+
+    {{ $delete }}
+}

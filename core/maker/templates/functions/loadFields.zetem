@@ -1,0 +1,16 @@
+{#
+ # function loadFields($adata)
+ #
+ # arguments:
+ #  $fieldsList      name of database table
+ #}
+
+
+function loadFields($adata) {
+    parent::loadFields($adata);
+
+    {% foreach($fieldsList as $fieldName): %}
+        if(isset($adata[ '{{$fieldName}}' ]))$this->{{$fieldName}} = $adata[ '{{$fieldName}}' ];
+    {% endforeach %}
+
+}

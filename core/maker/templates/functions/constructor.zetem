@@ -1,0 +1,12 @@
+{#
+ # function __construct($adata = array())
+ #
+ # arguments:
+ #  $tableName      name of database table
+ #}
+
+
+function __construct($adata = array() ) {
+    parent::__construct("{{$tableName}}", $adata);
+    $this->loadFields( $adata );
+}

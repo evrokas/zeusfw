@@ -1,0 +1,26 @@
+{#
+ # function delete()
+ #
+ # arguments:
+ #  $tableName      name of database table
+ #}
+
+
+function delete() {
+    if($this->id == null) {
+        echo 'Trying to delete() an empty record';
+        return (null);
+    }
+        
+    if(!$this->isdbConnected()) {
+        if(!$this->getConnection()->Connect()) {
+            echo 'Could not connect to database';
+            return (null);
+        }
+    }
+        
+    $sql = "DELETE FROM {{$tableName}} WHERE id = :id;";
+    $st = $this->getConnection()->prepare($sql);
+    $st->bindValue( ":id", $this->id, PDO::PARAM_INT );
+    return $st->execute();
+}
