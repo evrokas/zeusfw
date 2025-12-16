@@ -7,12 +7,18 @@
     /* float: right; */
     align-self: end;
 
+    background: white;
+    padding: var(--spacing-sm);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-sm);
+    margin-top: var(--spacing-sm);
+
 
     ul {
         list-style: none;
         display: flex;
         flex-direction: row;
-        gap: 1rem;
+        gap: var(--spacing-sm);
         justify-content: flex-end;
     }
 
@@ -33,5 +39,17 @@
 
     ul li img.current {
         border: 2px black solid;
+    }
+    
+    .language-selector .flag {
+        transition: transform var(--transition-fast);
+    }
+    
+    .language-selector .flag:hover {
+        transform: scale(1.1);
+    }
+    
+    .language-selector .flag.current {
+        border: 2px solid var(--primary);
     }
 }
