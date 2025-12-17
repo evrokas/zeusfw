@@ -39,7 +39,6 @@ class Kernel {
         // read site-wide configuration
         if(file_exists($configdir . '/site.info.yaml')) {
             $conf = yaml_parse_file($configdir . '/site.info.yaml');
-            // echopre(print_r($c=$this->getSiteConfig(), 1));
         } else {
             $conf = array();
         }
@@ -58,7 +57,6 @@ class Kernel {
         error_reporting(E_ALL);
         
 
-        // echo "<pre>basepath: " . $this->basepath . "</pre>";
         if(!file_exists($configdir . '/settings.info.yaml')) {
             echopre("Configuration file does not exist. Please contact administrator.");
             ob_flush();
@@ -89,7 +87,6 @@ class Kernel {
                 pageAnalyticsClassEx::initializePageAnalyticsRecord();
             }
         }
-        
 
         // set maintenance class
         Maintenance::init();
@@ -665,6 +662,11 @@ class Kernel {
     function logoutUser() {
         unset( $_SESSION['user'] );
         unset( $_SESSION['user_roles']);
+
+        if(isset($_COOKIE['zeusfwrememberme'])) {
+            unset($_COOKIE['zeusfwrememberme']);
+        }
+        
         session_destroy();
     }
 
@@ -678,7 +680,7 @@ class Kernel {
             return true;
         }
 
-        // prelog('Trying to get user info from cookie');
+        prelog('Trying to get user info from cookie');
 
         $token = filter_input(INPUT_COOKIE, 'zeusfwrememberme');    //, FILTER_SANITIZE_STRING);
         prelog("token from cookie: " . print_r($token, 1));
