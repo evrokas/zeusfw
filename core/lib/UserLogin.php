@@ -31,7 +31,8 @@
     // prelog("expiry: $expiry\texpired_seconds: $expired_seconds");
 
     if(userTokensClassEx::insert_user_token($create, $uname, $selector, $hash_validator, $remoteip, $useragent, $expiry)) {
-        setcookie('zeusfwrememberme', $token, $expired_seconds);
+        setcookie('zeusfwrememberme', $token, $expired_seconds, '/', null, null, true);
+        // setcookie('zeusfwrememberme', $token, ['samesite'=>'true']);
         // prelog("setup cookie for future!");
     }
 }
@@ -92,7 +93,7 @@ function logout($params) {
         userTokensClassEx::delete_user_token($_SESSION['user'], $remoteip, $useragent);
         if(isset($_COOKIE['zeusfwrememberme'])) {
             unset($_COOKIE['zeusfwrememberme']);
-            setcookie('zeusfwrememberme', '', -1);
+            setcookie('zeusfwrememberme', '', time()-1, '/');
         }
 
         $kernel->logoutUser();
