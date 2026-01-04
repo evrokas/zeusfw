@@ -450,8 +450,11 @@ class Renderer {
 		self::$filterCallbackArray[ $name ] = $cback;
 	}
 
-	static function compileEscapedEchos($code) {
+	static function compileEscapedEchos0($code) {
 		return preg_replace('~\{{{\s*(.+?)\s*\}}}~is', '<?php echo htmlentities($1, ENT_QUOTES, \'UTF-8\') ?>', $code);
+	}
+	static function compileEscapedEchos($code) {
+		return preg_replace('~\{{{\s*(.+?)\s*\}}}~is', '<?php echo (string) $1 ?>', $code);
 	}
 
 	static function compileBlock($code) {
