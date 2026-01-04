@@ -83,4 +83,8 @@ class Attributes {
     
       return ($str);
     }
+
+    public function __tostring() {
+        return $this->getAttributes();
+    }
 }
