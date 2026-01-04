@@ -31,7 +31,7 @@
     // prelog("expiry: $expiry\texpired_seconds: $expired_seconds");
 
     if(userTokensClassEx::insert_user_token($create, $uname, $selector, $hash_validator, $remoteip, $useragent, $expiry)) {
-        setcookie('zeusfwrememberme', $token, $expired_seconds, '/', null, null, true);
+        setcookie('zeusfwrememberme', $token, $expired_seconds, '/', null, true, true);
         // setcookie('zeusfwrememberme', $token, ['samesite'=>'true']);
         // prelog("setup cookie for future!");
     }
