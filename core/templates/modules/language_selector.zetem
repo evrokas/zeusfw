@@ -8,9 +8,10 @@
             <li>
                 <img {{attributes($attributes[$lang])}} />
                 {#
-                    <a href="{{rel_url(/?{{ $url }}?lang={{ $lang }}">
+                <a href="{{rel_url('{{ $url }}?lang={{$lang}}')"">
                 </a>
                 #}
             </li>
         {% endforeach %}
+    </ul>
 </div>
