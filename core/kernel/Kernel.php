@@ -30,8 +30,8 @@ class Kernel {
         $this->config = array();
 
         // read framework configuration
-        if(file_exists(__FWDIR__ . '/zeusfw.info.yaml')) {
-            $conf = yaml_parse_file(__FWDIR__ . '/zeusfw.info.yaml');
+        if(file_exists(__FWDIR__ . '/config/zeusfw.info.yaml')) {
+            $conf = yaml_parse_file(__FWDIR__ . '/config/zeusfw.info.yaml');
         } else $conf = array();
 
         $this->addConfig( $conf );
