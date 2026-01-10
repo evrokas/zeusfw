@@ -266,22 +266,28 @@ function kindex($token) {
 // main translation function, translates $token to current language
 // if $token is an array, then checks if the array has keys as the
 // current language, if yes, then emits the value of that key
-function t($token) {
+function t($token, array $values = []) {
     if(is_array($token)) {
         // it is an array, check to see if it has translation array keys
         global $kernel;
         $curLang = $kernel->getCurrentLanguage();
         if(array_key_exists($curLang, $token)) {
-            return $token[ $curLang ];
+            $text = $token[ $curLang ];
         } else {
-            return dictionaryClassEx::translateToken($token[ array_key_first($token) ]);
+            $text = dictionaryClassEx::translateToken($token[ array_key_first($token) ]);
         }
     } else {
-        return dictionaryClassEx::translateToken($token);
+        $text = dictionaryClassEx::translateToken($token);
         // echopre("token $token => $word");
     }
 
-    // return $word;
+    if(!empty($values)) {
+        foreach($values as $key => $value) {
+            $text = str_replace('@' . $key, (string)$value, $text);
+        }
+    }
+
+    return $text;
 }
 
 // if $tok is string, return that string,
