@@ -1,21 +1,24 @@
 {#
-  this displays a menu
-    menu structure:
-    menu:
-      menu_name:
-        - link1:
-          text: link_name
-          url: link_url
-          icon: icon to show
-          permissions: access_permissions
-          attributes: div attributes
-          access: access_permissions
-          published: (true|false) if item is published
+==========================================
+MENU.ZETEM - Menu Entry Point
+Calls show_menu function to render menu
+==========================================
+
+Menu structure from MenuBuilder:
+menu:
+  - item_key:
+      title: "Menu Item"
+      url: "/path"
+      icon: {class: "<i class='bx bx-icon'></i>"}
+      badge: {text: "3", class: "badge-info"}
+      children: [...]
+      attributes: Attributes Object
+      link_attributes: Attributes Object
+      ... (17+ metadata fields)
 #}
 
-    {% include show_menu.zetem %}
+{% include show_menu.zetem %}
 
-<ul>
+<ul {{ attributes($menu_attributes) }}>
     {% show_menu($menu, 1) %}
 </ul>
-
