@@ -500,10 +500,19 @@ class Kernel {
 
         $clean_css = remove_header_duplicates($this->getConfig('css'));
         foreach($clean_css as $css) {
-            $links[] = new Attributes([
-                "rel" => "stylesheet",
-                "href" => rel_url($css['src']. "?".time())
-            ]);
+            if(!is_array($css['src'])) {
+                $links[] = new Attributes([
+                    "rel" => "stylesheet",
+                    "href" => rel_url($css['src']. "?".time())
+                ]);
+            } else {
+                foreach($css['src'] as $css_src) {
+                    $links[] = new Attributes([
+                        "rel" => "stylesheet",
+                        "href" => rel_url($css_src . "?" . time())
+                    ]);
+                }
+            }
         }
 
         $head_links = $this->getConfig('head_links');
