@@ -8,6 +8,7 @@ Variant check happens HERE (topbar vs sidebar)
 
 {% if($menu_variant == 'topbar'): %}
     {# ===== TOPBAR NAVIGATION ===== #}
+    {% attach_library('navigation-topbar') %}
     <div class="main-navigation-area">
         {# <div class="wrapper"> #}
             <div class="main-navigation">
@@ -35,12 +36,26 @@ Variant check happens HERE (topbar vs sidebar)
 
 {% elseif($menu_variant == 'sidebar'): %}
     {# ===== SIDEBAR NAVIGATION ===== #}
-    <div class="sidebar-nav-area">
-        <nav class="sidebar-nav" role="navigation" aria-label="{{ getLangText('Main navigation') }}">
-            {# Include the actual menu - no mobile toggle needed for sidebar #}
-            {% include menu.zetem %}
-        </nav>
-    </div>
+    {% attach_library('navigation-sidebar') %}
+    <button class="mobile-menu-toggle" id="sidebarToggle" style="display: block; margin-bottom: 20px;">☰</button>
+    
+    <div class="sidebar-overlay active" id="sidebarOverlay"></div>
+    
+    <nav id="SidebarNav" class="sidebar-navigation mobile-open">
+        <div class="sidebar-header">
+            <a href="#" class="sidebar-logo">Dashboard</a>
+        </div>
+        {% include menu.zetem %}
+    </nav>
+    
+    {# Include the actual menu - no mobile toggle needed for sidebar #}
+    {#
+        <div class="sidebar-nav-area">
+            <nav class="sidebar-nav" role="navigation" aria-label="{{ getLangText('Main navigation') }}">
+                {# include menu.zetem #}
+            </nav>
+        </div>
+    #}
 
 {% else: %}
     {# ===== FALLBACK FOR UNKNOWN VARIANTS ===== #}
@@ -49,3 +64,50 @@ Variant check happens HERE (topbar vs sidebar)
     </nav>
 
 {% endif %}
+
+<script>
+function toggleSidebarMenu(element) {
+    const submenu = element.nextElementSibling;
+    const arrow = element.querySelector('.sidebar-arrow');
+    
+    // Close other open submenus
+    const allSubmenus = document.querySelectorAll('.sidebar-submenu');
+    const allArrows = document.querySelectorAll('.sidebar-arrow');
+    
+    allSubmenus.forEach(menu => {
+        if (menu !== submenu) {
+            menu.classList.remove('open');
+        }
+    });
+    
+    allArrows.forEach(arr => {
+        if (arr !== arrow) {
+            arr.classList.remove('open');
+        }
+    });
+    
+    // Toggle current submenu
+    submenu.classList.toggle('open');
+    arrow.classList.toggle('open');
+}
+
+// Mobile sidebar toggle
+const sidebarToggle = document.getElementById('sidebarToggle');
+const sidebarNav = document.getElementById('sidebarNav');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+if (window.innerWidth <= 768) {
+    sidebarToggle.style.display = 'block';
+}
+
+sidebarToggle.addEventListener('click', function() {
+    sidebarNav.classList.toggle('mobile-open');
+    sidebarOverlay.classList.toggle('active');
+});
+
+sidebarOverlay.addEventListener('click', function() {
+    sidebarNav.classList.remove('mobile-open');
+    sidebarOverlay.classList.remove('active');
+});
+
+</script>

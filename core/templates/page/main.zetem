@@ -36,7 +36,7 @@
     </style>
     {% endforeach %}
 
-  
+    {# display actual page #}  
     {% include page.zetem %}
 
     {% if(isset($foot_links))foreach($foot_links as $link): %}
@@ -44,3 +44,4 @@
     {% endforeach; %}
 
 </body>
+</html>

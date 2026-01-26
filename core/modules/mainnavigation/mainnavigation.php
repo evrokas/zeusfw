@@ -101,7 +101,7 @@ class menuModule extends moduleClass {
             $params['menu_options'] ?? []
         );
         
-        echopre("ready to render: " . print_r($this->variant, 1) );
+        // echopre("ready to render: " . print_r($this->variant, 1) );
 
         return $this->RenderTemplate([
             'menu' => $this->menuTree,
@@ -152,7 +152,8 @@ function register_mainnavigation_module() {
             'mainnavigation', 
             'main_navigation.zetem',  // Original template name
             'main',
-            'topbar'
+            // 'topbar'
+            'sidebar'
         )
     );
 }
