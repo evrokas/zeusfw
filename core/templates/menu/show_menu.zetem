@@ -1,60 +1,58 @@
-    {% if(!function_exists('show_menu')) { %}
-      {% function show_menu($aamenu, $aalevel) { %}
-        {% foreach($aamenu as $menuitem): %}
-            {% if(!isset($menuitem['disabled']) || (!$menuitem['disabled'])): %}
-                {% if(isset($menuitem['submenu']) && 
-                    (!isset($menuitem['submenu-visibility']) || 
-                        (isset($menuitem['submenu-visibility']) && $menuitem['submenu-visibility'] != "hide")) ): %}
-                    <li {{{$menuitem['attributes'] }}}>
-                        {# <!-- {{attributes($menuitem)}} --> #}
-                        {% if(isset($menuitem['url'])): %}
-                            <a href="{{(isset($menuitem['url']))?rel_url($menuitem['url']):'#';}}">
-                        {% endif %}
-
-                                <input type="checkbox" id="btn-{{$menuitem['key']}}"  role="toggle-dropdown-{{$aalevel}}" onclick="toggle_dropdown(this)">
-                                <!-- <input type="radio" name="radio-level-{{$aalevel}}" id="btn-{{$menuitem['key']}}"> -->
-                                <label for="btn-{{$menuitem['key']}}" class="show">
-                                    <span>
-                                        {% if(isset($menuitem['icon'])): %}
-                                            {% if(isset($menuitem['icon']['class'])): %}
-                                                {{ $menuitem['icon']['class'] }}
-                                            {% endif %}
-                                        {% endif %}
-        
-                                        {% if(isset($menuitem['text'])): %}
-                                            {{getLangText($menuitem['text'])}}
-                                        {% endif %}
-                                        
-                                        <i class="bx bx-chevron-right"></i>
-                                    </span>
-                                </label>
-                        {% if(isset($menuitem['url'])): %}
-                            </a>
-                        {% endif %}
-
-
-                        <ul {{attributes($menuitem["drop-menu-attributes"])   }}>
-                            {% show_menu($menuitem['submenu'], $aalevel+1) %}
-                        </ul>
-
-                    </li>
-                {% else: %}
-                    <li {{attributes($menuitem)}}>
+{% macro show_menu($aamenu, $aalevel) %}
+    {% foreach($aamenu as $menuitem): %}
+        {% if(!isset($menuitem['disabled']) || (!$menuitem['disabled'])): %}
+            {% if(isset($menuitem['submenu']) && 
+                (!isset($menuitem['submenu-visibility']) || 
+                    (isset($menuitem['submenu-visibility']) && $menuitem['submenu-visibility'] != "hide")) ): %}
+                <li {{$menuitem['attributes'] }}>
+                    {# <!-- {{attributes($menuitem)}} --> #}
+                    {% if(isset($menuitem['url'])): %}
                         <a href="{{(isset($menuitem['url']))?rel_url($menuitem['url']):'#';}}">
-                            {% if(isset($menuitem['icon'])): %}
-                                {% if(isset($menuitem['icon']['class'])): %}
-                                    {{ $menuitem['icon']['class'] }}
-                                {% endif %}
-                            {% endif %}
-                            <span>
-                                {% if(isset($menuitem['text'])): %}
-                                    {{getLangText($menuitem['text'])}}
-                                {% endif %}
-                            </span>
+                    {% endif %}
+
+                            <input type="checkbox" id="btn-{{$menuitem['key']}}"  role="toggle-dropdown-{{$aalevel}}" onclick="toggle_dropdown(this)">
+                            <!-- <input type="radio" name="radio-level-{{$aalevel}}" id="btn-{{$menuitem['key']}}"> -->
+                            <label for="btn-{{$menuitem['key']}}" class="show">
+                                <span>
+                                    {% if(isset($menuitem['icon'])): %}
+                                        {% if(isset($menuitem['icon']['class'])): %}
+                                            {{ $menuitem['icon']['class'] }}
+                                        {% endif %}
+                                    {% endif %}
+
+                                    {% if(isset($menuitem['text'])): %}
+                                        {{getLangText($menuitem['text'])}}
+                                    {% endif %}
+                                    
+                                    <i class="bx bx-chevron-right"></i>
+                                </span>
+                            </label>
+                    {% if(isset($menuitem['url'])): %}
                         </a>
-                    </li>
-                {% endif %}
-            {% endif %} {# do not show if item is disabled #}
-        {% endforeach %}
-      {% } %}
-    {% } %}
+                    {% endif %}
+
+
+                    <ul {{attributes($menuitem["drop-menu-attributes"])   }}>
+                        {% show_menu($menuitem['submenu'], $aalevel+1) %}
+                    </ul>
+
+                </li>
+            {% else: %}
+                <li {{attributes($menuitem)}}>
+                    <a href="{{(isset($menuitem['url']))?rel_url($menuitem['url']):'#';}}">
+                        {% if(isset($menuitem['icon'])): %}
+                            {% if(isset($menuitem['icon']['class'])): %}
+                                {{ $menuitem['icon']['class'] }}
+                            {% endif %}
+                        {% endif %}
+                        <span>
+                            {% if(isset($menuitem['text'])): %}
+                                {{getLangText($menuitem['text'])}}
+                            {% endif %}
+                        </span>
+                    </a>
+                </li>
+            {% endif %}
+        {% endif %} {# do not show if item is disabled #}
+    {% endforeach %}
+{% endmacro %}

@@ -15,13 +15,20 @@
         <link {{$link->getAttributes()}}>
     {% endforeach; %}
 
-    {% foreach($head_links as $hlink): %}
-        <script head_links {{$hlink->getAttributes()}}></script>
-    {% endforeach %}
+{#
+    {% for $hlink in $head_links %}
+        <script {{$hlink->getAttributes()}}></script>
+    {% endfor %}
+#}
+        {% foreach($head_links as $hlink): %}
+        <script {{$hlink->getAttributes()}}></script>
+        {% endforeach %}
+    {#
+        #}
 
     {#
     {% if(isset($head_scripts))foreach($head_scripts as $scrpt): %}
-        <script head_scripts type="{{$scrpt['type']}}" src="{{rel_url($scrpt['src'])}}"></script>
+        <script type="{{$scrpt['type']}}" src="{{rel_url($scrpt['src'])}}"></script>
     {% endforeach; %}
     #}
 </head>
