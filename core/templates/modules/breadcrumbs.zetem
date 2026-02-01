@@ -4,7 +4,7 @@
         {% foreach($path as $element): %}
             <li {{attributes($element)}}>
                 {% if(key_exists('url', $element) && ($element['url'] != null)): %}
-                    <a href="{{rel_url($element['url'])}}"">
+                    <a href="{{rel_url($element['url'])}}">
                         {{$element['text']}}
                     </a>
                 {% else: %}
