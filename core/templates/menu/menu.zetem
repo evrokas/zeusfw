@@ -11,7 +11,7 @@
 #}
 
 <ul>
-    {% include show_menu.zetem %}
+    {% include 'show_menu.zetem' %}
     {% show_menu($menu, 1) %}
 </ul>
 
