@@ -1,8 +1,14 @@
 <?php
 /**
- * TemplateSuggestion - Standalone class for handling template suggestions
+ * Template Suggestion System - Merged Version
  * 
- * Generates and manages template suggestions based on keywords, context, and patterns.
+ * Handles template discovery, suggestions, and resolution.
+ * Provides a robust system for finding the best matching template
+ * based on various criteria like entity type, view mode, field name, etc.
+ * 
+ * @author Evangelos Rokas
+ * @version 2.0 (Merged)
+ * @date January 2026
  */
 
 if (!class_exists("TemplateSuggestion")) {
@@ -22,24 +28,57 @@ class TemplateSuggestion {
     private static $callbacks = [];
     
     /**
-     * Set the available template files
+     * Set available template files
+     * 
+     * @param array $files Associative array of template_name => file_path
      */
     public static function setTemplateFiles(array $files): void {
         self::$templateFiles = $files;
     }
     
     /**
+     * Get available template files
+     * 
+     * @return array
+     */
+    public static function getTemplateFiles(): array {
+        return self::$templateFiles;
+    }
+    
+    /**
      * Set template file extension
+     * 
+     * @param string $ext Extension including dot
      */
     public static function setExtension(string $ext): void {
         self::$extension = $ext;
     }
     
     /**
+     * Get template file extension
+     * 
+     * @return string
+     */
+    public static function getExtension(): string {
+        return self::$extension;
+    }
+    
+    /**
      * Set separator for template name parts
+     * 
+     * @param string $sep Separator string
      */
     public static function setSeparator(string $sep): void {
         self::$separator = $sep;
+    }
+    
+    /**
+     * Get separator
+     * 
+     * @return string
+     */
+    public static function getSeparator(): string {
+        return self::$separator;
     }
     
     /**
@@ -48,49 +87,112 @@ class TemplateSuggestion {
     public static function registerCallback(string $context, callable $callback): void {
         self::$callbacks[$context] = $callback;
     }
+
+    /**
+     * Check if a template exists
+     * 
+     * @param string $name Template name (with or without extension)
+     * @return bool
+     */
+    public static function exists(string $name): bool {
+        // Try with extension
+        if (isset(self::$templateFiles[$name])) {
+            return true;
+        }
+        
+        // Try without extension
+        $nameWithExt = $name . self::$extension;
+        if (isset(self::$templateFiles[$nameWithExt])) {
+            return true;
+        }
+        
+        // Also check if name already has extension
+        if (!str_ends_with($name, self::$extension)) {
+            return isset(self::$templateFiles[$name . self::$extension]);
+        }
+        
+        return false;
+    }
     
     /**
-     * Generate suggestions from keywords using power set combination
+     * Get template path if it exists
+     * 
+     * @param string $name Template name
+     * @return string|null File path or null
+     */
+    public static function getPath(string $name): ?string {
+        if (isset(self::$templateFiles[$name])) {
+            return self::$templateFiles[$name];
+        }
+        
+        $nameWithExt = $name . self::$extension;
+        if (isset(self::$templateFiles[$nameWithExt])) {
+            return self::$templateFiles[$nameWithExt];
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Generate suggestions from keywords using power set combinations
+     * Most specific first (all keywords), then combinations, then base
      * 
      * @param array $keywords Keywords to combine
-     * @param string $prefix Base template name prefix
-     * @return array Suggestions ordered from most specific to least specific
+     * @param string $prefix Optional prefix
+     * @return array Suggestions in priority order
      */
     public static function fromKeywords(array $keywords, string $prefix = ''): array {
         $suggestions = [];
-        $count = count($keywords);
+        $keywords = array_filter(array_map('trim', $keywords));
         
-        if ($count === 0) {
-            return $prefix ? [$prefix] : [];
-        }
-        
-        // Generate all non-empty subsets (power set minus empty set)
-        for ($i = 1; $i < (1 << $count); $i++) {
-            $subset = [];
-            for ($j = 0; $j < $count; $j++) {
-                if ($i & (1 << $j)) {
-                    $subset[] = $keywords[$j];
-                }
+        if (empty($keywords)) {
+            if ($prefix) {
+                $suggestions[] = $prefix . self::$extension;
             }
-            $suggestion = implode('-', $subset);
-            $suggestions[] = $prefix ? "{$prefix}" . self::$separator . "{$suggestion}" : $suggestion;
+            return $suggestions;
         }
         
-        // Sort by number of elements (more specific first)
-        usort($suggestions, function ($a, $b) {
-            $countA = substr_count($a, '-');
-            $countB = substr_count($b, '-');
-            return $countB <=> $countA ?: strcmp($a, $b);
-        });
+        // Generate power set and sort by specificity
+        $powerSet = self::generatePowerSet($keywords);
+        usort($powerSet, fn($a, $b) => count($b) - count($a));
         
-        // Add base prefix if provided
+        foreach ($powerSet as $subset) {
+            if (empty($subset)) continue;
+            
+            $name = ($prefix ? $prefix . self::$separator : '') . implode(self::$separator, $subset);
+            $suggestions[] = $name . self::$extension;
+        }
+        
+        // Add base prefix as fallback
         if ($prefix) {
-            $suggestions[] = $prefix;
+            $suggestions[] = $prefix . self::$extension;
         }
         
-        return $suggestions;
+        return array_unique($suggestions);
     }
     
+    /**
+     * Generate power set of an array
+     * 
+     * @param array $arr Input array
+     * @return array Power set
+     */
+    private static function generatePowerSet(array $arr): array {
+        $result = [[]];
+        
+        foreach ($arr as $element) {
+            $newSubsets = [];
+            foreach ($result as $subset) {
+                $newSubset = $subset;
+                $newSubset[] = $element;
+                $newSubsets[] = $newSubset;
+            }
+            $result = array_merge($result, $newSubsets);
+        }
+        
+        return $result;
+    }
+
     /**
      * Generate suggestions for a specific context using registered callback
      */
@@ -104,200 +206,287 @@ class TemplateSuggestion {
         
         return $suggestions;
     }
-    
+
     /**
-     * Generate hierarchical suggestions from a path
+     * Generate suggestions from a path-like structure
+     * e.g., 'admin/users/edit' generates: admin--users--edit, admin--users, admin
      * 
-     * @param string $path Path like "admin/users/edit"
-     * @param string $prefix Optional prefix
-     * @return array Suggestions from most specific to least specific
+     * @param string $path Path string
+     * @param string $delimiter Path delimiter
+     * @return array Suggestions
      */
-    public static function fromPath(string $path, string $prefix = ''): array {
-        $parts = array_filter(explode('/', trim($path, '/')));
+    public static function fromPath(string $path, string $delimiter = '/'): array {
         $suggestions = [];
+        $parts = array_filter(explode($delimiter, $path));
         
-        // Build suggestions from full path down to single parts
-        while (!empty($parts)) {
-            $suggestion = implode('-', $parts);
-            $suggestions[] = $prefix ? "{$prefix}" . self::$separator . "{$suggestion}" : $suggestion;
-            array_pop($parts);
+        if (empty($parts)) {
+            return $suggestions;
         }
         
-        // Add base prefix
-        if ($prefix) {
-            $suggestions[] = $prefix;
+        // Start with most specific
+        while (!empty($parts)) {
+            $name = implode(self::$separator, $parts);
+            $suggestions[] = $name . self::$extension;
+            array_pop($parts);
         }
         
         return $suggestions;
     }
     
     /**
-     * Generate entity-based suggestions
+     * Generate entity-specific template suggestions
+     * Pattern: entity--bundle--viewmode--field
      * 
-     * @param string $entityType Entity type (e.g., 'node', 'user', 'block')
-     * @param string|null $bundle Bundle/type (e.g., 'article', 'page')
-     * @param string|null $viewMode View mode (e.g., 'full', 'teaser')
-     * @param string|int|null $id Entity ID
-     * @return array Suggestions from most specific to least specific
+     * @param string $entityType Entity type (node, user, taxonomy_term, etc.)
+     * @param string $bundle Bundle/content type
+     * @param string $viewMode View mode (full, teaser, etc.)
+     * @param string $id Id
+     * @return array Suggestions
      */
-    public static function forEntity(
-        string $entityType, 
-        ?string $bundle = null, 
-        ?string $viewMode = null, 
-        $id = null
-    ): array {
+    public static function forEntity(string $entityType, ?string $bundle = null, ?string $viewMode = null, $id = null): array {
         $suggestions = [];
         $base = $entityType;
         
         // Most specific: entity--bundle--viewmode--id
         if ($bundle && $viewMode && $id !== null) {
-            $suggestions[] = "{$base}" . self::$separator . "{$bundle}" . self::$separator . "{$viewMode}" . self::$separator . "{$id}";
+            $suggestions[] = $base . self::$separator . $bundle . self::$separator . $viewMode . self::$separator . $id . self::$extension;
+        }
+        if ($bundle && $viewMode) {
+            $suggestions[] = $base . self::$separator . $bundle . self::$separator . $viewMode . self::$extension;
         }
         
         // entity--bundle--id
         if ($bundle && $id !== null) {
-            $suggestions[] = "{$base}" . self::$separator . "{$bundle}" . self::$separator . "{$id}";
-        }
-        
-        // entity--bundle--viewmode
-        if ($bundle && $viewMode) {
-            $suggestions[] = "{$base}" . self::$separator . "{$bundle}" . self::$separator . "{$viewMode}";
+            $suggestions[] = $base . self::$separator . $bundle . self::$separator . $id . self::$extension;
         }
         
         // entity--viewmode--id
         if ($viewMode && $id !== null) {
-            $suggestions[] = "{$base}" . self::$separator . "{$viewMode}" . self::$separator . "{$id}";
+            $suggestions[] = $base . self::$separator . $viewMode . self::$separator . $id . self::$extension;
         }
         
         // entity--bundle
         if ($bundle) {
-            $suggestions[] = "{$base}" . self::$separator . "{$bundle}";
+            $suggestions[] = $base . self::$separator . $bundle . self::$extension;
         }
         
         // entity--viewmode
         if ($viewMode) {
-            $suggestions[] = "{$base}" . self::$separator . "{$viewMode}";
+            $suggestions[] = $base . self::$separator . $viewMode . self::$extension;
         }
         
         // entity--id
         if ($id !== null) {
-            $suggestions[] = "{$base}" . self::$separator . "{$id}";
+            $suggestions[] = $base . self::$separator . $id . self::$extension;
         }
         
-        // Base entity type
-        $suggestions[] = $base;
+        // Base entity
+        $suggestions[] = $base . self::$extension;
         
         return $suggestions;
     }
     
     /**
-     * Generate field-based suggestions
+     * Generate field-specific template suggestions
+     * 
+     * @param string $fieldName Field name
+     * @param string $fieldType Field type
+     * @param string $entityType Entity type
+     * @param string $bundle Bundle
+     * @return array Suggestions
      */
-    public static function forField(
-        string $fieldName,
-        string $entityType,
-        ?string $bundle = null,
-        ?string $viewMode = null
-    ): array {
+    public static function forField(string $fieldName, ?string $entityType = null, ?string $bundle = null, ?string $viewMode = null): array {
         $suggestions = [];
-        $base = "field";
+        $base = 'field';
         
-        // field--fieldname--entitytype--bundle--viewmode
-        if ($bundle && $viewMode) {
-            $suggestions[] = "{$base}" . self::$separator . "{$fieldName}" . self::$separator . "{$entityType}" . self::$separator . "{$bundle}" . self::$separator . "{$viewMode}";
+        // field--name--entitytype--bundle--viewmode
+        if ($entityType && $bundle && $viewMode) {
+            $suggestions[] = $base . self::$separator . $fieldName . self::$separator . $entityType . self::$separator . $bundle . self::$separator . $viewMode . self::$extension;
         }
-        
+
         // field--fieldname--entitytype--bundle
-        if ($bundle) {
-            $suggestions[] = "{$base}" . self::$separator . "{$fieldName}" . self::$separator . "{$entityType}" . self::$separator . "{$bundle}";
+        if ($entityType && $bundle) {
+            $suggestions[] = $base . self::$separator . $fieldName . self::$separator . $entityType . self::$separator . $bundle . self::$extension;
         }
         
         // field--fieldname--entitytype
-        $suggestions[] = "{$base}" . self::$separator . "{$fieldName}" . self::$separator . "{$entityType}";
+        if ($entityType) {
+            $suggestions[] = $base . self::$separator . $fieldName . self::$separator . $entityType . self::$extension;
+        }
         
         // field--fieldname
-        $suggestions[] = "{$base}" . self::$separator . "{$fieldName}";
+        $suggestions[] = $base . self::$separator . $fieldName . self::$extension;
         
-        // field
-        $suggestions[] = $base;
+        // field (base)
+        $suggestions[] = $base . self::$extension;
         
         return $suggestions;
     }
     
     /**
-     * Generate page-based suggestions
+     * Generate page-specific template suggestions
+     * 
+     * @param string $pageType Page type (front, node, user, etc.)
+     * @param string $pageId Specific page ID or alias
+     * @return array Suggestions
      */
-    public static function forPage(string $route, ?string $theme = null): array {
+    public static function forPage(string $pageType, ?string $pageId = null, ?string $theme = null): array {
         $suggestions = [];
-        $base = "page";
+        $base = 'page';
         
-        // Normalize route
-        $routeParts = array_filter(explode('/', trim($route, '/')));
-        $routeSlug = implode('-', $routeParts);
-        
-        // page--theme--route
-        if ($theme && !empty($routeSlug)) {
-            $suggestions[] = "{$base}" . self::$separator . "{$theme}" . self::$separator . "{$routeSlug}";
+        // page--pagetype--pageid
+        if ($theme && $pageId) {
+            $suggestions[] = $base . self::$separator . $theme . self::$separator . $pageType . self::$separator . $pageId . self::$extension;
         }
-        
-        // Build hierarchical route suggestions
-        while (!empty($routeParts)) {
-            $slug = implode('-', $routeParts);
-            $suggestions[] = "{$base}" . self::$separator . "{$slug}";
-            array_pop($routeParts);
+        if ($pageId) {
+            $suggestions[] = $base . self::$separator . $pageType . self::$separator . $pageId . self::$extension;
         }
-        
-        // page--theme
         if ($theme) {
-            $suggestions[] = "{$base}" . self::$separator . "{$theme}";
+            $suggestions[] = $base . self::$separator . $theme . self::$separator . $pageType . self::$extension;
         }
         
-        // Base page
-        $suggestions[] = $base;
+        // page--pagetype
+        $suggestions[] = $base . self::$separator . $pageType . self::$extension;
+        
+        // page (base)
+        $suggestions[] = $base . self::$extension;
         
         return $suggestions;
     }
     
     /**
-     * Generate block-based suggestions
+     * Generate block-specific template suggestions
+     * 
+     * @param string $blockType Block type
+     * @param string $blockId Block ID
+     * @param string $region Region name
+     * @return array Suggestions
      */
-    public static function forBlock(
-        string $blockId,
-        ?string $region = null,
-        ?string $theme = null
-    ): array {
+    public static function forBlock(string $blockType, ?string $blockId = null, ?string $region = null, ?string $theme = null): array {
         $suggestions = [];
-        $base = "block";
+        $base = 'block';
         
-        // block--theme--region--id
-        if ($theme && $region) {
-            $suggestions[] = "{$base}" . self::$separator . "{$theme}" . self::$separator . "{$region}" . self::$separator . "{$blockId}";
+        // block--blocktype--blockid--region
+        if ($blockId && $region && $theme) {
+            $suggestions[] = $base . self::$separator . $blockType . self::$separator . $blockId . self::$separator . $region . self::$separator . $theme . self::$extension;
         }
-        
+
         // block--region--id
+        if ($blockId && $region) {
+            $suggestions[] = $base . self::$separator . $blockType . self::$separator . $blockId . self::$separator . $region . self::$extension;
+        }
+        
+        // block--blocktype--blockid
+        if ($blockId) {
+            $suggestions[] = $base . self::$separator . $blockType . self::$separator . $blockId . self::$extension;
+        }
+        
+        // block--blocktype--region
         if ($region) {
-            $suggestions[] = "{$base}" . self::$separator . "{$region}" . self::$separator . "{$blockId}";
+            $suggestions[] = $base . self::$separator . $blockType . self::$separator . $region . self::$extension;
         }
         
-        // block--theme--id
-        if ($theme) {
-            $suggestions[] = "{$base}" . self::$separator . "{$theme}" . self::$separator . "{$blockId}";
+        // block--blocktype
+        $suggestions[] = $base . self::$separator . $blockType . self::$extension;
+        
+        // block (base)
+        $suggestions[] = $base . self::$extension;
+        
+        return $suggestions;
+    }
+
+    /**
+     * Generate section-based suggestions
+     * 
+     * Handles hierarchical section paths with optional region prefix.
+     * 
+     * @param array $sectionPath Array of section names forming the path, e.g., ['content', 'main', 'article']
+     * @param string|null $region Optional region name (e.g., 'region-content')
+     * @return array Suggestions from most specific to least specific
+     * 
+     * Example:
+     *   forSection(['content', 'main', 'article'], 'region-content')
+     * Returns:
+     *   - region-content--section--content-main-article
+     *   - section--content-main-article
+     *   - region-content--section--content-main
+     *   - section--content-main
+     *   - region-content--section--content
+     *   - section--content
+     *   - region-content--section
+     *   - section
+     */
+    public static function forSection(array $sectionPath, ?string $region = null): array {
+        $suggestions = [];
+        $base = "section";
+        
+        // Build progressive section paths from most specific to least
+        $sectionParts = [];
+        $sectionVariants = [];
+        
+        foreach ($sectionPath as $sect) {
+            $sectionParts[] = $sect;
+            $sectionVariants[] = implode('-', $sectionParts);
         }
         
-        // block--id
-        $suggestions[] = "{$base}" . self::$separator . "{$blockId}";
+        // Reverse to get most specific first
+        $sectionVariants = array_reverse($sectionVariants);
         
-        // block--region
+        // Generate suggestions for each section depth
+        foreach ($sectionVariants as $sectionSlug) {
+            // With region prefix (most specific)
+            if ($region) {
+                $suggestions[] = "{$region}" . self::$separator . "{$base}" . self::$separator . "{$sectionSlug}";
+            }
+            // Without region prefix
+            $suggestions[] = "{$base}" . self::$separator . "{$sectionSlug}";
+        }
+        
+        // Base suggestions (least specific)
         if ($region) {
-            $suggestions[] = "{$base}" . self::$separator . "{$region}";
+            $suggestions[] = "{$region}" . self::$separator . "{$base}";
         }
-        
-        // Base block
         $suggestions[] = $base;
         
         return $suggestions;
     }
     
+    /**
+     * Generate region-based suggestions
+     * 
+     * @param string $region Region name
+     * @param string|null $theme Optional theme name
+     * @param string|null $page Optional page context
+     * @return array Suggestions from most specific to least specific
+     */
+    public static function forRegion(string $region, ?string $theme = null, ?string $page = null): array {
+        $suggestions = [];
+        $base = "region";
+        
+        // region--theme--page--regionname
+        if ($theme && $page) {
+            $suggestions[] = "{$base}" . self::$separator . "{$theme}" . self::$separator . "{$page}" . self::$separator . "{$region}";
+        }
+        
+        // region--page--regionname
+        if ($page) {
+            $suggestions[] = "{$base}" . self::$separator . "{$page}" . self::$separator . "{$region}";
+        }
+        
+        // region--theme--regionname
+        if ($theme) {
+            $suggestions[] = "{$base}" . self::$separator . "{$theme}" . self::$separator . "{$region}";
+        }
+        
+        // region--regionname
+        $suggestions[] = "{$base}" . self::$separator . "{$region}";
+        
+        // region
+        $suggestions[] = $base;
+        
+        return $suggestions;
+    }
+
     /**
      * Find the best matching template from suggestions
      * 
@@ -313,7 +502,7 @@ class TemplateSuggestion {
         }
         return null;
     }
-    
+
     /**
      * Get template with suggestions metadata
      * 
@@ -368,83 +557,188 @@ class TemplateSuggestion {
         }
         return $debug;
     }
-    
+
     /**
-     * Generate menu-specific suggestions
+     * Generate menu-specific template suggestions
+     * 
+     * @param string $menuName Menu machine name
+     * @param int $level Nesting level
+     * @return array Suggestions
      */
-    public static function forMenu(string $menuName, ?string $level = null): array {
+    public static function forMenu(string $menuName, ?int $level = null, ?string $theme = null): array {
         $suggestions = [];
-        $base = "menu";
+        $base = 'menu';
         
         // menu--name--level
+        if ($level !== null && $theme) {
+            $suggestions[] = $base . self::$separator . $menuName . self::$separator . 'level' . $level . self::$separator . $theme . self::$extension;
+        }
         if ($level !== null) {
-            $suggestions[] = "{$base}" . self::$separator . "{$menuName}" . self::$separator . "level-{$level}";
+            $suggestions[] = $base . self::$separator . $menuName . self::$separator . 'level' . $level . self::$extension;
+        }
+        if ($theme) {
+            $suggestions[] = $base . self::$separator . $menuName . self::$separator . $theme . self::$extension;
         }
         
-        // menu--name
-        $suggestions[] = "{$base}" . self::$separator . "{$menuName}";
+        // menu--menuname
+        $suggestions[] = $base . self::$separator . $menuName . self::$extension;
         
-        // Base menu
-        $suggestions[] = $base;
+        // menu (base)
+        $suggestions[] = $base . self::$extension;
         
         return $suggestions;
     }
     
     /**
-     * Generate form-specific suggestions
+     * Generate form-specific template suggestions
+     * 
+     * @param string $formId Form ID
+     * @param string $formType Form type (login, register, contact, etc.)
+     * @return array Suggestions
      */
-    public static function forForm(string $formId, ?string $mode = null): array {
+    public static function forForm(string $formId, ?string $formType = null, ?string $mode = null): array {
         $suggestions = [];
-        $base = "form";
+        $base = 'form';
         
-        // form--id--mode
+        if ($formType && $mode) {
+            $suggestions[] = $base . self::$separator . $formId . self::$separator . $formType . self::$separator . $mode . self::$extension;
+        }
+        if ($formType) {
+            $suggestions[] = $base . self::$separator . $formId . self::$separator . $formType . self::$extension;
+        }
         if ($mode) {
-            $suggestions[] = "{$base}" . self::$separator . "{$formId}" . self::$separator . "{$mode}";
+            $suggestions[] = $base . self::$separator . $formId . self::$separator . $mode . self::$extension;
         }
         
-        // form--id
-        $suggestions[] = "{$base}" . self::$separator . "{$formId}";
-        
-        // Base form
-        $suggestions[] = $base;
+        $suggestions[] = $base . self::$separator . $formId . self::$extension;
+        $suggestions[] = $base . self::$extension;
         
         return $suggestions;
     }
     
     /**
-     * Generate view-specific suggestions (for list views, grids, etc.)
+     * Generate view-specific template suggestions (for list views)
+     * 
+     * @param string $viewId View ID
+     * @param string $display Display ID
+     * @param string $style Style plugin
+     * @return array Suggestions
      */
-    public static function forView(
-        string $viewId, 
-        ?string $display = null,
-        ?string $style = null
-    ): array {
+    public static function forView(string $viewId, ?string $display = null, ?string $style = null): array {
         $suggestions = [];
-        $base = "view";
+        $base = 'view';
         
-        // view--id--display--style
+        // view--viewid--display--style
         if ($display && $style) {
-            $suggestions[] = "{$base}" . self::$separator . "{$viewId}" . self::$separator . "{$display}" . self::$separator . "{$style}";
+            $suggestions[] = $base . self::$separator . $viewId . self::$separator . $display . self::$separator . $style . self::$extension;
         }
         
-        // view--id--display
+        // view--viewid--display
         if ($display) {
-            $suggestions[] = "{$base}" . self::$separator . "{$viewId}" . self::$separator . "{$display}";
+            $suggestions[] = $base . self::$separator . $viewId . self::$separator . $display . self::$extension;
         }
         
-        // view--id--style
+        // view--viewid--style
         if ($style) {
-            $suggestions[] = "{$base}" . self::$separator . "{$viewId}" . self::$separator . "{$style}";
+            $suggestions[] = $base . self::$separator . $viewId . self::$separator . $style . self::$extension;
         }
         
-        // view--id
-        $suggestions[] = "{$base}" . self::$separator . "{$viewId}";
+        // view--viewid
+        $suggestions[] = $base . self::$separator . $viewId . self::$extension;
         
-        // Base view
-        $suggestions[] = $base;
+        // view (base)
+        $suggestions[] = $base . self::$extension;
         
         return $suggestions;
     }
+    
+    // /**
+    //  * Find the first matching template from a list of suggestions
+    //  * 
+    //  * @param array $suggestions Template suggestions in priority order
+    //  * @return string|null Template name or null if none found
+    //  */
+    // public static function findBestMatch(array $suggestions): ?string {
+    //     foreach ($suggestions as $suggestion) {
+    //         if (self::exists($suggestion)) {
+    //             return $suggestion;
+    //         }
+    //     }
+    //     return null;
+    // }
+    
+    /**
+     * Find all matching templates from a list of suggestions
+     * 
+     * @param array $suggestions Template suggestions
+     * @return array Matching templates
+     */
+    public static function findAllMatches(array $suggestions): array {
+        $matches = [];
+        foreach ($suggestions as $suggestion) {
+            if (self::exists($suggestion)) {
+                $matches[] = $suggestion;
+            }
+        }
+        return $matches;
+    }
+    
+    /**
+     * Get debugging info about why a template was selected
+     * 
+     * @param array $suggestions Template suggestions
+     * @return array Debug information
+     */
+    public static function debug(array $suggestions): array {
+        $debug = [
+            'suggestions' => $suggestions,
+            'checked' => [],
+            'selected' => null,
+            'available_templates' => array_keys(self::$templateFiles)
+        ];
+        
+        foreach ($suggestions as $suggestion) {
+            $exists = self::exists($suggestion);
+            $debug['checked'][$suggestion] = [
+                'exists' => $exists,
+                'path' => $exists ? self::getPath($suggestion) : null
+            ];
+            
+            if ($exists && $debug['selected'] === null) {
+                $debug['selected'] = $suggestion;
+            }
+        }
+        
+        return $debug;
+    }
+    
+    /**
+     * Format suggestions as HTML for debugging display
+     */
+    public static function debugHtml(array $suggestions): string {
+        $html = '<div class="template-suggestions">';
+        $html .= '<h4>Template Suggestions</h4>';
+        $html .= '<ul>';
+        
+        $selected = self::findBestMatch($suggestions);
+        
+        foreach ($suggestions as $suggestion) {
+            $exists = self::exists($suggestion);
+            $class = $exists ? 'exists' : 'missing';
+            $marker = '';
+            
+            if ($suggestion === $selected) {
+                $class .= ' selected';
+                $marker = ' ✓ (selected)';
+            }
+            
+            $html .= sprintf('<li class="%s">%s%s</li>', $class, htmlspecialchars($suggestion), $marker);
+        }
+        
+        $html .= '</ul></div>';
+        return $html;
+    }        
+
 }
 
 } // end class_exists check
