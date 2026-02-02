@@ -1,0 +1,194 @@
+suite:
+  name: "Zeus Template System - Macros"
+  description: "Tests for macro definition, calling, and argument scoping"
+  version: "2.0"
+
+setup:
+  directories:
+    - "test_templates"
+    - "test_cache"
+  
+  initialize:
+    - type: renderer
+      template_path: "test_templates"
+      enable_cache: false
+      cache_path: "test_cache"
+
+tests:
+  
+  # ==========================================================================
+  # BASIC MACRO DEFINITION AND CALLING
+  # ==========================================================================
+  
+  test_macro_simple:
+    description: "Define and call a simple macro with one argument"
+    template:
+      name: "macro-simple.zetem"
+      content: |
+        {% macro greet($name) %}
+        Hello, {{ $name }}!
+        {% endmacro %}
+        {%  greet('World') %}
+    data: {}
+    assertions:
+      - type: contains
+        expected: "Hello, World!"
+  
+  test_macro_multiple_args:
+    description: "Macro with multiple arguments"
+    template:
+      name: "macro-multi.zetem"
+      content: |
+        {% macro userCard($name, $email) %}
+        <h2>{{ $name }}</h2>
+        <p>{{ $email }}</p>
+        {% endmacro %}
+        {%  userCard('John Doe', 'john@example.com') %}
+    data: {}
+    assertions:
+      - type: contains
+        expected: "<h2>John Doe</h2>"
+      - type: contains
+        expected: "<p>john@example.com</p>"
+  
+  test_macro_variable_args:
+    description: "Call macro with variable arguments"
+    template:
+      name: "macro-varargs.zetem"
+      content: |
+        {% macro showUser($user) %}
+        Name: {{ $user.name }}
+        Email: {{ $user.email }}
+        {% endmacro %}
+        {%  showUser($currentUser) %}
+    data:
+      currentUser:
+        name: "Alice Smith"
+        email: "alice@example.com"
+    assertions:
+      - type: contains
+        expected: "Name: Alice Smith"
+      - type: contains
+        expected: "Email: alice@example.com"
+  
+  # ==========================================================================
+  # MACRO SCOPING
+  # ==========================================================================
+  
+  test_macro_scoping_isolation:
+    description: "Macro arguments are isolated from global scope"
+    template:
+      name: "macro-scope.zetem"
+      content: |
+        {% set $name = 'GlobalName' %}
+        {% macro test($name) %}
+        Inside macro: {{ $name }}
+        {% endmacro %}
+        Outside macro: {{ $name }}
+        {%  test('LocalName') %}
+    data: {}
+    assertions:
+      - type: contains
+        expected: "Outside macro: GlobalName"
+      - type: contains
+        expected: "Inside macro: LocalName"
+  
+  # ==========================================================================
+  # MACROS WITH CONTROL STRUCTURES
+  # ==========================================================================
+  
+  test_macro_with_loop:
+    description: "Macro containing a for loop"
+    template:
+      name: "macro-loop.zetem"
+      content: |
+        {% macro renderList($items) %}
+        <ul>
+        {% for $item in $items %}
+        <li>{{ $item }}</li>
+        {% endfor %}
+        </ul>
+        {% endmacro %}
+        {%  renderList($fruits) %}
+    data:
+      fruits: ["Apple", "Banana", "Cherry"]
+    assertions:
+      - type: contains
+        expected: "<li>Apple</li>"
+      - type: contains
+        expected: "<li>Banana</li>"
+      - type: contains
+        expected: "<li>Cherry</li>"
+  
+  test_macro_with_conditional:
+    description: "Macro containing conditional logic"
+    template:
+      name: "macro-cond.zetem"
+      content: |
+        {% macro badge($status) %}
+        {% if $status == 'active' %}
+        <span class="green">Active</span>
+        {% else %}
+        <span class="red">Inactive</span>
+        {% fi %}
+        {% endmacro %}
+        {%  badge('active') %}
+        {%  badge('inactive') %}
+    data: {}
+    assertions:
+      - type: contains
+        expected: 'class="green">Active</span>'
+      - type: contains
+        expected: 'class="red">Inactive</span>'
+  
+  # ==========================================================================
+  # MULTIPLE MACRO CALLS
+  # ==========================================================================
+  
+  test_macro_multiple_calls:
+    description: "Call same macro multiple times with different values"
+    template:
+      name: "macro-multi-call.zetem"
+      content: |
+        {% macro tag($text, $color) %}
+        <span class="{{ $color }}">{{ $text }}</span>
+        {% endmacro %}
+        {%  tag('New', 'green') %}
+        {%  tag('Sale', 'red') %}
+        {%  tag('Hot', 'orange') %}
+    data: {}
+    assertions:
+      - type: contains
+        expected: 'class="green">New</span>'
+      - type: contains
+        expected: 'class="red">Sale</span>'
+      - type: contains
+        expected: 'class="orange">Hot</span>'
+  
+  test_macro_reusable_component:
+    description: "Macro as reusable UI component"
+    template:
+      name: "macro-component.zetem"
+      content: |
+        {% macro alert($type, $message) %}
+        <div class="alert alert-{{ $type }}">
+          {{ $message }}
+        </div>
+        {% endmacro %}
+        {%  alert('success', 'Operation completed!') %}
+        {%  alert('error', 'Something went wrong') %}
+        {%  alert('warning', 'Please check your input') %}
+    data: {}
+    assertions:
+      - type: contains
+        expected: 'class="alert alert-success"'
+      - type: contains
+        expected: "Operation completed!"
+      - type: contains
+        expected: 'class="alert alert-error"'
+      - type: contains
+        expected: "Something went wrong"
+
+teardown:
+  execute:
+    - type: clear_cache

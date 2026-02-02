@@ -1,0 +1,434 @@
+suite:
+  name: "Zeus Template System - Core Features"
+  description: "Tests for basic template rendering, dot notation, variables, loops, and conditionals"
+  version: "2.0"
+
+setup:
+  directories:
+    - "test_templates"
+    - "test_cache"
+  
+  initialize:
+    - type: renderer
+      template_path: "test_templates"
+      enable_cache: false
+      cache_path: "test_cache"
+      enable_comments: false
+
+tests:
+  
+  # ==========================================================================
+  # BASIC VARIABLE RENDERING
+  # ==========================================================================
+  
+  test_simple_variable:
+    description: "Test simple variable rendering"
+    template:
+      name: "simple.zetem"
+      content: |
+        Hello {{ $name }}!
+    data:
+      name: "Zeus"
+    assertions:
+      - type: contains
+        expected: "Hello Zeus!"
+  
+  test_multiple_variables:
+    description: "Test multiple variables in one template"
+    template:
+      name: "multi-var.zetem"
+      content: |
+        Name: {{ $firstName }} {{ $lastName }}
+        Age: {{ $age }}
+    data:
+      firstName: "John"
+      lastName: "Doe"
+      age: 30
+    assertions:
+      - type: contains
+        expected: "Name: John Doe"
+      - type: contains
+        expected: "Age: 30"
+  
+  # ==========================================================================
+  # DOT NOTATION
+  # ==========================================================================
+  
+  test_dot_notation_basic:
+    description: "Test basic dot notation for nested arrays"
+    template:
+      name: "dot-basic.zetem"
+      content: |
+        Name: {{ $user.name }}
+        Email: {{ $user.email }}
+    data:
+      user:
+        name: "John Doe"
+        email: "john@example.com"
+    assertions:
+      - type: contains
+        expected: "Name: John Doe"
+      - type: contains
+        expected: "Email: john@example.com"
+  
+  test_dot_notation_deep:
+    description: "Test deeply nested dot notation"
+    template:
+      name: "dot-deep.zetem"
+      content: |
+        City: {{ $user.address.city }}
+        Country: {{ $user.address.country.name }}
+    data:
+      user:
+        address:
+          city: "Athens"
+          country:
+            name: "Greece"
+            code: "GR"
+    assertions:
+      - type: contains
+        expected: "City: Athens"
+      - type: contains
+        expected: "Country: Greece"
+  
+  test_array_numeric_index:
+    description: "Test numeric array index access with dot notation"
+    template:
+      name: "array-index.zetem"
+      content: |
+        First: {{ $items.0 }}
+        Second: {{ $items.1 }}
+        Third: {{ $items.2 }}
+    data:
+      items:
+        - "Apple"
+        - "Banana"
+        - "Cherry"
+    assertions:
+      - type: contains
+        expected: "First: Apple"
+      - type: contains
+        expected: "Second: Banana"
+      - type: contains
+        expected: "Third: Cherry"
+  
+  test_mixed_array_access:
+    description: "Test mixed string and numeric keys"
+    template:
+      name: "mixed-access.zetem"
+      content: |
+        {{ $data.users.0.name }}
+    data:
+      data:
+        users:
+          - name: "Alice"
+          - name: "Bob"
+    assertions:
+      - type: contains
+        expected: "Alice"
+  
+  # ==========================================================================
+  # FOR LOOPS
+  # ==========================================================================
+  
+  test_loop_simple:
+    description: "Test simple for loop"
+    template:
+      name: "loop-simple.zetem"
+      content: |
+        {% for $item in $items %}
+        - {{ $item }}
+        {% endfor %}
+    data:
+      items:
+        - "Item 1"
+        - "Item 2"
+        - "Item 3"
+    assertions:
+      - type: contains
+        expected: "- Item 1"
+      - type: contains
+        expected: "- Item 2"
+      - type: contains
+        expected: "- Item 3"
+  
+  test_loop_with_key:
+    description: "Test for loop with key-value pairs"
+    template:
+      name: "loop-key.zetem"
+      content: |
+        {% for $key, $value in $data %}
+        {{ $key }}: {{ $value }}
+        {% endfor %}
+    data:
+      data:
+        name: "Zeus"
+        version: "2.0"
+        status: "active"
+    assertions:
+      - type: contains
+        expected: "name: Zeus"
+      - type: contains
+        expected: "version: 2.0"
+      - type: contains
+        expected: "status: active"
+  
+  test_loop_with_object_items:
+    description: "Test loop over array of objects"
+    template:
+      name: "loop-objects.zetem"
+      content: |
+        {% for $user in $users %}
+        {{ $user.name }} ({{ $user.email }})
+        {% endfor %}
+    data:
+      users:
+        - name: "Alice"
+          email: "alice@example.com"
+        - name: "Bob"
+          email: "bob@example.com"
+    assertions:
+      - type: contains
+        expected: "Alice (alice@example.com)"
+      - type: contains
+        expected: "Bob (bob@example.com)"
+  
+  test_loop_nested_with_index:
+    description: "Test nested loops with $index tracking"
+    template:
+      name: "loop-nested.zetem"
+      content: |
+        {% for $category in $categories %}
+        Category {{ $index.0 }}: {{ $category.name }}
+        {% for $product in $category.products %}
+          Product {{ $index.0 }} (in cat {{ $index.1 }}): {{ $product }}
+        {% endfor %}
+        {% endfor %}
+    data:
+      categories:
+        - name: "Fruits"
+          products: ["Apple", "Banana"]
+        - name: "Vegetables"
+          products: ["Carrot", "Broccoli"]
+    assertions:
+      - type: contains
+        expected: "Category 0: Fruits"
+      - type: contains
+        expected: "Product 0 (in cat 0): Apple"
+      - type: contains
+        expected: "Product 1 (in cat 0): Banana"
+      - type: contains
+        expected: "Category 1: Vegetables"
+  
+  test_loop_empty_array:
+    description: "Test loop with empty array produces no output"
+    template:
+      name: "loop-empty.zetem"
+      content: |
+        Before
+        {% for $item in $items %}
+        Item: {{ $item }}
+        {% endfor %}
+        After
+    data:
+      items: []
+    assertions:
+      - type: contains
+        expected: "Before"
+      - type: contains
+        expected: "After"
+      - type: not_contains
+        expected: "Item:"
+  
+  # ==========================================================================
+  # CONDITIONALS
+  # ==========================================================================
+  
+  test_if_true:
+    description: "Test simple if when condition is true"
+    template:
+      name: "if-true.zetem"
+      content: |
+        {% if $show %}
+        Visible Content
+        {% fi %}
+    data:
+      show: true
+    assertions:
+      - type: contains
+        expected: "Visible Content"
+  
+  test_if_false:
+    description: "Test simple if when condition is false"
+    template:
+      name: "if-false.zetem"
+      content: |
+        {% if $show %}
+        Hidden Content
+        {% fi %}
+    data:
+      show: false
+    assertions:
+      - type: not_contains
+        expected: "Hidden Content"
+  
+  test_if_else:
+    description: "Test if-else branching"
+    template:
+      name: "if-else.zetem"
+      content: |
+        {% if $isAdmin %}
+        Admin Panel
+        {% else %}
+        User Dashboard
+        {% fi %}
+    data:
+      isAdmin: false
+    assertions:
+      - type: contains
+        expected: "User Dashboard"
+      - type: not_contains
+        expected: "Admin Panel"
+  
+  test_if_elseif_else:
+    description: "Test if-elseif-else chain"
+    template:
+      name: "if-elseif.zetem"
+      content: |
+        {% if $role == 'admin' %}
+        Admin Access
+        {% elseif $role == 'moderator' %}
+        Moderator Access
+        {% elseif $role == 'editor' %}
+        Editor Access
+        {% else %}
+        Guest Access
+        {% fi %}
+    data:
+      role: "moderator"
+    assertions:
+      - type: contains
+        expected: "Moderator Access"
+      - type: not_contains
+        expected: "Admin Access"
+      - type: not_contains
+        expected: "Guest Access"
+  
+  test_if_comparison_operators:
+    description: "Test comparison operators in conditions"
+    template:
+      name: "if-compare.zetem"
+      content: |
+        {% if $age >= 18 %}Adult{% else %}Minor{% fi %}
+        {% if $count > 0 %}Has items{% fi %}
+        {% if $status == 'active' %}Active{% fi %}
+    data:
+      age: 25
+      count: 5
+      status: "active"
+    assertions:
+      - type: contains
+        expected: "Adult"
+      - type: contains
+        expected: "Has items"
+      - type: contains
+        expected: "Active"
+  
+  test_if_isset:
+    description: "Test isset() in conditions"
+    template:
+      name: "if-isset.zetem"
+      content: |
+        {% if isset($optional) %}
+        Value: {{ $optional }}
+        {% else %}
+        No value provided
+        {% fi %}
+    data:
+      optional: "Present"
+    assertions:
+      - type: contains
+        expected: "Value: Present"
+  
+  test_if_empty:
+    description: "Test empty() in conditions"
+    template:
+      name: "if-empty.zetem"
+      content: |
+        {% if empty($items) %}
+        No items found
+        {% else %}
+        Found items
+        {% fi %}
+    data:
+      items: []
+    assertions:
+      - type: contains
+        expected: "No items found"
+  
+  # ==========================================================================
+  # SET COMMAND
+  # ==========================================================================
+  
+  test_set_literal_string:
+    description: "Test set command with literal string"
+    template:
+      name: "set-string.zetem"
+      content: |
+        {% set $greeting = 'Hello' %}
+        {{ $greeting }} World!
+    data: {}
+    assertions:
+      - type: contains
+        expected: "Hello World!"
+  
+  test_set_from_variable:
+    description: "Test set command copying from another variable"
+    template:
+      name: "set-from-var.zetem"
+      content: |
+        {% set $displayName = $user.firstName %}
+        Welcome, {{ $displayName }}!
+    data:
+      user:
+        firstName: "John"
+    assertions:
+      - type: contains
+        expected: "Welcome, John!"
+  
+  # ==========================================================================
+  # ESCAPING & COMMENTS
+  # ==========================================================================
+  
+  test_escaped_output:
+    description: "Test HTML escaping with triple braces"
+    template:
+      name: "escape.zetem"
+      content: |
+        Escaped: {{{ $html }}}
+    data:
+      html: "<script>alert('xss')</script>"
+    assertions:
+      - type: contains
+        expected: "&lt;script&gt;"
+  
+  test_comments_removed:
+    description: "Test that template comments are removed from output"
+    template:
+      name: "comments.zetem"
+      content: |
+        Before
+        {# This comment should not appear #}
+        After
+    data: {}
+    assertions:
+      - type: contains
+        expected: "Before"
+      - type: contains
+        expected: "After"
+      - type: not_contains
+        expected: "This comment"
+
+teardown:
+  execute:
+    - type: clear_cache

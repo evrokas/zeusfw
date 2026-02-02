@@ -1,0 +1,289 @@
+suite:
+  name: "Zeus Template System - Template Suggestions"
+  description: "Tests for TemplateSuggestion class"
+  version: "2.0"
+
+setup:
+  directories:
+    - "test_templates"
+    - "test_cache"
+  
+  files:
+    # Create templates to test discovery
+    - path: "test_templates/page.zetem"
+      content: "Base page"
+    - path: "test_templates/page--front.zetem"
+      content: "Front page"
+    - path: "test_templates/page--node--article.zetem"
+      content: "Article node page"
+    - path: "test_templates/entity--user.zetem"
+      content: "User entity"
+    - path: "test_templates/entity--user--full.zetem"
+      content: "User entity full view"
+    - path: "test_templates/block--sidebar.zetem"
+      content: "Sidebar block"
+    - path: "test_templates/menu--main.zetem"
+      content: "Main menu"
+  
+  initialize:
+    - type: renderer
+      template_path: "test_templates"
+      enable_cache: false
+      cache_path: "test_cache"
+    - type: suggestion
+      extension: ".zetem"
+      separator: "--"
+
+tests:
+  
+  # ==========================================================================
+  # KEYWORD-BASED SUGGESTIONS
+  # ==========================================================================
+  
+  test_suggestion_single_keyword:
+    description: |
+      Generate suggestions from single keyword.
+      fromKeywords(['article'], 'node') should produce:
+      - node--article.zetem
+      - node.zetem
+    action:
+      type: suggestion
+      method: "fromKeywords"
+      args:
+        - ["article"]
+        - "node"
+    assertions:
+      - type: not_empty
+  
+  test_suggestion_multiple_keywords:
+    description: |
+      Generate suggestions from multiple keywords.
+      Creates power set combinations in priority order.
+    action:
+      type: suggestion
+      method: "fromKeywords"
+      args:
+        - ["featured", "blog"]
+        - "page"
+    assertions:
+      - type: not_empty
+  
+  # ==========================================================================
+  # PATH-BASED SUGGESTIONS
+  # ==========================================================================
+  
+  test_suggestion_from_path:
+    description: |
+      Generate suggestions from path.
+      'admin/users/edit' produces:
+      - admin--users--edit.zetem
+      - admin--users.zetem  
+      - admin.zetem
+    action:
+      type: suggestion
+      method: "fromPath"
+      args:
+        - "admin/users/edit"
+    assertions:
+      - type: not_empty
+  
+  # ==========================================================================
+  # ENTITY SUGGESTIONS
+  # ==========================================================================
+  
+  test_suggestion_entity_type_only:
+    description: |
+      Entity suggestions with type only.
+      forEntity('user') produces: entity--user.zetem, entity.zetem
+    action:
+      type: suggestion
+      method: "forEntity"
+      args:
+        - "user"
+    assertions:
+      - type: not_empty
+  
+  test_suggestion_entity_with_bundle:
+    description: |
+      Entity suggestions with bundle.
+      forEntity('node', 'article') produces priority list.
+    action:
+      type: suggestion
+      method: "forEntity"
+      args:
+        - "node"
+        - "article"
+    assertions:
+      - type: not_empty
+  
+  test_suggestion_entity_full:
+    description: |
+      Entity suggestions with bundle and view mode.
+      forEntity('user', 'admin', 'full') produces full priority list.
+    action:
+      type: suggestion
+      method: "forEntity"
+      args:
+        - "user"
+        - "admin"
+        - "full"
+    assertions:
+      - type: not_empty
+  
+  # ==========================================================================
+  # FIELD SUGGESTIONS
+  # ==========================================================================
+  
+  test_suggestion_field:
+    description: |
+      Field suggestions.
+      forField('title', 'string', 'node', 'article') produces:
+      - field--title--node--article.zetem
+      - field--title--node.zetem
+      - field--title.zetem
+      - field--string.zetem
+      - field.zetem
+    action:
+      type: suggestion
+      method: "forField"
+      args:
+        - "title"
+        - "string"
+        - "node"
+        - "article"
+    assertions:
+      - type: not_empty
+  
+  # ==========================================================================
+  # PAGE/BLOCK/MENU/FORM/VIEW SUGGESTIONS
+  # ==========================================================================
+  
+  test_suggestion_page:
+    description: "Page suggestions for forPage('front')"
+    action:
+      type: suggestion
+      method: "forPage"
+      args:
+        - "front"
+    assertions:
+      - type: not_empty
+  
+  test_suggestion_block:
+    description: "Block suggestions for forBlock('sidebar', 'main', 'left')"
+    action:
+      type: suggestion
+      method: "forBlock"
+      args:
+        - "sidebar"
+        - "main"
+        - "left"
+    assertions:
+      - type: not_empty
+  
+  test_suggestion_menu:
+    description: "Menu suggestions for forMenu('main', 2)"
+    action:
+      type: suggestion
+      method: "forMenu"
+      args:
+        - "main"
+        - 2
+    assertions:
+      - type: not_empty
+  
+  test_suggestion_form:
+    description: "Form suggestions for forForm('login', 'auth')"
+    action:
+      type: suggestion
+      method: "forForm"
+      args:
+        - "login"
+        - "auth"
+    assertions:
+      - type: not_empty
+  
+  test_suggestion_view:
+    description: "View suggestions for forView('articles', 'page', 'grid')"
+    action:
+      type: suggestion
+      method: "forView"
+      args:
+        - "articles"
+        - "page"
+        - "grid"
+    assertions:
+      - type: not_empty
+  
+  # ==========================================================================
+  # TEMPLATE EXISTENCE CHECKS
+  # ==========================================================================
+  
+  test_exists_positive:
+    description: "Check existing template returns true"
+    action:
+      type: method_call
+      class: "TemplateSuggestion"
+      method: "templateExists"
+      args:
+        - "page.zetem"
+    assertions:
+      - type: true
+  
+  test_exists_negative:
+    description: "Check non-existing template returns false"
+    action:
+      type: method_call
+      class: "TemplateSuggestion"
+      method: "exists"
+      args:
+        - "nonexistent-template.zetem"
+    assertions:
+      - type: false
+  
+  # ==========================================================================
+  # BEST MATCH FINDING
+  # ==========================================================================
+  
+  test_find_best_match:
+    description: |
+      Find first existing template from list.
+      Should return 'page--node--article.zetem' as it exists.
+    action:
+      type: method_call
+      class: "TemplateSuggestion"
+      method: "findBestMatch"
+      args:
+        - ["page--node--article.zetem", "page--node.zetem", "page.zetem"]
+    assertions:
+      - type: equals
+        expected: "page--node--article.zetem"
+  
+  test_find_best_match_fallback:
+    description: |
+      Find best match with fallback.
+      First two don't exist, should return 'page.zetem'.
+    action:
+      type: method_call
+      class: "TemplateSuggestion"
+      method: "findBestMatch"
+      args:
+        - ["nonexistent--specific.zetem", "nonexistent.zetem", "page.zetem"]
+    assertions:
+      - type: equals
+        expected: "page.zetem"
+  
+  test_find_best_match_none:
+    description: "Find best match when none exist returns null"
+    action:
+      type: method_call
+      class: "TemplateSuggestion"
+      method: "findBestMatch"
+      args:
+        - ["fake1.zetem", "fake2.zetem", "fake3.zetem"]
+    assertions:
+      - type: equals
+        expected: null
+
+teardown:
+  execute:
+    - type: clear_cache
