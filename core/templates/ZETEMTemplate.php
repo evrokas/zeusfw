@@ -28,6 +28,7 @@
 
 require_once __DIR__ . '/TemplateFilter.php';
 require_once __DIR__ . '/TemplateSuggestion.php';
+require_once __DIR__ . '/TemplateGlobalContext.php';
 
 if (!class_exists("Renderer")) {
 
@@ -167,8 +168,12 @@ class Renderer {
         ob_start();
         $cached_file = self::cache($file, $stemplates);
         $variable_context = $data;
+        TemplateGlobalContext::globalAssign( $variable_context );
+
         $_index_stack = [];
         require $cached_file;
+
+        TemplateGlobalContext::reset();
         return ob_get_clean();
     }
 
@@ -591,8 +596,7 @@ class Renderer {
             }
             $phpArgsStr = implode(', ', $phpArgs);
 
-            $replacement = "<?php if(!function_exists('$macroName')) { function $macroName($phpArgsStr) { global \$variable_context, \$_index_stack; ob_start(); ?>$processedBody<?php return ob_get_clean(); } } ?>";
-
+            $replacement = "<?php if(!function_exists('$macroName')) { function $macroName($phpArgsStr) { global \$variable_context, \$_index_stack; ?>$processedBody<?php } } ?>";
             $code = substr_replace($code, $replacement, $macroStart, ($bodyEnd - $macroStart) + $endLen);
             $offset = $macroStart + strlen($replacement);
         }
