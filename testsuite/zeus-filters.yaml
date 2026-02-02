@@ -1,0 +1,455 @@
+suite:
+  name: "Zeus Template System - Filters"
+  description: "Tests for the TemplateFilter system"
+  version: "2.0"
+
+setup:
+  directories:
+    - "test_templates"
+    - "test_cache"
+  
+  initialize:
+    - type: renderer
+      template_path: "test_templates"
+      enable_cache: false
+      cache_path: "test_cache"
+    - type: filter
+
+tests:
+  
+  # ==========================================================================
+  # STRING FILTERS
+  # ==========================================================================
+  
+  test_filter_upper:
+    description: "Convert string to uppercase"
+    template:
+      name: "f-upper.zetem"
+      content: "{{ $text | upper }}"
+    data:
+      text: "hello world"
+    assertions:
+      - type: contains
+        expected: "HELLO WORLD"
+  
+  test_filter_lower:
+    description: "Convert string to lowercase"
+    template:
+      name: "f-lower.zetem"
+      content: "{{ $text | lower }}"
+    data:
+      text: "HELLO WORLD"
+    assertions:
+      - type: contains
+        expected: "hello world"
+  
+  test_filter_capitalize:
+    description: "Capitalize first letter"
+    template:
+      name: "f-capitalize.zetem"
+      content: "{{ $text | capitalize }}"
+    data:
+      text: "hello world"
+    assertions:
+      - type: contains
+        expected: "Hello world"
+  
+  test_filter_title:
+    description: "Title case string"
+    template:
+      name: "f-title.zetem"
+      content: "{{ $text | title }}"
+    data:
+      text: "hello world example"
+    assertions:
+      - type: contains
+        expected: "Hello World Example"
+  
+  test_filter_trim:
+    description: "Trim whitespace from string"
+    template:
+      name: "f-trim.zetem"
+      content: "[{{ $text | trim }}]"
+    data:
+      text: "   spaced   "
+    assertions:
+      - type: contains
+        expected: "[spaced]"
+  
+  test_filter_truncate:
+    description: "Truncate string with suffix"
+    template:
+      name: "f-truncate.zetem"
+      content: "{{ $text | truncate(10, '...') }}"
+    data:
+      text: "This is a very long text that needs truncation"
+    assertions:
+      - type: contains
+        expected: "This is a ..."
+  
+  test_filter_slug:
+    description: "Convert string to URL slug"
+    template:
+      name: "f-slug.zetem"
+      content: "{{ $text | slug }}"
+    data:
+      text: "Hello World! This is a Test"
+    assertions:
+      - type: contains
+        expected: "hello-world-this-is-a-test"
+  
+  test_filter_escape:
+    description: "Escape HTML entities"
+    template:
+      name: "f-escape.zetem"
+      content: "{{ $html | escape }}"
+    data:
+      html: "<script>alert('xss')</script>"
+    assertions:
+      - type: contains
+        expected: "&lt;script&gt;"
+      - type: not_contains
+        expected: "<script>"
+  
+  test_filter_nl2br:
+    description: "Convert newlines to <br> tags"
+    template:
+      name: "f-nl2br.zetem"
+      content: "{{ $text | nl2br }}"
+    data:
+      text: "Line 1\nLine 2"
+    assertions:
+      - type: contains
+        expected: "<br"
+  
+  test_filter_replace:
+    description: "Replace substring"
+    template:
+      name: "f-replace.zetem"
+      content: "{{ $text | replace('world', 'Zeus') }}"
+    data:
+      text: "Hello world"
+    assertions:
+      - type: contains
+        expected: "Hello Zeus"
+  
+  test_filter_split:
+    description: "Split string into array and get first"
+    template:
+      name: "f-split.zetem"
+      content: "{{ $text | split(',') | first }}"
+    data:
+      text: "apple,banana,cherry"
+    assertions:
+      - type: contains
+        expected: "apple"
+  
+  test_filter_reverse_string:
+    description: "Reverse a string"
+    template:
+      name: "f-reverse-str.zetem"
+      content: "{{ $text | reverse }}"
+    data:
+      text: "hello"
+    assertions:
+      - type: contains
+        expected: "olleh"
+  
+  # ==========================================================================
+  # NUMBER FILTERS
+  # ==========================================================================
+  
+  test_filter_number_format:
+    description: "Format number with thousands separator"
+    template:
+      name: "f-numformat.zetem"
+      content: "{{ $number | number_format(2, '.', ',') }}"
+    data:
+      number: 1234567.891
+    assertions:
+      - type: contains
+        expected: "1,234,567.89"
+  
+  test_filter_currency:
+    description: "Format as currency"
+    template:
+      name: "f-currency.zetem"
+      content: "{{ $price | currency('€', 2) }}"
+    data:
+      price: 49.99
+    assertions:
+      - type: contains
+        expected: "€49.99"
+  
+  test_filter_percent:
+    description: "Format as percentage"
+    template:
+      name: "f-percent.zetem"
+      content: "{{ $value | percent(1) }}"
+    data:
+      value: 0.756
+    assertions:
+      - type: contains
+        expected: "75.6%"
+  
+  test_filter_abs:
+    description: "Get absolute value"
+    template:
+      name: "f-abs.zetem"
+      content: "{{ $num | abs }}"
+    data:
+      num: -42
+    assertions:
+      - type: contains
+        expected: "42"
+  
+  test_filter_round:
+    description: "Round to specified decimals"
+    template:
+      name: "f-round.zetem"
+      content: "{{ $num | round(2) }}"
+    data:
+      num: 3.14159
+    assertions:
+      - type: contains
+        expected: "3.14"
+  
+  test_filter_ceil:
+    description: "Round up to nearest integer"
+    template:
+      name: "f-ceil.zetem"
+      content: "{{ $num | ceil }}"
+    data:
+      num: 3.2
+    assertions:
+      - type: contains
+        expected: "4"
+  
+  test_filter_floor:
+    description: "Round down to nearest integer"
+    template:
+      name: "f-floor.zetem"
+      content: "{{ $num | floor }}"
+    data:
+      num: 3.9
+    assertions:
+      - type: contains
+        expected: "3"
+  
+  # ==========================================================================
+  # DATE FILTERS
+  # ==========================================================================
+  
+  test_filter_date:
+    description: "Format date string"
+    template:
+      name: "f-date.zetem"
+      content: "{{ $date | date('Y-m-d') }}"
+    data:
+      date: "2026-01-27 14:30:00"
+    assertions:
+      - type: contains
+        expected: "2026-01-27"
+  
+  test_filter_date_custom:
+    description: "Format date with custom format"
+    template:
+      name: "f-date-custom.zetem"
+      content: "{{ $date | date('F j, Y') }}"
+    data:
+      date: "2026-01-27"
+    assertions:
+      - type: contains
+        expected: "January 27, 2026"
+  
+  # ==========================================================================
+  # ARRAY FILTERS
+  # ==========================================================================
+  
+  test_filter_first:
+    description: "Get first element of array"
+    template:
+      name: "f-first.zetem"
+      content: "{{ $items | first }}"
+    data:
+      items: ["Apple", "Banana", "Cherry"]
+    assertions:
+      - type: contains
+        expected: "Apple"
+  
+  test_filter_last:
+    description: "Get last element of array"
+    template:
+      name: "f-last.zetem"
+      content: "{{ $items | last }}"
+    data:
+      items: ["Apple", "Banana", "Cherry"]
+    assertions:
+      - type: contains
+        expected: "Cherry"
+  
+  test_filter_length:
+    description: "Get array length"
+    template:
+      name: "f-length.zetem"
+      content: "Count: {{ $items | length }}"
+    data:
+      items: ["A", "B", "C", "D"]
+    assertions:
+      - type: contains
+        expected: "Count: 4"
+  
+  test_filter_join:
+    description: "Join array elements with separator"
+    template:
+      name: "f-join.zetem"
+      content: "{{ $items | join(', ') }}"
+    data:
+      items: ["Red", "Green", "Blue"]
+    assertions:
+      - type: contains
+        expected: "Red, Green, Blue"
+  
+  test_filter_keys:
+    description: "Get array keys"
+    template:
+      name: "f-keys.zetem"
+      content: "{{ $data | keys | join(', ') }}"
+    data:
+      data:
+        name: "Test"
+        value: 123
+    assertions:
+      - type: contains
+        expected: "name"
+      - type: contains
+        expected: "value"
+  
+  # ==========================================================================
+  # UTILITY FILTERS
+  # ==========================================================================
+  
+  test_filter_default_with_value:
+    description: "Default filter when value exists"
+    template:
+      name: "f-default-val.zetem"
+      content: "{{ $value | default('N/A') }}"
+    data:
+      value: "Present"
+    assertions:
+      - type: contains
+        expected: "Present"
+      - type: not_contains
+        expected: "N/A"
+  
+  test_filter_default_empty:
+    description: "Default filter when value is empty"
+    template:
+      name: "f-default-empty.zetem"
+      content: "{{ $value | default('N/A') }}"
+    data:
+      value: ""
+    assertions:
+      - type: contains
+        expected: "N/A"
+  
+  test_filter_default_null:
+    description: "Default filter when value is null"
+    template:
+      name: "f-default-null.zetem"
+      content: "{{ $value | default('Not Set') }}"
+    data:
+      value: null
+    assertions:
+      - type: contains
+        expected: "Not Set"
+  
+  test_filter_json:
+    description: "Encode as JSON"
+    template:
+      name: "f-json.zetem"
+      content: "{{ $data | json_encode }}"
+    data:
+      data:
+        name: "Test"
+        value: 123
+    assertions:
+      - type: contains
+        expected: '"name":"Test"'
+      - type: contains
+        expected: '"value":123'
+  
+  # ==========================================================================
+  # FILTER CHAINING
+  # ==========================================================================
+  
+  test_filter_chain_two:
+    description: "Chain two filters"
+    template:
+      name: "f-chain2.zetem"
+      content: "{{ $text | trim | upper }}"
+    data:
+      text: "  hello world  "
+    assertions:
+      - type: contains
+        expected: "HELLO WORLD"
+  
+  test_filter_chain_three:
+    description: "Chain three filters"
+    template:
+      name: "f-chain3.zetem"
+      content: "{{ $text | trim | lower | capitalize }}"
+    data:
+      text: "  HELLO WORLD  "
+    assertions:
+      - type: contains
+        expected: "Hello world"
+  
+  test_filter_chain_with_args:
+    description: "Chain filters with arguments"
+    template:
+      name: "f-chain-args.zetem"
+      content: "{{ $text | trim | truncate(5, '...') | upper }}"
+    data:
+      text: "   hello world   "
+    assertions:
+      - type: contains
+        expected: "HELLO..."
+  
+  # ==========================================================================
+  # DIRECT FILTER TESTS (without templates)
+  # ==========================================================================
+  
+  test_direct_filter_abs:
+    description: "Direct test of abs filter"
+    action:
+      type: filter
+      name: "abs"
+      value: -42
+    assertions:
+      - type: equals
+        expected: 42
+  
+  test_direct_filter_round:
+    description: "Direct test of round filter"
+    action:
+      type: filter
+      name: "round"
+      value: 3.7
+    assertions:
+      - type: equals
+        expected: 4.0
+  
+  test_direct_filter_reverse_array:
+    description: "Direct test of reverse filter on array"
+    action:
+      type: filter
+      name: "reverse"
+      value: [1, 2, 3]
+    assertions:
+      - type: equals
+        expected: [3, 2, 1]
+
+teardown:
+  execute:
+    - type: clear_cache

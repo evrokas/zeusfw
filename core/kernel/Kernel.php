@@ -55,6 +55,7 @@ class Kernel {
             ini_set('display_startup_errors', $t);
 
         error_reporting(E_ALL);
+        register_shutdown_function( "fatal_handler" );
         
 
         if(!file_exists($configdir . '/settings.info.yaml')) {

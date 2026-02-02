@@ -1,0 +1,364 @@
+suite:
+  name: "Zeus Template System - Edge Cases & Inheritance"
+  description: "Tests for template inheritance, includes, deep nesting, and boundary conditions"
+  version: "2.0"
+
+setup:
+  directories:
+    - "test_templates"
+    - "test_cache"
+  
+  # Pre-create base templates needed for inheritance tests
+  files:
+    - path: "test_templates/base-layout.zetem"
+      content: |
+        <html>
+        <head><title>{% yield title %}</title></head>
+        <body>
+        <header>{% yield header %}</header>
+        <main>{% yield content %}</main>
+        </body>
+        </html>
+    
+    - path: "test_templates/partial-nav.zetem"
+      content: |
+        <nav>Navigation Menu</nav>
+  
+  initialize:
+    - type: renderer
+      template_path: "test_templates"
+      enable_cache: false
+      cache_path: "test_cache"
+
+tests:
+  
+  # ==========================================================================
+  # TEMPLATE INHERITANCE
+  # ==========================================================================
+  
+  test_inheritance_basic:
+    description: "Child template extends base and overrides blocks"
+    template:
+      name: "child-page.zetem"
+      content: |
+        {% extends 'base-layout.zetem' %}
+        {% block title %}My Page Title{% endblock %}
+        {% block header %}Welcome Header{% endblock %}
+        {% block content %}
+        <h1>Hello {{ $user }}!</h1>
+        <p>This is the main content.</p>
+        {% endblock %}
+    data:
+      user: "Zeus"
+    assertions:
+      - type: contains
+        expected: "<title>My Page Title</title>"
+      - type: contains
+        expected: "<header>Welcome Header</header>"
+      - type: contains
+        expected: "<h1>Hello Zeus!</h1>"
+  
+  # ==========================================================================
+  # TEMPLATE INCLUDES
+  # ==========================================================================
+  
+  test_include_basic:
+    description: "Include another template"
+    template:
+      name: "page-include.zetem"
+      content: |
+        <div>
+        {% include 'partial-nav.zetem' %}
+        <main>Page Content</main>
+        </div>
+    data: {}
+    assertions:
+      - type: contains
+        expected: "<nav>Navigation Menu</nav>"
+      - type: contains
+        expected: "<main>Page Content</main>"
+  
+  # ==========================================================================
+  # DEEP NESTING
+  # ==========================================================================
+  
+  test_deep_nested_access:
+    description: "Access deeply nested data with dot notation"
+    template:
+      name: "deep-nested.zetem"
+      content: |
+        Level 1: {{ $a.b.c.d.e }}
+    data:
+      a:
+        b:
+          c:
+            d:
+              e: "DeepValue"
+    assertions:
+      - type: contains
+        expected: "Level 1: DeepValue"
+  
+  test_triple_nested_loop:
+    description: "Triple nested loops with index tracking at each level"
+    template:
+      name: "triple-loop.zetem"
+      content: |
+        {% for $dept in $departments %}
+        Dept[{{ $index.0 }}]: {{ $dept.name }}
+        {% for $team in $dept.teams %}
+          Team[{{ $index.0 }}][Dept{{ $index.1 }}]: {{ $team.name }}
+          {% for $member in $team.members %}
+            Member[{{ $index.0 }}]: {{ $member }}
+          {% endfor %}
+        {% endfor %}
+        {% endfor %}
+    data:
+      departments:
+        - name: "Engineering"
+          teams:
+            - name: "Frontend"
+              members: ["Alice", "Bob"]
+            - name: "Backend"
+              members: ["Charlie"]
+    assertions:
+      - type: contains
+        expected: "Dept[0]: Engineering"
+      - type: contains
+        expected: "Team[0][Dept0]: Frontend"
+      - type: contains
+        expected: "Member[0]: Alice"
+      - type: contains
+        expected: "Member[1]: Bob"
+      - type: contains
+        expected: "Team[1][Dept0]: Backend"
+  
+  # ==========================================================================
+  # NULL AND EMPTY HANDLING
+  # ==========================================================================
+  
+  test_null_with_default:
+    description: "Handle null value with default filter"
+    template:
+      name: "null-default.zetem"
+      content: |
+        Value: {{ $value | default('NULL') }}
+    data:
+      value: null
+    assertions:
+      - type: contains
+        expected: "Value: NULL"
+  
+  test_empty_string_default:
+    description: "Handle empty string with default filter"
+    template:
+      name: "empty-default.zetem"
+      content: |
+        Name: {{ $name | default('Anonymous') }}
+    data:
+      name: ""
+    assertions:
+      - type: contains
+        expected: "Name: Anonymous"
+  
+  test_false_value:
+    description: "Handle false value in conditional"
+    template:
+      name: "false-cond.zetem"
+      content: |
+        {% if $flag %}
+        True branch
+        {% else %}
+        False branch
+        {% fi %}
+    data:
+      flag: false
+    assertions:
+      - type: contains
+        expected: "False branch"
+      - type: not_contains
+        expected: "True branch"
+  
+  test_zero_value:
+    description: "Handle zero in conditional (0 is falsy)"
+    template:
+      name: "zero-cond.zetem"
+      content: |
+        {% if $count %}
+        Has items: {{ $count }}
+        {% else %}
+        No items
+        {% fi %}
+    data:
+      count: 0
+    assertions:
+      - type: contains
+        expected: "No items"
+  
+  # ==========================================================================
+  # COMPLEX CONDITIONALS
+  # ==========================================================================
+  
+  test_complex_and_condition:
+    description: "Complex condition with AND operator"
+    template:
+      name: "complex-and.zetem"
+      content: |
+        {% if $user.age >= 18 && $user.verified %}
+        Adult and verified
+        {% else %}
+        Not qualified
+        {% fi %}
+    data:
+      user:
+        age: 25
+        verified: true
+    assertions:
+      - type: contains
+        expected: "Adult and verified"
+  
+  test_complex_or_condition:
+    description: "Complex condition with OR operator"
+    template:
+      name: "complex-or.zetem"
+      content: |
+        {% if $isPremium || $hasCoupon %}
+        Discount available
+        {% else %}
+        No discount
+        {% fi %}
+    data:
+      isPremium: false
+      hasCoupon: true
+    assertions:
+      - type: contains
+        expected: "Discount available"
+  
+  test_nested_conditionals:
+    description: "Nested if statements"
+    template:
+      name: "nested-if.zetem"
+      content: |
+        {% if $user.active %}
+          {% if $user.role == 'admin' %}
+          Active Admin
+          {% else %}
+          Active User
+          {% fi %}
+        {% else %}
+        Inactive
+        {% fi %}
+    data:
+      user:
+        active: true
+        role: "admin"
+    assertions:
+      - type: contains
+        expected: "Active Admin"
+  
+  # ==========================================================================
+  # SPECIAL CHARACTERS
+  # ==========================================================================
+  
+  test_special_characters_raw:
+    description: "Output special characters without escaping"
+    template:
+      name: "special-raw.zetem"
+      content: |
+        {{ $text }}
+    data:
+      text: "Test & < > \" ' special chars"
+    assertions:
+      - type: contains
+        expected: "Test & < > \" ' special chars"
+  
+  test_special_characters_escaped:
+    description: "Escape special characters"
+    template:
+      name: "special-escaped.zetem"
+      content: |
+        {{{ $text }}}
+    data:
+      text: "<div>HTML</div>"
+    assertions:
+      - type: contains
+        expected: "&lt;div&gt;"
+      - type: not_contains
+        expected: "<div>"
+  
+  # ==========================================================================
+  # WHITESPACE HANDLING
+  # ==========================================================================
+  
+  test_whitespace_preservation:
+    description: "Preserve intentional whitespace"
+    template:
+      name: "whitespace.zetem"
+      content: |
+        Line1
+        
+        Line2
+    data: {}
+    assertions:
+      - type: contains
+        expected: "Line1"
+      - type: contains
+        expected: "Line2"
+  
+  test_trim_in_template:
+    description: "Trim whitespace using filter"
+    template:
+      name: "trim-test.zetem"
+      content: |
+        [{{ $text | trim }}]
+    data:
+      text: "   spaced text   "
+    assertions:
+      - type: contains
+        expected: "[spaced text]"
+  
+  # ==========================================================================
+  # MIXED ARRAY ACCESS
+  # ==========================================================================
+  
+  test_mixed_nested_access:
+    description: "Mix of string keys and numeric indices"
+    template:
+      name: "mixed-access.zetem"
+      content: |
+        {{ $data.users.0.profile.name }}
+        {{ $data.users.1.profile.name }}
+    data:
+      data:
+        users:
+          - profile:
+              name: "John"
+          - profile:
+              name: "Jane"
+    assertions:
+      - type: contains
+        expected: "John"
+      - type: contains
+        expected: "Jane"
+  
+  # ==========================================================================
+  # UNDEFINED VARIABLES
+  # ==========================================================================
+  
+  test_isset_undefined:
+    description: "isset() returns false for undefined variable"
+    template:
+      name: "isset-undef.zetem"
+      content: |
+        {% if isset($undefined) %}
+        Defined
+        {% else %}
+        Not defined
+        {% fi %}
+    data: {}
+    assertions:
+      - type: contains
+        expected: "Not defined"
+
+teardown:
+  execute:
+    - type: clear_cache

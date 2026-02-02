@@ -6,8 +6,7 @@ No variant checks here!
 ==========================================
 #}
 
-{% if(!function_exists('show_menu')) { %}
-  {% function show_menu($items, $level) { %}
+  {% macro show_menu($items, $level) { %}
     {% foreach($items as $item): %}
       <li {{ attributes($item['attributes']) }}>
         {% if($item['has_children']): %}
@@ -85,4 +84,3 @@ No variant checks here!
       </li>
     {% endforeach %}
   {% } %}
-{% } %}

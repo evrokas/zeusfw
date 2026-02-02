@@ -35,6 +35,27 @@ function guid() {
     return (trim(file_get_contents('/proc/sys/kernel/random/uuid')));
 }
 
+function fatal_handler() {
+    $errfile = "unknown file";
+    $errstr  = "shutdown";
+    $errno   = E_CORE_ERROR;
+    $errline = 0;
+
+    $error = error_get_last();
+
+    if($error !== NULL) {
+        $errno   = $error["type"];
+        $errfile = $error["file"];
+        $errline = $error["line"];
+        $errstr  = $error["message"];
+
+        echopre( $errfile . "[" . $errline . "]:" . $errno . ':' . $errstr);
+    }
+}
+
+
+
+
 function getDBtime($atime = null) {
     if(!$atime)$atime=time();
     return (date ('Y-m-d H:i:s', $atime));  
@@ -127,7 +148,7 @@ function echopre($str, $tag = 'pre', $html = false) {
     $ap = explode('/', __APPDIR__);
     // $fn .= implode(':', $ap);
 
-    while($fs[0] === $ap[0]) {
+    while(isset($fs[0]) && isset($ap[0]) && ($fs[0] === $ap[0])) {
         array_shift($fs);
         array_shift($ap);
     }
@@ -136,7 +157,7 @@ function echopre($str, $tag = 'pre', $html = false) {
 
 
     if($html)$str = htmlspecialchars($str);
-    echo "<$tag>"."$fn:$ln: " .$str."</$tag>";
+    echo "<$tag>"."$fn:$ln<br>" .$str."</$tag>";
     /* // echo "<textarea disabled="true"><?php echo htmlentities($str);?></textarea>";
      */
     // echo "<blockquote class='prefixed'><code><pre>".htmlentities(  $str ) . "<pre></code></blockquote>";
