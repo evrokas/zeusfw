@@ -21,6 +21,7 @@ class Kernel {
     protected $config = null;       // framework configuration
     protected $siteconf = null;     // site configuration
     protected $modules = array();
+    protected $languageDetector = null;  // language detection service
 
     function __construct($asrv, $configdir) {
         $this->rootpath= substr($asrv['PHP_SELF'],0,strrpos($asrv['PHP_SELF'],'/')+1);
@@ -92,6 +93,9 @@ class Kernel {
         // set maintenance class
         Maintenance::init();
         Maintenance::maintenance();
+
+        // Initialize language detector after configuration is loaded
+        $this->initLanguageDetector();
     }
 
     function getConfig($section=null) {
@@ -722,13 +726,145 @@ class Kernel {
         return false;
     }
 
-    function setCurrentLanguage($curlang) {
-        $_SESSION['CURRENT_LANGUAGE'] = $curlang;
+    /**
+     * Initialize the language detector
+     * Called after configuration is loaded
+     */
+    private function initLanguageDetector() {
+        // Only initialize if multilingual is enabled
+        if ($this->getConfig('multilingual')) {
+            require_once(__FWDIR__ . '/lib/LanguageDetector.php');
+            $this->languageDetector = new LanguageDetector($this);
+        }
     }
 
+    /**
+     * Get the language detector instance
+     *
+     * @return LanguageDetector|null
+     */
+    public function getLanguageDetector() {
+        return $this->languageDetector;
+    }
+
+    /**
+     * Set current language with validation and persistence
+     *
+     * @param string $curlang - Language code to set
+     * @return bool - True if language was set, false if invalid
+     */
+    function setCurrentLanguage($curlang) {
+        // Validate language code
+        if ($this->languageDetector && !$this->languageDetector->isValidLanguage($curlang)) {
+            return false;
+        }
+
+        // Set session
+        $_SESSION['CURRENT_LANGUAGE'] = $curlang;
+
+        // Set cookie for persistence (1 year)
+        $cookieExpire = time() + (365 * 24 * 60 * 60);
+        setcookie('user_lang', $curlang, $cookieExpire, '/');
+
+        // Trigger language change hook (if implemented)
+        $this->triggerLanguageChangeHook($curlang);
+
+        return true;
+    }
+
+    /**
+     * Get current language using intelligent detection
+     *
+     * @return string - Current language code
+     */
     function getCurrentLanguage() {
-        if(isset($_SESSION['CURRENT_LANGUAGE']))
-          return $_SESSION['CURRENT_LANGUAGE'];
+        // If session is set, return it
+        if (isset($_SESSION['CURRENT_LANGUAGE'])) {
+            return $_SESSION['CURRENT_LANGUAGE'];
+        }
+
+        // Use language detector if available
+        if ($this->languageDetector) {
+            $detectedLang = $this->languageDetector->detect();
+            // Set the detected language in session for future requests
+            $_SESSION['CURRENT_LANGUAGE'] = $detectedLang;
+            return $detectedLang;
+        }
+
+        // Fallback to default
+        return $this->getDefaultLanguage();
+    }
+
+    /**
+     * Get list of supported languages
+     *
+     * @return array - Array of language codes
+     */
+    function getSupportedLanguages() {
+        if ($this->languageDetector) {
+            return $this->languageDetector->getSupportedLanguages();
+        }
+
+        // Fallback: get from config
+        $languages = $this->getConfig('languages');
+        if (is_array($languages)) {
+            // Handle both old and new format
+            return array_keys($languages);
+        }
+
+        return ['gr', 'en'];
+    }
+
+    /**
+     * Get default language from configuration
+     *
+     * @return string - Default language code
+     */
+    function getDefaultLanguage() {
+        if ($this->languageDetector) {
+            return $this->languageDetector->getDefaultLanguage();
+        }
+
+        // Fallback
+        $langDetection = $this->getConfig('language_detection');
+        return $langDetection['default'] ?? 'gr';
+    }
+
+    /**
+     * Get language name (native or English)
+     *
+     * @param string $code - Language code
+     * @param bool $native - Return native name (true) or English name (false)
+     * @return string|null - Language name or null
+     */
+    function getLanguageName($code, $native = true) {
+        if ($this->languageDetector) {
+            return $this->languageDetector->getLanguageName($code, $native);
+        }
+
+        // Fallback: try to get from config
+        $languages = $this->getConfig('languages');
+        if (isset($languages[$code]) && is_array($languages[$code])) {
+            if ($native) {
+                return $languages[$code]['native_name'] ?? $languages[$code]['name'] ?? null;
+            } else {
+                return $languages[$code]['name'] ?? null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Trigger language change hook
+     * Can be overridden or extended by applications
+     *
+     * @param string $newLang - New language code
+     */
+    protected function triggerLanguageChangeHook($newLang) {
+        // Hook for future extensions
+        // Applications can override this to perform actions on language change
+        // Example: log language changes, update user preferences, etc.
     }
 }
 

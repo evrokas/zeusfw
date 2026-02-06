@@ -39,13 +39,17 @@ class dictionaryClassEx extends dictionaryClass {
         $multilingual = $kernel->getConfig('multilingual');
         if(!$multilingual)return $token;
 
+        // echopre("token: " . print_r($token, 1));
+
         $langs = $kernel->getConfig('languages');
 
         $current_language = $kernel->getCurrentLanguage();
+        // echopre("lang = " . print_r($langs, 1));
+        // echopre("lang = " . print_r(array_keys($langs)[0], 1));
 
-        $placeholders = implode(" OR ", array_map(fn($lang) => "($lang = ?)", $langs));
+        $placeholders = implode(" OR ", array_map(fn($lang) => "($lang = ?)", array_keys($langs)));
         $sql = "SELECT * FROM dictionary WHERE $placeholders LIMIT 1";
-        // echopre("sql a: $sql");
+        // echopre("sql a: ".print_r($sql,1));
 
         $st = dbConnection::getConnection()->prepare( $sql );
         $st->execute(array_fill(0, count($langs), $token));

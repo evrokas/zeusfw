@@ -32,7 +32,7 @@ class LanguageSelectorModule extends moduleClass {
         $language_flags = [];
         $flagAttributes = [];
         $langs = $kernel->getConfig('languages');
-        foreach($langs as $lang) {
+        foreach(array_keys($langs) as $lang) {
             $flagAttributes[ $lang ] = new Attributes(['class' => 'flag']);
             $flagAttributes[ $lang ]->addAttribute(['src' => $this->getFlagURL($lang)]);
             $flagAttributes[ $lang ]->addAttribute(['alt' => $lang ]);
@@ -42,7 +42,7 @@ class LanguageSelectorModule extends moduleClass {
             }
         }
         // echopre("languages: " . print_r($language_flags, 1)); 
-        return $this->RenderTemplate(['available' => $langs, 'current' => $kernel->getCurrentLanguage(),
+        return $this->RenderTemplate(['available' => array_keys($langs), 'current' => $kernel->getCurrentLanguage(),
             // 'flags' => $language_flags,
             'attributes' => $flagAttributes]);
     }
