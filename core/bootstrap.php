@@ -32,6 +32,11 @@ require_once(__DIR__ . "/router/ErrorHandlers.php");      // load router classes
 
 require_once(__DIR__ . "/templates/ZETEMTemplate.php");
 
+// Load Render Array System
+require_once(__DIR__ . "/render/RenderAccess.php");
+require_once(__DIR__ . "/render/RenderElementTypes.php");
+require_once(__DIR__ . "/render/RenderArrayManager.php");
+require_once(__DIR__ . "/render/RenderHelpers.php");
 
 require_once(__DIR__ . "/lib/Log.php");
 

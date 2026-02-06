@@ -4,6 +4,24 @@ libraries:
       - menu_navigation:
         src: 'css/menu-navigation.css'
   webform:
-    css: 
+    css:
       - webform:
         src: 'css/webform.css'
+
+# Render Array System Configuration
+render_system:
+  # Enable/disable caching for render arrays
+  cache_enabled: false
+
+  # Cache directory path (relative to application root)
+  cache_path: 'web/cache/render/'
+
+  # Default cache max age in seconds (0 = permanent)
+  default_cache_max_age: 3600
+
+  # Type-to-template mapping for built-in element types
+  # Can be overridden in config/settings.info.yaml
+  type_templates:
+    container: 'render/container.zetem'
+    link: 'render/link.zetem'
+    html_tag: 'render/html-tag.zetem'
