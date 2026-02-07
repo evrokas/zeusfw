@@ -53,6 +53,7 @@ class Renderer {
     static $loopVars = [];
     static $loopCounter = 0;
     static $tloopCounter = 1000;
+    static $anonFuncParams = [];  // Track anonymous function parameters
 
     static $cstart;
     static $cend;
@@ -281,6 +282,7 @@ class Renderer {
         self::$blocks = [];
         self::$macroArgs = [];
         self::$loopVars = [];
+        self::$anonFuncParams = [];
         self::$loopCounter = 0;
         self::$tloopCounter = 1000;
     }
@@ -439,13 +441,14 @@ class Renderer {
     }
 
     /**
-     * Check if a variable name is scoped (macro arg or loop variable)
+     * Check if a variable name is scoped (macro arg, loop variable, or anonymous function parameter)
      *
      * @param string $varName Variable name without $
      * @return bool
      */
     static function isScopedVariable($varName) {
         return isset(self::$macroArgs[$varName]) || isset(self::$loopVars[$varName]) ||
+               isset(self::$anonFuncParams[$varName]) ||
                strpos($varName, '_macro_') === 0 || strpos($varName, '_loop_') === 0 || strpos($varName, '_tloop_') === 0;
     }
 
@@ -514,14 +517,60 @@ class Renderer {
     }
 
     /**
+     * Extract anonymous function parameters from an expression
+     * Returns array of parameter names found in anonymous functions
+     *
+     * @param string $expr Expression to analyze
+     * @return array Array of parameter names (without $)
+     */
+    static function extractAnonFuncParams($expr) {
+        $params = [];
+
+        // Match anonymous functions: function($param1, $param2) { ... }
+        // Also match fn($param) => ... (arrow functions)
+        if (preg_match_all('/(?:function|fn)\s*\(([^)]*)\)/', $expr, $matches)) {
+            foreach ($matches[1] as $paramsList) {
+                // Extract individual parameter names
+                if (preg_match_all('/\$([a-zA-Z_][a-zA-Z0-9_]*)/', $paramsList, $paramMatches)) {
+                    foreach ($paramMatches[1] as $param) {
+                        $params[] = $param;
+                    }
+                }
+            }
+        }
+
+        return $params;
+    }
+
+    /**
      * Process a full expression through both dot and bracket notation conversion
+     * Handles anonymous function parameters by temporarily marking them as scoped
      *
      * @param string $expr Expression to process
      * @return string Processed expression
      */
     static function processExpression($expr) {
+        // Extract anonymous function parameters before processing
+        $anonParams = self::extractAnonFuncParams($expr);
+
+        // Temporarily mark anonymous function parameters as scoped
+        $tempScoped = [];
+        foreach ($anonParams as $param) {
+            if (!isset(self::$anonFuncParams[$param])) {
+                self::$anonFuncParams[$param] = true;
+                $tempScoped[] = $param;
+            }
+        }
+
+        // Process the expression (scoped params won't be converted to $variable_context)
         $expr = self::convertDotNotation($expr);
         $expr = self::convertArrayNotation($expr);
+
+        // Clean up temporary scoped parameters
+        foreach ($tempScoped as $param) {
+            unset(self::$anonFuncParams[$param]);
+        }
+
         return $expr;
     }
 

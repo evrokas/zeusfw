@@ -13,12 +13,12 @@ table:
     type: boolean
     default: false
       
-
-  - name: gr
+  - name: el
     type: text
     default: null
 
-  - name: gr_set
+  - name: el_set
     type: boolean
     default: false
+
 ---
