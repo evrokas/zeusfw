@@ -106,6 +106,10 @@ class LanguageDetector {
             $lang = null;
 
             switch ($method) {
+                case 'url':
+                    $lang = $this->detectFromUrl();
+                    break;
+
                 case 'session':
                     $lang = $this->detectFromSession();
                     break;
@@ -198,6 +202,45 @@ class LanguageDetector {
      */
     private function detectFromQueryParameter() {
         return $_GET['lang'] ?? null;
+    }
+
+    /**
+     * Detect language from URL path prefix (/en/page or /el/page)
+     *
+     * Extracts language code from the first segment of the URL path
+     * Examples:
+     * - /en/admin → 'en'
+     * - /el/patients/list → 'el'
+     * - /admin → null (no language prefix)
+     *
+     * @return string|null - Language code or null
+     */
+    private function detectFromUrl() {
+        // Get the request URI
+        $requestUri = $_SERVER['REQUEST_URI'] ?? '';
+
+        // Remove query string
+        $path = parse_url($requestUri, PHP_URL_PATH);
+
+        if (!$path) {
+            return null;
+        }
+
+        // Remove leading slash and split by /
+        $path = ltrim($path, '/');
+        $segments = explode('/', $path);
+
+        // Check if first segment is a valid language code
+        if (!empty($segments[0]) && strlen($segments[0]) === 2) {
+            $possibleLang = strtolower($segments[0]);
+
+            // Only return if it's a valid language code
+            if ($this->isValidLanguage($possibleLang)) {
+                return $possibleLang;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -337,5 +380,70 @@ class LanguageDetector {
         }
 
         return null;
+    }
+
+    /**
+     * Extract language prefix from URL path
+     *
+     * Returns array with ['lang' => 'en', 'path' => '/admin'] or null if no prefix
+     *
+     * @param string $path - URL path
+     * @return array|null - ['lang' => 'code', 'path' => 'remaining_path'] or null
+     */
+    public function extractLanguageFromPath($path) {
+        // Remove leading slash and split by /
+        $path = ltrim($path, '/');
+        $segments = explode('/', $path);
+
+        // Check if first segment is a valid language code
+        if (!empty($segments[0]) && strlen($segments[0]) === 2) {
+            $possibleLang = strtolower($segments[0]);
+
+            if ($this->isValidLanguage($possibleLang)) {
+                // Remove language segment and rebuild path
+                array_shift($segments);
+                $remainingPath = '/' . implode('/', $segments);
+
+                return [
+                    'lang' => $possibleLang,
+                    'path' => $remainingPath
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Add language prefix to URL path
+     *
+     * @param string $path - URL path
+     * @param string $lang - Language code
+     * @return string - Path with language prefix
+     */
+    public function addLanguageToPath($path, $lang) {
+        if (!$this->isValidLanguage($lang)) {
+            return $path;
+        }
+
+        // Remove leading slash, add language, re-add slash
+        $path = ltrim($path, '/');
+        return '/' . $lang . '/' . $path;
+    }
+
+    /**
+     * Remove language prefix from URL path
+     *
+     * @param string $path - URL path
+     * @return string - Path without language prefix
+     */
+    public function removeLanguageFromPath($path) {
+        $extracted = $this->extractLanguageFromPath($path);
+
+        if ($extracted) {
+            return $extracted['path'];
+        }
+
+        return $path;
     }
 }
