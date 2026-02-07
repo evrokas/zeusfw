@@ -418,6 +418,7 @@ function generateClassCode($yamlData) {
     $flddef = array();
 
     $table = $yamlData['table'];
+    echo("table: " . print_r($table, 1));
 
     foreach($table['fields'] as $fld) {
         $fldnames[] = $fld['name'];
@@ -435,6 +436,7 @@ function generateClassCode($yamlData) {
 
     $funcdefs = [];
 
+    echo("printing args: " . print_r($args, 1) . "\n");
     foreach($functionNames as $fname) {
         $funcdefs[ $fname ] = Renderer::render($fname.'.zetem', $args);
     }
