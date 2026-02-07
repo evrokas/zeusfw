@@ -287,10 +287,13 @@ function kindex($token) {
 // main translation function, translates $token to current language
 // if $token is an array, then checks if the array has keys as the
 // current language, if yes, then emits the value of that key
+// Enhanced to support file-based translations via MultilingualManager
 function t($token, array $values = []) {
+    global $kernel;
+
+    // If token is an array (old format for language-specific values)
     if(is_array($token)) {
         // it is an array, check to see if it has translation array keys
-        global $kernel;
         $curLang = $kernel->getCurrentLanguage();
         if(array_key_exists($curLang, $token)) {
             $text = $token[ $curLang ];
@@ -298,13 +301,30 @@ function t($token, array $values = []) {
             $text = dictionaryClassEx::translateToken($token[ array_key_first($token) ]);
         }
     } else {
-        $text = dictionaryClassEx::translateToken($token);
-        // echopre("token $token => $word");
+        // Token is a string - try file-based translations first, then database
+        $text = null;
+
+        // Try MultilingualManager if available (file-based translations)
+        $manager = $kernel->getMultilingualManager();
+        if ($manager && $manager->hasTranslation($token)) {
+            $text = $manager->translate($token, $values);
+            // Return early if found and parameters already replaced
+            if (!empty($values)) {
+                return $text;
+            }
+        }
+
+        // Fallback to database dictionary if not found in files
+        if ($text === null || $text === $token) {
+            $text = dictionaryClassEx::translateToken($token);
+        }
     }
 
+    // Replace parameters (support both @key and {key} syntax)
     if(!empty($values)) {
         foreach($values as $key => $value) {
             $text = str_replace('@' . $key, (string)$value, $text);
+            $text = str_replace('{' . $key . '}', (string)$value, $text);
         }
     }
 
@@ -327,6 +347,54 @@ function getLangText($tok) {
     if(is_string($tok))return $tok;
 
     return 'nolangtext';
+}
+
+/**
+ * Translate with pluralization support
+ *
+ * Example: t_plural('item', 5) returns "5 items"
+ *
+ * @param string $key - Translation key
+ * @param int $count - Count for pluralization
+ * @param array $params - Additional parameters (optional)
+ * @param string|null $lang - Language code (null for current language)
+ * @return string - Translated string with correct plural form
+ */
+function t_plural($key, $count, $params = [], $lang = null) {
+    global $kernel;
+
+    $manager = $kernel->getMultilingualManager();
+
+    if ($manager) {
+        return $manager->translatePlural($key, $count, $params, $lang);
+    }
+
+    // Fallback
+    return $count . ' ' . $key;
+}
+
+/**
+ * Translate with context support
+ *
+ * Example: t_context('bank', 'financial') vs t_context('bank', 'river')
+ *
+ * @param string $key - Translation key
+ * @param string $context - Context identifier
+ * @param array $params - Parameters for replacement (optional)
+ * @param string|null $lang - Language code (null for current language)
+ * @return string - Translated string
+ */
+function t_context($key, $context, $params = [], $lang = null) {
+    global $kernel;
+
+    $manager = $kernel->getMultilingualManager();
+
+    if ($manager) {
+        return $manager->translateContext($key, $context, $params, $lang);
+    }
+
+    // Fallback
+    return $key;
 }
 
 function getConf($atok) {

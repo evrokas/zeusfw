@@ -41,7 +41,7 @@ class LanguageDetector {
         $langDetection = $this->config['language_detection'] ?? [];
 
         // Set default language
-        $this->defaultLanguage = $langDetection['default'] ?? 'gr';
+        $this->defaultLanguage = $langDetection['default'] ?? 'el';
 
         // Set detection priority (default order if not configured)
         $this->detectionPriority = $langDetection['priority'] ?? [
@@ -66,10 +66,10 @@ class LanguageDetector {
         $languages = $this->config['languages'] ?? [];
 
         // New format: associative array with keys as language codes
-        // Old format: simple array ['en', 'gr']
+        // Old format: simple array ['en', 'el']
         // Using array_keys() works for both formats:
-        // - New: array_keys(['en' => [...], 'gr' => [...]]) = ['en', 'gr']
-        // - Old: array_keys(['en', 'gr']) = [0, 1] but we check if numeric
+        // - New: array_keys(['en' => [...], 'el' => [...]]) = ['en', 'el']
+        // - Old: array_keys(['en', 'el']) = [0, 1] but we check if numeric
         if (is_array($languages) && !empty($languages)) {
             $keys = array_keys($languages);
             // If first key is numeric, it's old format - return values instead
@@ -93,7 +93,7 @@ class LanguageDetector {
         }
 
         // Fallback if no languages configured
-        return ['gr', 'en'];
+        return ['el', 'en'];
     }
 
     /**

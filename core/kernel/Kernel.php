@@ -22,6 +22,7 @@ class Kernel {
     protected $siteconf = null;     // site configuration
     protected $modules = array();
     protected $languageDetector = null;  // language detection service
+    protected $multilingualManager = null;  // file-based translation manager
 
     function __construct($asrv, $configdir) {
         $this->rootpath= substr($asrv['PHP_SELF'],0,strrpos($asrv['PHP_SELF'],'/')+1);
@@ -96,6 +97,9 @@ class Kernel {
 
         // Initialize language detector after configuration is loaded
         $this->initLanguageDetector();
+
+        // Initialize multilingual manager for file-based translations
+        $this->initMultilingualManager();
     }
 
     function getConfig($section=null) {
@@ -748,6 +752,27 @@ class Kernel {
     }
 
     /**
+     * Initialize the multilingual manager
+     * Called after configuration is loaded
+     */
+    private function initMultilingualManager() {
+        // Only initialize if multilingual is enabled
+        if ($this->getConfig('multilingual')) {
+            require_once(__FWDIR__ . '/lib/MultilingualManager.php');
+            $this->multilingualManager = new MultilingualManager($this);
+        }
+    }
+
+    /**
+     * Get the multilingual manager instance
+     *
+     * @return MultilingualManager|null
+     */
+    public function getMultilingualManager() {
+        return $this->multilingualManager;
+    }
+
+    /**
      * Set current language with validation and persistence
      *
      * @param string $curlang - Language code to set
@@ -812,7 +837,7 @@ class Kernel {
             return array_keys($languages);
         }
 
-        return ['gr', 'en'];
+        return ['el', 'en'];
     }
 
     /**
@@ -827,7 +852,7 @@ class Kernel {
 
         // Fallback
         $langDetection = $this->getConfig('language_detection');
-        return $langDetection['default'] ?? 'gr';
+        return $langDetection['default'] ?? 'el';
     }
 
     /**
