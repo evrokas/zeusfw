@@ -1,11 +1,28 @@
 # ZPMS Enhanced Multilingual System - Implementation Plan
 
 **Date:** February 6, 2026
-**Last Updated:** February 6, 2026
+**Last Updated:** February 8, 2026
 **Target System:** ZPMS (Zeus Patient Management System) on Zeus Framework
-**Status:** ✅ Phases 1-3 Completed
+**Status:** ✅ Phases 1-4 Completed (33% of comprehensive plan)
 **Language Code:** Greek changed from 'gr' to 'el' (ISO 639-1 standard)
 **URL Detection:** ✅ Implemented - Supports `/en/page` and `/el/page` URL patterns
+
+---
+
+## ⚠️ IMPORTANT: This Plan Has Been Superseded
+
+This translation-only plan has been integrated into a comprehensive upgrade plan:
+
+**📄 See: `/var/www/html/apps/zeusfw/plans/zpms-upgrade-plan.md`**
+
+The new plan includes:
+- **Phases 1-4:** Translation System Foundation (✅ Complete) - This document
+- **Phases 5-8:** Design System Migration (🔲 Pending) - NEW
+- **Phases 9-12:** Translation System Enhancements (🔲 Pending) - Former Phases 5-8
+
+**For current implementation status and next steps, refer to the comprehensive plan.**
+
+---
 
 ---
 
@@ -16,7 +33,7 @@
 | Phase 1 | ✅ Complete | Enhanced Language Detection (including URL-based) |
 | Phase 2 | ✅ Complete | File-Based Translation System (YAML) |
 | Phase 3 | ✅ Complete | ZETEM Template Integration (Filters) |
-| Phase 4 | 🔲 Pending | Enhanced Dictionary System |
+| Phase 4 | ✅ Complete | Enhanced Dictionary System |
 | Phase 5 | 🔲 Pending | Enhanced Language Switcher |
 | Phase 6 | 🔲 Pending | Translation Management Interface |
 | Phase 7 | 🔲 Pending | SEO & Metadata |
@@ -231,24 +248,26 @@ This plan **adapts the best ideas** from the generic multilingual plan and **enh
    {{ 'patient' | t_plural($patientCount) }}
    ```
 
-### Phase 4: Enhanced Dictionary System
+### Phase 4: Enhanced Dictionary System ✅ COMPLETED
 
 **Objective:** Improve the database-driven translation system.
 
+**Status:** ✅ Fully implemented and tested
+
 **Tasks:**
 
-1. **Enhance dictionaryClassEx** (`fw/core/dictionaryClassEx.php`)
-   - Add `getAllTokens()` - Retrieve all dictionary entries
-   - Add `updateTranslation($token, $lang, $translation)` - Update specific translation
-   - Add `deleteToken($token)` - Remove dictionary entry
-   - Add `getUntranslated($lang)` - Find missing translations
-   - Add `exportToYAML($lang)` - Export dictionary to YAML file
-   - Add `importFromYAML($lang, $file)` - Import YAML file to dictionary
-   - Add statistics methods:
-     - `getTranslationStats()` - Count translated vs untranslated per language
-     - `getRecentTokens($limit)` - Recently added tokens
+1. ✅ **Enhance dictionaryClassEx** (`fw/core/dictionaryClassEx.php`)
+   - ✅ Add `getAllTokens()` - Retrieve all dictionary entries
+   - ✅ Add `updateTranslation($token, $lang, $translation)` - Update specific translation
+   - ✅ Add `deleteToken($token)` - Remove dictionary entry
+   - ✅ Add `getUntranslated($lang)` - Find missing translations
+   - ✅ Add `exportToYAML($lang)` - Export dictionary to YAML file
+   - ✅ Add `importFromYAML($lang, $file)` - Import YAML file to dictionary
+   - ✅ Add statistics methods:
+     - ✅ `getTranslationStats()` - Count translated vs untranslated per language
+     - ✅ `getRecentTokens($limit)` - Recently added tokens
 
-2. **Add dictionary configuration** (`config/settings.info.yaml`)
+2. ✅ **Add dictionary configuration** (`config/settings.info.yaml`)
    ```yaml
    dictionary:
      auto_register: true        # Auto-add new tokens
@@ -256,10 +275,11 @@ This plan **adapts the best ideas** from the generic multilingual plan and **enh
      prefer_database: false     # Prefer file-based over DB
    ```
 
-3. **Integration strategy**
+3. ✅ **Integration strategy**
    - File-based for static UI strings (faster, version-controlled)
    - Database for dynamic content (user-generated, admin-editable)
    - MultilingualManager checks both sources based on config
+   - Translation resolution order configurable via `prefer_database` flag
 
 ### Phase 5: Enhanced Language Switcher
 

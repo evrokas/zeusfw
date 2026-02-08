@@ -51,6 +51,17 @@ $suitesDir = $testingDir . '/';
 require_once $srcDir . '/TemplateFilter.php';
 require_once $srcDir . '/TemplateSuggestion.php';
 require_once $srcDir . '/ZETEMTemplate.php';
+
+// Load Render Array System
+$renderDir = dirname($testingDir) . '/core/render';
+require_once $renderDir . '/RenderAccess.php';
+require_once $renderDir . '/RenderElementTypes.php';
+require_once $renderDir . '/RenderArrayManager.php';
+require_once $renderDir . '/RenderHelpers.php';
+
+// Initialize Render Array System
+RenderArrayManager::init();
+
 require_once $testingDir . '/ZeusTestFramework.php';
 
 // Check for YAML extension

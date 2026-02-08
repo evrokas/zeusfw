@@ -1,0 +1,438 @@
+suite:
+  name: Render Array System Tests
+  description: Comprehensive tests for the Zeus Render Array System
+
+setup:
+  directories:
+    - test_templates
+    - test_cache
+  initialize:
+    - type: renderer
+      template_path: test_templates
+      cache_path: test_cache
+      enable_cache: false
+      enable_comments: false
+
+tests:
+  # Basic Markup Rendering
+  test_markup_basic:
+    description: Render a basic markup element
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': markup
+          '#markup': '<p>Hello World</p>'
+    assertions:
+      - type: equals
+        expected: '<p>Hello World</p>'
+        message: Basic markup should render correctly
+
+  test_markup_with_prefix_suffix:
+    description: Render markup with prefix and suffix
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': markup
+          '#markup': '<p>Content</p>'
+          '#prefix': '<div class="wrapper">'
+          '#suffix': '</div>'
+    assertions:
+      - type: equals
+        expected: '<div class="wrapper"><p>Content</p></div>'
+        message: Markup with prefix and suffix should render correctly
+
+  # Container Rendering
+  test_container_basic:
+    description: Render a basic container
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': container
+          'child':
+            '#markup': 'Child content'
+    assertions:
+      - type: contains
+        expected: '<div>'
+        message: Container should render a div tag
+      - type: contains
+        expected: 'Child content'
+        message: Container should contain child content
+
+  test_container_with_attributes:
+    description: Render container with attributes
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': container
+          '#attributes':
+            class: ['card', 'patient-card']
+            id: 'patient-123'
+          'content':
+            '#markup': 'Patient Info'
+    assertions:
+      - type: matches
+        pattern: '/<div\s+class="card patient-card"\s+id="patient-123">/'
+        message: Container attributes should render correctly
+      - type: contains
+        expected: 'Patient Info'
+
+  test_container_custom_tag:
+    description: Render container with custom tag
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': container
+          '#tag': 'section'
+          '#attributes':
+            class: ['main-content']
+          'text':
+            '#markup': 'Section content'
+    assertions:
+      - type: matches
+        pattern: '/<section\s+class="main-content">/'
+        message: Container should use custom tag
+      - type: contains
+        expected: 'Section content'
+
+  # HTML Tag Rendering
+  test_html_tag_basic:
+    description: Render a basic HTML tag
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': html_tag
+          '#tag': 'h1'
+          '#value': 'Page Title'
+    assertions:
+      - type: equals
+        expected: '<h1>Page Title</h1>'
+        message: HTML tag should render correctly
+
+  test_html_tag_with_attributes:
+    description: Render HTML tag with attributes
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': html_tag
+          '#tag': 'p'
+          '#value': 'Paragraph text'
+          '#attributes':
+            class: ['lead']
+            id: 'intro'
+    assertions:
+      - type: matches
+        pattern: '/<p\s+class="lead"\s+id="intro">Paragraph text<\/p>/'
+        message: HTML tag with attributes should render correctly
+
+  # Link Rendering
+  test_link_basic:
+    description: Render a basic link
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': link
+          '#title': 'Click Here'
+          '#url': '/patients/123'
+    assertions:
+      - type: contains
+        expected: '<a'
+        message: Link should render anchor tag
+      - type: contains
+        expected: 'href="/patients/123"'
+        message: Link should have correct href
+      - type: contains
+        expected: 'Click Here'
+        message: Link should have correct title
+
+  test_link_with_attributes:
+    description: Render link with attributes
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': link
+          '#title': 'View Patient'
+          '#url': '/patients/view/123'
+          '#attributes':
+            class: ['btn', 'btn-primary']
+            target: '_blank'
+    assertions:
+      - type: matches
+        pattern: '/<a\s+href="\/patients\/view\/123"/'
+        message: Link should have href attribute
+      - type: contains
+        expected: 'class="btn btn-primary"'
+        message: Link should have class attribute
+      - type: contains
+        expected: 'target="_blank"'
+        message: Link should have target attribute
+
+  # Weight and Ordering
+  test_weight_ordering:
+    description: Test children are sorted by weight
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - 'footer':
+            '#markup': 'Footer'
+            '#weight': 100
+          'header':
+            '#markup': 'Header'
+            '#weight': -100
+          'content':
+            '#markup': 'Content'
+            '#weight': 0
+    assertions:
+      - type: matches
+        pattern: '/Header.*Content.*Footer/s'
+        message: Children should be sorted by weight (header, content, footer)
+
+  test_weight_negative_positive:
+    description: Test negative and positive weights
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - 'item_a':
+            '#markup': 'A'
+            '#weight': 10
+          'item_b':
+            '#markup': 'B'
+            '#weight': -10
+          'item_c':
+            '#markup': 'C'
+            '#weight': 0
+    assertions:
+      - type: matches
+        pattern: '/B.*C.*A/s'
+        message: Weights should sort correctly (B=-10, C=0, A=10)
+
+  # Nested Children
+  test_nested_children:
+    description: Test nested render arrays
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': container
+          '#attributes':
+            class: ['outer']
+          'inner':
+            '#type': container
+            '#attributes':
+              class: ['inner']
+            'text':
+              '#markup': 'Nested content'
+    assertions:
+      - type: contains
+        expected: '<div class="outer">'
+        message: Outer container should render
+      - type: contains
+        expected: '<div class="inner">'
+        message: Inner container should render
+      - type: contains
+        expected: 'Nested content'
+        message: Nested content should render
+
+  # Access Control - Boolean
+  test_access_true:
+    description: Test access control with true
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#markup': 'Visible content'
+          '#access': true
+    assertions:
+      - type: equals
+        expected: 'Visible content'
+        message: Content with access=true should render
+
+  test_access_false:
+    description: Test access control with false
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#markup': 'Hidden content'
+          '#access': false
+    assertions:
+      - type: equals
+        expected: ''
+        message: Content with access=false should not render
+
+  test_access_no_property:
+    description: Test access control without property (default allow)
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#markup': 'Default visible'
+    assertions:
+      - type: equals
+        expected: 'Default visible'
+        message: Content without #access property should render by default
+
+  # Helper Functions
+  test_helper_render_markup:
+    description: Test render_markup helper function
+    action:
+      type: function_call
+      function: render_markup
+      args:
+        - '<p>Test</p>'
+        - '<div>'
+        - '</div>'
+    assertions:
+      - type: type
+        expected: array
+        message: render_markup should return an array
+
+  test_helper_render_container:
+    description: Test render_container helper function
+    action:
+      type: function_call
+      function: render_container
+      args:
+        - 'child1':
+            '#markup': 'Child 1'
+        - class: ['wrapper']
+        - 'section'
+    assertions:
+      - type: type
+        expected: array
+        message: render_container should return an array
+
+  test_helper_render_link:
+    description: Test render_link helper function
+    action:
+      type: function_call
+      function: render_link
+      args:
+        - 'Click me'
+        - '/path/to/page'
+        - class: ['btn']
+    assertions:
+      - type: type
+        expected: array
+        message: render_link should return an array
+
+  # Children-only rendering
+  test_children_only:
+    description: Test rendering element with only children (no type)
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - 'item1':
+            '#markup': 'First'
+          'item2':
+            '#markup': 'Second'
+          'item3':
+            '#markup': 'Third'
+    assertions:
+      - type: contains
+        expected: 'First'
+        message: First child should render
+      - type: contains
+        expected: 'Second'
+        message: Second child should render
+      - type: contains
+        expected: 'Third'
+        message: Third child should render
+
+  # Printed flag
+  test_printed_flag:
+    description: Test that elements with #printed are skipped
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#markup': 'Should not show'
+          '#printed': true
+    assertions:
+      - type: equals
+        expected: ''
+        message: Elements with #printed=true should not render
+
+  # Complex example
+  test_complex_structure:
+    description: Test a complex nested structure with mixed types
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': container
+          '#attributes':
+            class: ['patient-card']
+          'header':
+            '#type': html_tag
+            '#tag': 'h3'
+            '#value': 'John Doe'
+            '#weight': -10
+          'info':
+            '#type': container
+            '#attributes':
+              class: ['patient-info']
+            'age':
+              '#markup': '<p>Age: 45</p>'
+            'dob':
+              '#markup': '<p>DOB: 1980-01-01</p>'
+          'actions':
+            '#type': container
+            '#attributes':
+              class: ['actions']
+            '#weight': 10
+            'edit':
+              '#type': link
+              '#title': 'Edit'
+              '#url': '/patients/123/edit'
+              '#attributes':
+                class: ['btn']
+    assertions:
+      - type: contains
+        expected: 'patient-card'
+        message: Should contain patient-card class
+      - type: contains
+        expected: '<h3>John Doe</h3>'
+        message: Should contain header
+      - type: contains
+        expected: 'Age: 45'
+        message: Should contain age info
+      - type: contains
+        expected: 'Edit'
+        message: Should contain edit link
+      - type: matches
+        pattern: '/<h3>.*<p>Age.*<a.*Edit/s'
+        message: Elements should be in correct order (header, info, actions)
+
+teardown:
+  execute:
+    - type: clear_cache

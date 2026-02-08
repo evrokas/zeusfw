@@ -1,0 +1,4 @@
+{# HTML Tag Template - Default render for html_tag type #}
+<{{ $tag }}{% if $attributes %} {{ $attributes }}{% endif %}>
+  {{ $value }}{{ $children }}
+</{{ $tag }}>

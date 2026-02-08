@@ -1,0 +1,4 @@
+{# Link Template - Default render for link type #}
+<a href="{{ $url }}"{% if $attributes %} {{ $attributes }}{% endif %}>
+  {{ $title }}
+</a>

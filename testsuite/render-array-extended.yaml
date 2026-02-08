@@ -1,0 +1,432 @@
+suite:
+  name: Render Array Extended Tests (Table & AJAX)
+  description: Tests for table and AJAX element types
+
+setup:
+  directories:
+    - test_templates
+    - test_cache
+  initialize:
+    - type: renderer
+      template_path: test_templates
+      cache_path: test_cache
+      enable_cache: false
+      enable_comments: false
+
+tests:
+  # Table Tests
+  test_table_basic:
+    description: Render a basic table with header and rows
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': table
+          '#header': ['Name', 'Age', 'Status']
+          '#rows':
+            - ['John Doe', '45', 'Active']
+            - ['Jane Smith', '32', 'Active']
+    assertions:
+      - type: contains
+        expected: '<table>'
+        message: Should render table tag
+      - type: contains
+        expected: '<thead>'
+        message: Should render table header
+      - type: contains
+        expected: '<th>Name</th>'
+        message: Should render header cells
+      - type: contains
+        expected: '<tbody>'
+        message: Should render table body
+      - type: contains
+        expected: '<td>John Doe</td>'
+        message: Should render data cells
+
+  test_table_with_attributes:
+    description: Render table with CSS classes
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': table
+          '#header': ['ID', 'Name']
+          '#rows':
+            - ['1', 'Patient A']
+          '#attributes':
+            class: ['table', 'table-striped']
+            id: 'patient-table'
+    assertions:
+      - type: matches
+        pattern: '/<table\s+class="table table-striped"\s+id="patient-table">/'
+        message: Should render table with attributes
+
+  test_table_empty_message:
+    description: Render table with empty message when no rows
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': table
+          '#header': ['Name', 'Email']
+          '#rows': []
+          '#empty': 'No patients found'
+    assertions:
+      - type: contains
+        expected: 'No patients found'
+        message: Should show empty message
+      - type: matches
+        pattern: '/<td\s+colspan="2"/'
+        message: Empty cell should span all columns
+
+  test_table_with_caption:
+    description: Render table with caption
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': table
+          '#caption': 'Patient List 2026'
+          '#header': ['Name']
+          '#rows':
+            - ['John Doe']
+    assertions:
+      - type: contains
+        expected: '<caption>Patient List 2026</caption>'
+        message: Should render caption
+
+  test_table_with_footer:
+    description: Render table with footer row
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': table
+          '#header': ['Item', 'Price']
+          '#rows':
+            - ['Service A', '$100']
+            - ['Service B', '$200']
+          '#footer': ['Total', '$300']
+    assertions:
+      - type: contains
+        expected: '<tfoot>'
+        message: Should render footer
+      - type: contains
+        expected: '<td>Total</td>'
+        message: Should render footer cells
+
+  test_table_responsive:
+    description: Render responsive table with wrapper
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': table
+          '#header': ['Col1', 'Col2']
+          '#rows':
+            - ['A', 'B']
+          '#responsive': true
+    assertions:
+      - type: contains
+        expected: '<div class="table-responsive">'
+        message: Should wrap in responsive div
+      - type: contains
+        expected: '</div>'
+        message: Should close responsive wrapper
+
+  test_table_cell_attributes:
+    description: Render table with cell-level attributes
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': table
+          '#header':
+            - data: 'Name'
+              attributes:
+                class: ['sortable']
+            - 'Status'
+          '#rows':
+            - - data: 'John'
+                attributes:
+                  class: ['highlight']
+              - 'Active'
+    assertions:
+      - type: matches
+        pattern: '/<th\s+class="sortable">Name<\/th>/'
+        message: Should render header cell with attributes
+      - type: matches
+        pattern: '/<td\s+class="highlight">John<\/td>/'
+        message: Should render data cell with attributes
+
+  test_table_row_attributes:
+    description: Render table with row-level attributes
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': table
+          '#header': ['Name', 'Status']
+          '#rows':
+            - data: ['John Doe', 'Active']
+              attributes:
+                class: ['row-highlight']
+                'data-id': '123'
+    assertions:
+      - type: matches
+        pattern: '/<tr\s+class="row-highlight"\s+data-id="123">/'
+        message: Should render row with attributes
+
+  # Helper Function Tests
+  test_helper_render_table:
+    description: Test render_table helper function
+    action:
+      type: function_call
+      function: render_table
+      args:
+        - ['Name', 'Age']
+        - [['John', '45'], ['Jane', '32']]
+        - caption: 'Patients'
+          attributes:
+            class: ['table']
+    assertions:
+      - type: type
+        expected: array
+        message: render_table should return an array
+
+  # AJAX Link Tests
+  test_ajax_link_basic:
+    description: Render basic AJAX link
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': ajax_link
+          '#title': 'Load More'
+          '#url': '/api/patients/load-more'
+    assertions:
+      - type: contains
+        expected: '<a'
+        message: Should render anchor tag
+      - type: contains
+        expected: 'class="ajax-link"'
+        message: Should have ajax-link class
+      - type: contains
+        expected: 'data-ajax-url="/api/patients/load-more"'
+        message: Should have AJAX URL data attribute
+      - type: contains
+        expected: 'data-ajax-method="GET"'
+        message: Should default to GET method
+      - type: contains
+        expected: 'Load More'
+        message: Should contain link title
+
+  test_ajax_link_with_target:
+    description: Render AJAX link with target
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': ajax_link
+          '#title': 'Refresh'
+          '#url': '/api/refresh'
+          '#target': '#content-area'
+          '#method': 'POST'
+    assertions:
+      - type: contains
+        expected: 'data-ajax-target="#content-area"'
+        message: Should have target data attribute
+      - type: contains
+        expected: 'data-ajax-method="POST"'
+        message: Should use POST method
+
+  test_ajax_link_with_callback:
+    description: Render AJAX link with callback
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': ajax_link
+          '#title': 'Delete'
+          '#url': '/api/delete/123'
+          '#callback': 'handleDeleteResponse'
+          '#confirm': 'Are you sure?'
+    assertions:
+      - type: contains
+        expected: 'data-ajax-callback="handleDeleteResponse"'
+        message: Should have callback data attribute
+      - type: contains
+        expected: 'data-ajax-confirm="Are you sure?"'
+        message: Should have confirm data attribute
+
+  test_ajax_link_with_attributes:
+    description: Render AJAX link with custom attributes
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': ajax_link
+          '#title': 'Action'
+          '#url': '/api/action'
+          '#attributes':
+            class: ['btn', 'btn-primary']
+            'data-custom': 'value'
+    assertions:
+      - type: contains
+        expected: 'class="btn btn-primary ajax-link"'
+        message: Should merge custom classes with ajax-link
+      - type: contains
+        expected: 'data-custom="value"'
+        message: Should include custom attributes
+
+  # AJAX Button Tests
+  test_ajax_button_basic:
+    description: Render basic AJAX button
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': ajax_button
+          '#value': 'Submit'
+          '#url': '/api/submit'
+    assertions:
+      - type: contains
+        expected: '<button'
+        message: Should render button tag
+      - type: contains
+        expected: 'class="ajax-button"'
+        message: Should have ajax-button class
+      - type: contains
+        expected: 'data-ajax-url="/api/submit"'
+        message: Should have AJAX URL data attribute
+      - type: contains
+        expected: 'data-ajax-method="POST"'
+        message: Should default to POST method
+      - type: contains
+        expected: 'type="button"'
+        message: Should default to button type
+      - type: contains
+        expected: 'Submit'
+        message: Should contain button value
+
+  test_ajax_button_with_data:
+    description: Render AJAX button with POST data
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': ajax_button
+          '#value': 'Save'
+          '#url': '/api/save'
+          '#data':
+            patient_id: '123'
+            action: 'update'
+          '#button_type': 'submit'
+    assertions:
+      - type: contains
+        expected: 'type="submit"'
+        message: Should use submit button type
+      - type: matches
+        pattern: '/data-ajax-data=.*patient_id.*123/'
+        message: Should include JSON-encoded data
+
+  test_ajax_button_with_confirm:
+    description: Render AJAX button with confirmation
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': ajax_button
+          '#value': 'Delete Patient'
+          '#url': '/api/patients/delete/456'
+          '#method': 'DELETE'
+          '#confirm': 'This action cannot be undone. Continue?'
+          '#callback': 'handleDeleteComplete'
+    assertions:
+      - type: contains
+        expected: 'data-ajax-method="DELETE"'
+        message: Should use DELETE method
+      - type: contains
+        expected: 'data-ajax-confirm="This action cannot be undone. Continue?"'
+        message: Should have confirm message
+      - type: contains
+        expected: 'data-ajax-callback="handleDeleteComplete"'
+        message: Should have callback
+
+  # Helper Function Tests for AJAX
+  test_helper_render_ajax_link:
+    description: Test render_ajax_link helper function
+    action:
+      type: function_call
+      function: render_ajax_link
+      args:
+        - 'Load More'
+        - '/api/load'
+        - method: 'GET'
+          target: '#list'
+    assertions:
+      - type: type
+        expected: array
+        message: render_ajax_link should return an array
+
+  test_helper_render_ajax_button:
+    description: Test render_ajax_button helper function
+    action:
+      type: function_call
+      function: render_ajax_button
+      args:
+        - 'Submit Form'
+        - '/api/submit'
+        - method: 'POST'
+          data:
+            field: 'value'
+    assertions:
+      - type: type
+        expected: array
+        message: render_ajax_button should return an array
+
+  # Complex Integration Test
+  test_table_with_ajax_actions:
+    description: Render table with AJAX action links in cells
+    action:
+      type: method_call
+      class: RenderArrayManager
+      method: renderPlain
+      args:
+        - '#type': table
+          '#header': ['Patient', 'Status', 'Actions']
+          '#rows':
+            - - 'John Doe'
+              - 'Active'
+              - data: '<a class="ajax-link" data-ajax-url="/api/edit/1">Edit</a>'
+          '#attributes':
+            class: ['table']
+    assertions:
+      - type: contains
+        expected: '<table'
+        message: Should render table
+      - type: contains
+        expected: 'John Doe'
+        message: Should contain patient name
+      - type: contains
+        expected: 'ajax-link'
+        message: Should contain AJAX link in cell
+
+teardown:
+  execute:
+    - type: clear_cache

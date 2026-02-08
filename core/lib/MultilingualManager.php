@@ -142,20 +142,34 @@ class MultilingualManager {
             $lang = $this->currentLanguage;
         }
 
-        // Load translations for the requested language
-        $translations = $this->loadTranslations($lang);
+        $translation = null;
 
-        // Try to get the translation
-        $translation = $this->getNestedValue($translations, $key);
+        // Get dictionary configuration
+        $dictConfig = $this->config['dictionary'] ?? [];
+        $preferDatabase = $dictConfig['prefer_database'] ?? false;
 
-        // If not found and not using default language, try default language
-        if ($translation === null && $lang !== $this->defaultLanguage) {
-            $defaultTranslations = $this->loadTranslations($this->defaultLanguage);
-            $translation = $this->getNestedValue($defaultTranslations, $key);
+        // Check database first if preferred
+        if ($preferDatabase && $this->shouldCheckDatabase()) {
+            $translation = $this->translateFromDatabase($key, $lang);
         }
 
-        // If still not found, check database dictionary (if configured)
-        if ($translation === null && $this->shouldCheckDatabase()) {
+        // If not found, try file-based translations
+        if ($translation === null) {
+            // Load translations for the requested language
+            $translations = $this->loadTranslations($lang);
+
+            // Try to get the translation
+            $translation = $this->getNestedValue($translations, $key);
+
+            // If not found and not using default language, try default language
+            if ($translation === null && $lang !== $this->defaultLanguage) {
+                $defaultTranslations = $this->loadTranslations($this->defaultLanguage);
+                $translation = $this->getNestedValue($defaultTranslations, $key);
+            }
+        }
+
+        // If still not found and database not checked yet, check database (if configured)
+        if ($translation === null && !$preferDatabase && $this->shouldCheckDatabase()) {
             $translation = $this->translateFromDatabase($key, $lang);
         }
 
@@ -290,24 +304,44 @@ class MultilingualManager {
      */
     private function shouldCheckDatabase() {
         $dictConfig = $this->config['dictionary'] ?? [];
-        return $dictConfig['fallback_to_file'] ?? false;
+        // Check if fallback_to_file is true (allows checking database as fallback)
+        // OR if prefer_database is true (prioritizes database)
+        return ($dictConfig['fallback_to_file'] ?? false) || ($dictConfig['prefer_database'] ?? false);
     }
 
     /**
      * Translate from database dictionary
      *
      * @param string $key - Translation key
-     * @param string $lang - Language code
+     * @param string $lang - Language code (optional, uses current language if not provided)
      * @return string|null - Translation or null
      */
-    private function translateFromDatabase($key, $lang) {
+    private function translateFromDatabase($key, $lang = null) {
         // Check if dictionaryClassEx exists
         if (!class_exists('dictionaryClassEx')) {
             return null;
         }
 
         try {
-            return dictionaryClassEx::translateToken($key, $lang);
+            // Store current language temporarily
+            $originalLang = $this->kernel->getCurrentLanguage();
+
+            // Set the language if provided
+            if ($lang !== null && $lang !== $originalLang) {
+                $this->kernel->setCurrentLanguage($lang);
+            }
+
+            // Call translateToken (it uses kernel's current language internally)
+            $translation = dictionaryClassEx::translateToken($key);
+
+            // Restore original language if we changed it
+            if ($lang !== null && $lang !== $originalLang) {
+                $this->kernel->setCurrentLanguage($originalLang);
+            }
+
+            // Return null if translation is same as key (not found)
+            return ($translation === $key) ? null : $translation;
+
         } catch (Exception $e) {
             error_log("MultilingualManager: Database translation failed: " . $e->getMessage());
             return null;

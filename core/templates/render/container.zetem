@@ -1,0 +1,4 @@
+{# Container Template - Default render for container type #}
+<div{% if $attributes %} {{ $attributes }}{% endif %}>
+  {{ $children }}
+</div>
