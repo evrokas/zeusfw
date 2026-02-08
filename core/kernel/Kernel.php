@@ -23,6 +23,7 @@ class Kernel {
     protected $modules = array();
     protected $languageDetector = null;  // language detection service
     protected $multilingualManager = null;  // file-based translation manager
+    protected $fileManager = null;       // file management service
 
     function __construct($asrv, $configdir) {
         $this->rootpath= substr($asrv['PHP_SELF'],0,strrpos($asrv['PHP_SELF'],'/')+1);
@@ -100,6 +101,9 @@ class Kernel {
 
         // Initialize multilingual manager for file-based translations
         $this->initMultilingualManager();
+
+        // Initialize file manager
+        $this->initFileManager();
     }
 
     function getConfig($section=null) {
@@ -770,6 +774,28 @@ class Kernel {
      */
     public function getMultilingualManager() {
         return $this->multilingualManager;
+    }
+
+    /**
+     * Initialize the file manager
+     *
+     * @return void
+     */
+    private function initFileManager() {
+        if (file_exists(__FWDIR__ . '/lib/FileManager.php')) {
+            require_once(__FWDIR__ . '/lib/FileManager.php');
+            $fs_config = $this->getConfig('file_system') ?? [];
+            $this->fileManager = new ManagedFileManager($fs_config);
+        }
+    }
+
+    /**
+     * Get the file manager instance
+     *
+     * @return ManagedFileManager|null
+     */
+    public function getFileManager() {
+        return $this->fileManager;
     }
 
     /**

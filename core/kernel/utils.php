@@ -35,6 +35,72 @@ function guid() {
     return (trim(file_get_contents('/proc/sys/kernel/random/uuid')));
 }
 
+/**
+ * Save an uploaded file to a managed file location.
+ *
+ * @param array       $upload        $_FILES upload array (e.g. $_FILES['document'])
+ * @param string      $destination   Stream URI (e.g. public://patient-docs/42/report.pdf)
+ * @param string|null $entity_type   Entity type (e.g. 'patient', 'appointment')
+ * @param string|null $entity_id     Entity guid
+ * @param string      $usage_type    Usage type (default: 'attachment')
+ * @return FileEntity
+ */
+function file_save_upload(
+    array   $upload,
+    string  $destination,
+    ?string $entity_type = null,
+    ?string $entity_id   = null,
+    string  $usage_type  = 'attachment'
+): FileEntity {
+    global $kernel;
+    return $kernel->getFileManager()->create(
+        $upload['tmp_name'],
+        $destination,
+        $entity_type,
+        $entity_id,
+        $usage_type
+    );
+}
+
+/**
+ * Get the active reference count for a file URI.
+ *
+ * @param string $uri  Stream URI (e.g. public://path/file.pdf)
+ * @return int
+ */
+function file_usage_count(string $uri): int {
+    global $kernel;
+    $mgr = $kernel->getFileManager();
+    return $mgr ? $mgr->getUsageCount($uri) : 0;
+}
+
+/**
+ * Delete a file if it has no active references.
+ *
+ * @param string $uri  Stream URI
+ * @return bool  True if deleted, false if still in use or doesn't exist
+ */
+function file_delete_if_unused(string $uri): bool {
+    global $kernel;
+    $mgr = $kernel->getFileManager();
+    if ($mgr && $mgr->getUsageCount($uri) === 0) {
+        return $mgr->delete($uri);
+    }
+    return false;
+}
+
+/**
+ * Get the web-accessible URL for a file URI.
+ *
+ * @param string $uri  Stream URI (e.g. public://path/file.pdf)
+ * @return string  Web URL (e.g. /files/public/path/file.pdf)
+ */
+function file_url(string $uri): string {
+    global $kernel;
+    $mgr = $kernel->getFileManager();
+    return $mgr ? $mgr->getUrl($uri) : $uri;
+}
+
 function fatal_handler() {
     $errfile = "unknown file";
     $errstr  = "shutdown";
