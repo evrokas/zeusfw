@@ -6,10 +6,10 @@ No variant checks here!
 ==========================================
 #}
 
-  {% macro show_menu($items, $level) { %}
-    {% foreach($items as $item): %}
+  {% macro show_menu($items, $level) %}
+    {% for $item in $items %}
       <li {{ attributes($item['attributes']) }}>
-        {% if($item['has_children']): %}
+        {% if $item['has_children'] %}
             {# Item with submenu #}
             <input {{ attributes($item['toggle_attributes']) }}>
           
@@ -25,7 +25,7 @@ No variant checks here!
                 <span class="menu-text">
                   {{ getLangText($item['title']) }}
                 </span>
-                {% if(isset(item['badge'])): %}
+                {% if(isset($item['badge'])): %}
                   <span {{ attributes($item['badge_attributes']) }}>
                     {{ $item['badge']['text'] }}
                   </span>
@@ -62,7 +62,7 @@ No variant checks here!
             </ul>
           {% endif %}
           
-        {% else: %}
+        {% else %}
           {# Simple menu item #}
           <a href="{{ $item['url'] ? rel_url($item['url']) : '#' }}" 
              {{ attributes($item['link_attributes']) }}>
@@ -74,7 +74,7 @@ No variant checks here!
             <span class="menu-text">
               {{ getLangText($item['title']) }}
             </span>
-            {% if(isset($item['badge'])): %}
+            {% if $item['badge'] %}
               <span {{ attributes($item['badge_attributes']) }}>
                 {{ $item['badge']['text'] }}
               </span>
@@ -82,5 +82,5 @@ No variant checks here!
           </a>
         {% endif %}
       </li>
-    {% endforeach %}
-  {% } %}
+    {% endfor %}
+  {% endmacro %}
