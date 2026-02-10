@@ -198,10 +198,34 @@ class LanguageDetector {
     /**
      * Detect language from query parameter (?lang=en)
      *
+     * When a valid language is found in the query parameter, it is persisted
+     * to both session and cookie to maintain the selection across page loads.
+     *
      * @return string|null - Language code or null
      */
     private function detectFromQueryParameter() {
-        return $_GET['lang'] ?? null;
+        $lang = $_GET['lang'] ?? null;
+
+        if ($lang && $this->isValidLanguage($lang)) {
+            // Persist the language selection to session and cookie
+            $this->persistLanguageSelection($lang);
+        }
+
+        return $lang;
+    }
+
+    /**
+     * Persist language selection to session and cookie
+     *
+     * @param string $lang - Language code to persist
+     */
+    private function persistLanguageSelection($lang) {
+        // Set session variable
+        $_SESSION['CURRENT_LANGUAGE'] = $lang;
+
+        // Set cookie for 1 year
+        $cookieExpiry = time() + (365 * 24 * 60 * 60);
+        setcookie('user_lang', $lang, $cookieExpiry, '/', '', false, true);
     }
 
     /**

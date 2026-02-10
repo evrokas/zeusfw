@@ -101,6 +101,60 @@ function file_url(string $uri): string {
     return $mgr ? $mgr->getUrl($uri) : $uri;
 }
 
+/**
+ * Get the current URL with a language path prefix.
+ *
+ * Preserves the current path and any existing query parameters,
+ * and adds the language as a path prefix (e.g., /en/page, /el/admin).
+ *
+ * @param string $lang  Language code (e.g. 'en', 'el')
+ * @return string  URL with language prefix (e.g. '/en/patients' or '/el/patients?search=foo')
+ */
+function get_current_url_with_lang(string $lang): string {
+    global $kernel;
+    $languageDetector = $kernel->getLanguageDetector();
+
+    // Get current REQUEST_URI (already has language stripped by index.php)
+    $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
+    $parts = parse_url($requestUri);
+    $path = $parts['path'] ?? '/';
+    $queryString = $parts['query'] ?? '';
+
+    // Add language prefix to path
+    $pathWithLang = $languageDetector->addLanguageToPath($path, $lang);
+
+    // Return path with language prefix + query string
+    return $pathWithLang . ($queryString ? '?' . $queryString : '');
+}
+
+/**
+ * Get the current page URL without any language prefix or parameters.
+ *
+ * Useful for generating clean URLs or checking the current page.
+ *
+ * @return string  URL without language prefix or parameters
+ */
+function get_current_url_without_lang(): string {
+    global $kernel;
+    $languageDetector = $kernel->getLanguageDetector();
+
+    // Get original REQUEST_URI (might have language prefix)
+    $originalUri = $_SERVER['ORIGINAL_REQUEST_URI'] ?? $_SERVER['REQUEST_URI'] ?? '/';
+    $parts = parse_url($originalUri);
+    $path = $parts['path'] ?? '/';
+    $queryString = $parts['query'] ?? '';
+
+    // Remove language prefix from path
+    $pathWithoutLang = $languageDetector->removeLanguageFromPath($path);
+
+    // Remove lang query parameter if present (backward compatibility)
+    parse_str($queryString, $queryParams);
+    unset($queryParams['lang']);
+    $cleanQuery = http_build_query($queryParams);
+
+    return $pathWithoutLang . ($cleanQuery ? '?' . $cleanQuery : '');
+}
+
 function fatal_handler() {
     $errfile = "unknown file";
     $errstr  = "shutdown";

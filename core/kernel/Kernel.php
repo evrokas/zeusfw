@@ -24,6 +24,7 @@ class Kernel {
     protected $languageDetector = null;  // language detection service
     protected $multilingualManager = null;  // file-based translation manager
     protected $fileManager = null;       // file management service
+    protected $seoHelper = null;         // SEO helper for multilingual tags
 
     function __construct($asrv, $configdir) {
         $this->rootpath= substr($asrv['PHP_SELF'],0,strrpos($asrv['PHP_SELF'],'/')+1);
@@ -104,6 +105,9 @@ class Kernel {
 
         // Initialize file manager
         $this->initFileManager();
+
+        // Initialize SEO helper for multilingual tags
+        $this->initSEOHelper();
     }
 
     function getConfig($section=null) {
@@ -575,8 +579,23 @@ class Kernel {
             }
         }
 
+        // Generate SEO tags if SEO helper is available
+        $seo_tags = [];
+        $language_metadata = [];
+        $alternate_languages = [];
+
+        if ($this->seoHelper) {
+            $seo_tags = [
+                'canonical' => $this->seoHelper->generateCanonicalTag(),
+                'hreflang' => $this->seoHelper->generateHreflangTags(),
+                'og_locale' => $this->seoHelper->generateOpenGraphLocaleTags(),
+            ];
+            $language_metadata = $this->seoHelper->getLanguageMetadata();
+            $alternate_languages = $this->seoHelper->getAlternateLanguages();
+        }
+
         // final render
-        Renderer::view('main.zetem', 
+        Renderer::view('main.zetem',
         [
             'title' => getLangText($this->getConfig('title')),
             'meta' => $this->getConfig('meta'),
@@ -586,7 +605,11 @@ class Kernel {
             'head_links' => $head_links,
             'head_scripts' => $head_scripts,
             'foot_links' => $foot_links,
-            'regions' => $regions_response
+            'regions' => $regions_response,
+            'seo_tags' => $seo_tags,
+            'language_metadata' => $language_metadata,
+            'alternate_languages' => $alternate_languages,
+            'current_language' => $this->getCurrentLanguage(),
         ]);
 
         $t2 = hrtime();
@@ -796,6 +819,27 @@ class Kernel {
      */
     public function getFileManager() {
         return $this->fileManager;
+    }
+
+    /**
+     * Initialize the SEO helper
+     * Called after configuration and language detection is loaded
+     */
+    private function initSEOHelper() {
+        // Only initialize if multilingual is enabled
+        if ($this->getConfig('multilingual')) {
+            require_once(__FWDIR__ . '/lib/SEOHelper.php');
+            $this->seoHelper = new SEOHelper($this);
+        }
+    }
+
+    /**
+     * Get the SEO helper instance
+     *
+     * @return SEOHelper|null
+     */
+    public function getSEOHelper() {
+        return $this->seoHelper;
     }
 
     /**

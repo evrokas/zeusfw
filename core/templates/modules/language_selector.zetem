@@ -1,16 +1,18 @@
 {{ attach_library("language_selector-library") }}
 
-<div class="language-selector">
-{#    {% $langs = implode(" | ", $available) %}
-    Languages {{ $langs }} ( {{$current}} ) #}
+<div class="language-selector" data-mode="{{ $mode }}">
     <ul>
         {% foreach($available as $lang): %}
             <li>
-                <img {{attributes($attributes[$lang])}} />
-                {#
-                <a href="{{rel_url('{{ $url }}?lang={{$lang}}')"">
-                </a>
-                #}
+                {% if $mode === 'query_param' %}
+                    {# Query parameter mode: Use regular links #}
+                    <a href="{{ $urls[$lang] }}" class="language-link" data-lang="{{ $lang }}">
+                        <img {{attributes($attributes[$lang])}} />
+                    </a>
+                {% else %}
+                    {# AJAX mode: Use images with click handlers (existing behavior) #}
+                    <img {{attributes($attributes[$lang])}} />
+                {% endif %}
             </li>
         {% endforeach %}
     </ul>
