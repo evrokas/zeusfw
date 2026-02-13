@@ -49,13 +49,12 @@ Variant check happens HERE (topbar vs sidebar)
     </nav>
     
     {# Include the actual menu - no mobile toggle needed for sidebar #}
-    {#
-        <div class="sidebar-nav-area">
-            <nav class="sidebar-nav" role="navigation" aria-label="{{ getLangText('Main navigation') }}">
+    
+        {# <div class="sidebar-nav-area"> #}
+            {# <nav class="sidebar-nav" role="navigation" aria-label="{{ getLangText('Main navigation') }}"> #}
                 {# include menu.zetem #}
-            </nav>
-        </div>
-    #}
+            {# </nav> #}
+        {# </div> #}
 
 {% else: %}
     {# ===== FALLBACK FOR UNKNOWN VARIANTS ===== #}
