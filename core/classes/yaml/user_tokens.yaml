@@ -29,4 +29,8 @@ table:
   - name: expiry
     type: datetime
     required: true
+
+  - name: last_used_at
+    type: datetime
+    default: null
 ...
