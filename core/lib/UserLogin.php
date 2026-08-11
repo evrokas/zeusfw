@@ -96,15 +96,6 @@ function logout($params) {
 
     $us = $kernel->getUserName();
     if($us) {
-<<<<<<< HEAD
-        $remoteip = $_SERVER['REMOTE_ADDR'];
-        $useragent = $_SERVER['HTTP_USER_AGENT'];
-    
-        userTokensClassEx::delete_user_token($_SESSION['user'], $remoteip, $useragent);
-        if(isset($_COOKIE['zeusfwrememberme'])) {
-            unset($_COOKIE['zeusfwrememberme']);
-            setcookie('zeusfwrememberme', '', time()-1, '/');
-=======
         // Deletes only the row for *this* device's cookie (matched by
         // selector, not the old uname+remoteip+useragent guess) -- logging
         // out on one device must not revoke other devices' remember-me
@@ -115,7 +106,6 @@ function logout($params) {
             if($parsed) {
                 userTokensClassEx::delete_by_selector($parsed[0]);
             }
->>>>>>> github/prod
         }
         zeusfw_clear_rememberme_cookie();
 
