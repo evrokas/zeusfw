@@ -346,7 +346,6 @@ function core_get_file_in_lib(string $filename, string $module = null) {
 
     // test if lib path exists
     if(!is_dir($output)) {
-        echopre("Create folder: $output");
         $msk = umask();
         umask(0022);
         mkdir($output, 0777, true);
@@ -358,7 +357,6 @@ function core_get_file_in_lib(string $filename, string $module = null) {
     
         // test if module path exists
         if(!is_dir($output)) {
-            echopre("Create folder: $output");
             $msk = umask();
             umask(0022);
             mkdir($output, 0777, true);
@@ -399,7 +397,6 @@ function core_get_dir_in_lib(string $module = null) {
 
     // test if lib path exists
     if(!is_dir($output)) {
-        echopre("Create folder: $output");
         $msk = umask();
         umask(0022);
         mkdir($output, 0777, true);
@@ -411,7 +408,6 @@ function core_get_dir_in_lib(string $module = null) {
     
         // test if module path exists
         if(!is_dir($output)) {
-            echopre("Create folder: $output");
             $msk = umask();
             umask(0022);
             mkdir($output, 0777, true);
