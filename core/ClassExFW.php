@@ -120,4 +120,53 @@ class userTokensClassEx extends userTokensClass {
         $st = dbConnection::getConnection()->prepare( $sql );
         $st->execute();
     }
+
+    // Rotates the validator on a remember-me row -- called on every
+    // successful cookie-based login (Kernel::isUserLoggedin()) so a
+    // leaked-but-unused cookie value goes stale the moment it's actually
+    // used once by anyone. Same selector/expiry, only the validator half
+    // and last_used_at change.
+    static function rotate_token(userTokensClass $tokenRow, string $newValidator): bool {
+        $tokenRow->setvalidator(password_hash($newValidator, PASSWORD_DEFAULT));
+        $tokenRow->setlast_used_at(getDBtime());
+        return $tokenRow->update();
+    }
+
+    // Deletes the one row matching a specific cookie's selector -- used by
+    // logout() (current device only) and by isUserLoggedin() when a token
+    // is valid but its user account no longer resolves.
+    static function delete_by_selector(string $selector): bool {
+        $sql = "DELETE FROM user_tokens WHERE selector=:selector";
+        $st = dbConnection::getConnection()->prepare( $sql );
+        $st->bindValue(":selector", $selector, PDO::PARAM_STR);
+        return $st->execute();
+    }
+
+    // All remembered devices for a user, newest first -- powers the
+    // Devices section on /profile.
+    static function getUserTokens(string $uname): array {
+        $sql = "SELECT * FROM user_tokens WHERE uname=:uname ORDER BY cdate DESC";
+        $st = dbConnection::getConnection()->prepare( $sql );
+        $st->bindValue(":uname", $uname, PDO::PARAM_STR);
+        $st->execute();
+
+        $list = [];
+        while( $row = $st->fetch() ) {
+            $rclass = new userTokensClass();
+            $rclass->loadFields( $row );
+            $list[] = $rclass;
+        }
+        return $list;
+    }
+
+    // Revoke-by-id for the Devices UI -- WHERE id=:id AND uname=:uname is
+    // an IDOR guard so a user can only ever revoke their own tokens, same
+    // as DocArc's account.php "WHERE id=:id AND user_id=:user_id".
+    static function delete_by_id_for_uname(int $id, string $uname): bool {
+        $sql = "DELETE FROM user_tokens WHERE id=:id AND uname=:uname";
+        $st = dbConnection::getConnection()->prepare( $sql );
+        $st->bindValue(":id", $id, PDO::PARAM_INT);
+        $st->bindValue(":uname", $uname, PDO::PARAM_STR);
+        return $st->execute();
+    }
 }

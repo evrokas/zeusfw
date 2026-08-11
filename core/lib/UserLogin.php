@@ -20,8 +20,16 @@
 
     $remoteip = $_SERVER['REMOTE_ADDR'];
     $useragent = $_SERVER['HTTP_USER_AGENT'];
-    
-    userTokensClassEx::delete_user_token($uname, $remoteip, $useragent);
+
+    // Every remember-me login inserts a fresh row rather than
+    // delete-then-insert keyed on (uname, remoteip, useragent) -- that old
+    // keying lost a device's remembered session on an IP change (mobile
+    // networks, dynamic IP) and prevented more than one row per device+IP
+    // combo from existing at once. N logins now simply means N rows, each
+    // independently listable/revocable from the Devices section of /profile.
+    // Expired rows are still cleaned up proactively by
+    // userTokensClassEx::remove_expired_user_tokens() (Maintenance, runs on
+    // every request), so this doesn't accumulate indefinitely.
 
     $days = 10;
     $expired_seconds = time() + 60 * 60 * 24 * $days;
@@ -31,8 +39,9 @@
     // prelog("expiry: $expiry\texpired_seconds: $expired_seconds");
 
     if(userTokensClassEx::insert_user_token($create, $uname, $selector, $hash_validator, $remoteip, $useragent, $expiry)) {
-        setcookie('zeusfwrememberme', $token, $expired_seconds, '/', null, true, true);
+//        setcookie('zeusfwrememberme', $token, $expired_seconds, '/', null, true, true);
         // setcookie('zeusfwrememberme', $token, ['samesite'=>'true']);
+        zeusfw_set_rememberme_cookie($token, $expired_seconds);
         // prelog("setup cookie for future!");
     }
 }
@@ -87,6 +96,7 @@ function logout($params) {
 
     $us = $kernel->getUserName();
     if($us) {
+<<<<<<< HEAD
         $remoteip = $_SERVER['REMOTE_ADDR'];
         $useragent = $_SERVER['HTTP_USER_AGENT'];
     
@@ -94,7 +104,20 @@ function logout($params) {
         if(isset($_COOKIE['zeusfwrememberme'])) {
             unset($_COOKIE['zeusfwrememberme']);
             setcookie('zeusfwrememberme', '', time()-1, '/');
+=======
+        // Deletes only the row for *this* device's cookie (matched by
+        // selector, not the old uname+remoteip+useragent guess) -- logging
+        // out on one device must not revoke other devices' remember-me
+        // tokens. Use the Devices list on /profile to revoke other devices.
+        $cookie = filter_input(INPUT_COOKIE, 'zeusfwrememberme');
+        if($cookie) {
+            $parsed = userTokensClassEx::parse_token($cookie);
+            if($parsed) {
+                userTokensClassEx::delete_by_selector($parsed[0]);
+            }
+>>>>>>> github/prod
         }
+        zeusfw_clear_rememberme_cookie();
 
         $kernel->logoutUser();
     }

@@ -42,6 +42,7 @@ require_once(__DIR__ . "/lib/ContentPage.php");
 require_once(__DIR__ . "/lib/Menutrail.php");
 require_once(__DIR__ . "/lib/Routetrail.php");
 require_once(__DIR__ . "/lib/Security.php");
+require_once(__DIR__ . "/lib/CookieSecurity.php");
 require_once(__DIR__ . "/lib/UserLogin.php");
 // require_once(__DIR__ . "/lib/Feeders.php");
 require_once(__DIR__ . "/lib/Feeder.php");

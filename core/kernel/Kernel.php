@@ -647,8 +647,13 @@ class Kernel {
 
     function loginUser($uname, $uroles) {
         session_destroy();
-        session_start();
-//        session_regenerate_id();
+        zeusfw_session_start();
+        // Regenerate the session id before adopting the identity, for both
+        // the password-login path and the remember-me cookie restore path
+        // (isUserLoggedin() below funnels through here too) -- otherwise a
+        // session id an attacker fixed earlier would be silently promoted
+        // to authenticated on the next login (session fixation).
+        session_regenerate_id(true);
         $_SESSION['user'] = $uname;
         $urolelist = SecurityClass::processRoles($uroles);
         if(!$urolelist) {
@@ -689,14 +694,47 @@ class Kernel {
 
             $remoteip = $_SERVER['REMOTE_ADDR'];
             $useragent = $_SERVER['HTTP_USER_AGENT'];
-        
+
             $user = userTokensClassEx::getUserByToken($token, $remoteip, $useragent);
             if($user) {
                 $us = usersClassEx::getUserAccount( $user->getuname());
                 prelog("Found user: " . print_r($user, 1) . " user record: " . print_r($us, 1));
-                
-                $kernel->loginUser($us->getuname(), $us->getroles());
-                return true;
+
+                if($us) {
+                    // Rotate the validator on every successful remember-me
+                    // use -- a leaked-but-unused cookie value goes stale the
+                    // moment it's actually used once by anyone. Same
+                    // selector and expiry are kept, only the secret
+                    // validator half changes, so the browser's cookie must
+                    // be reissued to match. Look the row up fresh by
+                    // selector (single-table, unambiguous id) rather than
+                    // reusing $user above, which came from a joined
+                    // users+user_tokens SELECT * and isn't a reliable
+                    // userTokensClass id to update() against.
+                    $parsed = userTokensClassEx::parse_token($token);
+                    if($parsed) {
+                        [$selector, ] = $parsed;
+                        $tokenRow = userTokensClassEx::getUserTokenBySelector($selector);
+                        if($tokenRow) {
+                            $newValidator = bin2hex(random_bytes(32));
+                            userTokensClassEx::rotate_token($tokenRow, $newValidator);
+                            zeusfw_set_rememberme_cookie($selector . ':' . $newValidator, strtotime($tokenRow->getexpiry()));
+                        }
+                    }
+
+                    $kernel->loginUser($us->getuname(), $us->getroles());
+                    return true;
+                }
+
+                // Dangling token -- the user account no longer resolves
+                // (e.g. deleted after the token was issued). Revoke this
+                // specific token instead of silently failing through with
+                // a still-valid cookie for a nonexistent account.
+                $parsed = userTokensClassEx::parse_token($token);
+                if($parsed) {
+                    userTokensClassEx::delete_by_selector($parsed[0]);
+                }
+                zeusfw_clear_rememberme_cookie();
             }
         } else {
             prelog("token does not exist or is invalid");
