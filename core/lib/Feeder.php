@@ -31,7 +31,7 @@ class Feeder {
             }
         }
 
-        return $result;
+        return isset($result) ? implode('', $result) : null;
     }
 
     static function prepareKeysFilter(dbQuery $q, array $keys) {
@@ -208,7 +208,7 @@ class Feeder {
 
                     if(!isset($heading['render']['cache']) && !empty($contentText)) {
                         // echopre("[$index]: adding to output stream: `$contentText`");
-                        $result[] = array_merge($result, $contentText);
+                        $result[] = $contentText;
                         $contentText = '';
                     }
                 }
@@ -217,7 +217,7 @@ class Feeder {
 
             if(!empty($contentText)) {
                 // echopre("putting `$contentText` in results array");
-                $result[] = array_merge($result, $contentText);
+                $result[] = $contentText;
             }
 
         }
