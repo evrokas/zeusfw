@@ -103,7 +103,11 @@ if [[ $create_links == [yY] ]]; then
                 # bootstrap.php found, folder is correct, proceed(!)
 
                 echo Creating link of Zeus FW folder $zfwdir to ./fw
+                ln -sfn "$zfwdir" ./fw
+
                 echo Creating link in ./web/core to ./fw
+                mkdir -p ./web
+                ln -sfn ../fw/core ./web/core
 
                 break;
             else
