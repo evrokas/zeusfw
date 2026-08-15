@@ -3,6 +3,10 @@
 if(!defined('__BOOTSTRAP_DIR__'))
     define("__BOOTSTRAP_DIR__", __DIR__);
 
+// Must come first: Kernel's constructor calls yaml_parse_file() immediately, so
+// the fallback has to be defined before anything can reach it. No-op when the
+// PHP yaml extension is loaded - see the header of yaml_compat.php.
+require_once(__DIR__ . "/lib/yaml_compat.php");
 
 include_once(__DIR__ . "/kernel/Kernel.php");       // include Kernel class
 require_once(__DIR__ . "/kernel/utils.php");

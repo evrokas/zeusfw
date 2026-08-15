@@ -110,6 +110,11 @@ class DIR {
 
     
 
+    // maker runs standalone (it does not always go through bootstrap.php), so it
+    // needs the yaml fallback wired up independently. No-op when ext/yaml is
+    // loaded - see the header of yaml_compat.php.
+    require_once(__DIR__ . '/../lib/yaml_compat.php');
+
     require('functions.php');
     require('messages.php');
 
