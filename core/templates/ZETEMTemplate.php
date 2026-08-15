@@ -73,6 +73,7 @@ class Renderer {
 		self::filterRegister('cache_asset', 'Renderer::filter_cache_asset');
 		self::filterRegister('date', 'Renderer::filter_date');
 		self::filterRegister('t', 'Renderer::filter_translate');
+		self::filterRegister('e', 'Renderer::filter_e');
 
 	}
 
@@ -444,6 +445,16 @@ class Renderer {
 	static function filter_translate($token, $args = array() ) {
 		$out = t( $token );
 		return $out;
+	}
+
+	// HTML-escapes a value for safe output - {{ } } and {{{ } }} both compile
+	// to a bare echo with no escaping (compileEscapedEchos() casts to string
+	// only; the real htmlentities() version, compileEscapedEchos0(), is never
+	// called), so this filter is the opt-in way for an app to get the same
+	// escaping discipline PHP's own htmlspecialchars() gives. Semantics match
+	// e.g. a typical hand-rolled `e()` helper: ENT_QUOTES|ENT_HTML5, UTF-8.
+	static function filter_e($token, $args = array() ) {
+		return htmlspecialchars( (string) $token, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
 	}
 
 	static function filterRegister(string $name, string $cback) {

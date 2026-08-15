@@ -243,6 +243,17 @@ class RouterClass {
         }
         http_response_code(200);
 
+        // If the matched route's own URL pattern captured a param literally
+        // named `lang` (e.g. url: "/{lang}/some/path"), apply it as the
+        // current language before the handler/module runs. Opt-in per route
+        // by construction - no config flag needed, since this only fires when
+        // a route chooses to declare a {lang} segment. Existing apps whose
+        // routes never use {lang} are unaffected.
+        if(isset($match_route['_params']['lang'])) {
+            global $kernel;
+            $kernel->setCurrentLanguage($match_route['_params']['lang']);
+        }
+
         if($hasPageAnalytics) {
             $pan = pageAnalyticsClassEx::getPageByURL( $url );
             if($pan) {
