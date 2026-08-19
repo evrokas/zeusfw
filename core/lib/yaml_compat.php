@@ -241,3 +241,29 @@ PY;
         return "---\n" . $out . "...\n";
     }
 }
+
+// ext/yaml's encoding/linebreak constants - only the values maker.php actually
+// passes (YAML_UTF8_ENCODING) are defined here. yaml_emit()'s PyYAML fallback
+// always emits UTF-8 regardless, so $encoding is accepted but ignored below,
+// same as $linebreak/$callbacks - a no-op parameter, not a real feature gap.
+if (!defined('YAML_ANY_ENCODING')) {
+    define('YAML_ANY_ENCODING', 0);
+}
+if (!defined('YAML_UTF8_ENCODING')) {
+    define('YAML_UTF8_ENCODING', 1);
+}
+
+if (!function_exists('yaml_emit_file')) {
+    function yaml_emit_file(string $filename, $data, int $encoding = YAML_ANY_ENCODING, int $linebreak = 0, array $callbacks = []): bool
+    {
+        $yaml = yaml_emit($data);
+
+        // Write via a temp file + rename, matching yaml_parse_file()'s own
+        // cache-write pattern - no reader ever sees a half-written file.
+        $tmp = $filename . '.' . getmypid() . '.tmp';
+        if (file_put_contents($tmp, $yaml) === false) {
+            return false;
+        }
+        return rename($tmp, $filename);
+    }
+}

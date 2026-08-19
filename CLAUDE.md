@@ -59,3 +59,26 @@ server with normal internet access should work correctly since the cURL call its
 workaround baked in - but if a real deployment reports an unexpected failure mode from `verify()`, start by
 confirming the exact cURL error in the `request_failed: ...` string rather than assuming this class's logic
 is wrong.
+
+## `core/lib/yaml_compat.php` - `yaml_emit_file()` gap fix (2026-08-19)
+
+`yaml_compat.php` (the PyYAML-subprocess fallback for environments without `ext/yaml` - see its own
+docblock for the full rationale) shimmed `yaml_parse_file()`/`yaml_parse()`/`yaml_emit()` but not
+`yaml_emit_file()` - a real gap, found because `core/maker/maker.php`'s `generate_feed()` calls
+`yaml_emit_file($output, $out, YAML_UTF8_ENCODING)` directly, so `feed:gen:yaml` fatals with
+`Call to undefined function yaml_emit_file()` on any box relying on this fallback (confirmed: this
+sandbox has no `ext/yaml`, and the PPA normally used to install it - `ppa:ondrej/php` - is blocked by
+this sandbox's outbound-HTTPS proxy, `403 Forbidden`, same restriction documented on `Recaptcha.php`
+above).
+
+Added `yaml_emit_file()` as a thin wrapper around the already-working `yaml_emit()` (temp-file-plus-
+rename write, matching `yaml_parse_file()`'s own atomic-write cache pattern) plus the two constants
+`generate_feed()` references (`YAML_UTF8_ENCODING`, `YAML_ANY_ENCODING` - `$encoding` is accepted but
+ignored, since `yaml_emit()`'s PyYAML fallback always emits UTF-8 regardless of what's asked for; this
+is a documented no-op, not a silently-wrong parameter). Both guarded by `function_exists()`/`defined()`,
+matching every other symbol in this file - a real `ext/yaml` install is completely unaffected, this is
+purely additive.
+
+Exercised end-to-end (not just unit-tested in isolation) by running `feed:gen:yaml` against all 13 of
+erweb's feeders - see erweb's own `CLAUDE.md` entry, "Feeders now scaffold new content via
+`feed:gen:yaml`", for the full story of what that uncovered and fixed on the erweb side.
