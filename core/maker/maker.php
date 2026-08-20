@@ -127,7 +127,29 @@ class DIR {
     function mguid() {
         return (trim(file_get_contents('/proc/sys/kernel/random/uuid')));
     }
-    
+
+    // Feed-file 'schema:' values are read back purely cwd-relative (see
+    // load_feed_data()/sync_feed_fields()), but $template here is normally an
+    // absolute path built from the @core/@app schemadir macros - this makes
+    // generated feeds portable across machines/checkouts instead of baking in
+    // wherever they happened to be generated. realpath() on both sides means
+    // this works whether $template started absolute or already relative.
+    function maker_relative_schema_path($target) {
+        $targetReal = realpath($target);
+        $cwdReal = realpath(getcwd());
+        if ($targetReal === false || $cwdReal === false) {
+            return $target;
+        }
+        $targetParts = explode('/', trim($targetReal, '/'));
+        $cwdParts = explode('/', trim($cwdReal, '/'));
+        $i = 0;
+        while ($i < count($targetParts) && $i < count($cwdParts) && $targetParts[$i] === $cwdParts[$i]) {
+            $i++;
+        }
+        $upCount = count($cwdParts) - $i;
+        return implode('/', array_merge(array_fill(0, $upCount, '..'), array_slice($targetParts, $i)));
+    }
+
 
 
     include(__DIR__ . '/../db/dbal.php');
@@ -798,7 +820,7 @@ function generate_feed($template, $name, $key, $output = null, $specials_list = 
     $arr += ['createdate' => date ('d-m-Y H:i:s')];
 
     // $arr += ['schema2' => realpath( $template )];
-    $arr += ['schema' => $template];
+    $arr += ['schema' => maker_relative_schema_path($template)];
 
     $tem = yaml_parse_file($template);
     // print_r($tem);

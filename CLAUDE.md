@@ -82,3 +82,47 @@ purely additive.
 Exercised end-to-end (not just unit-tested in isolation) by running `feed:gen:yaml` against all 13 of
 erweb's feeders - see erweb's own `CLAUDE.md` entry, "Feeders now scaffold new content via
 `feed:gen:yaml`", for the full story of what that uncovered and fixed on the erweb side.
+
+## `core/maker/maker.php` - portable (relative) `schema:` paths in generated feeds (2026-08-20)
+
+`generate_feed()` (`core/maker/maker.php:801`) writes a `schema:` field into every item `.yml` it
+generates via `feed:gen:yaml`, pointing back at that table's own class-schema YAML - but the value it
+computed was always whatever `$template` resolved to, which in practice is built from `schemadir:`'s
+`@core`/`@app` macro substitution (`DIR::$fw`/`DIR::$app`) and is therefore always an absolute,
+machine-specific path baked in from wherever the command happened to run. erweb (the only app so far
+with real `sections:` trees in its feeders, see the entry above) worked around this with a manual `sed`
+cleanup step on every generated file - annoying, and a trap for any other app adopting `feed:gen:yaml`
+in the future.
+
+Confirmed via direct read of every call site: exactly two functions ever read a `.yml`'s `schema:` field
+back - `load_feed_data()` (`:1235`/`:1245`) and `sync_feed_fields()` (`:1412`) - and both pass the string
+straight to `yaml_parse_file()`/`pathinfo()` with **no** resolution of their own, i.e. purely relative to
+whatever the process's cwd happens to be at read time. The one universal invocation convention in this
+environment, `bin/update.sh`, always `pushd`s into `<app>/web/content/` before running both
+`feed:gen:yaml` and `feed:load` in the same script, for every app - so a `schema:` value relative to that
+directory (`../classes/yaml/<table>.yaml`) is correct everywhere, matching what zpms's own committed
+feeds already rely on via an explicit relative `--dir` override. (A separate, unrelated "schema" field -
+the feeder-descriptor's own top-level `schema:` key, e.g. inside a `.feeder.yaml` - already does its own
+independent `@core`/`@app` resolution in `print_feed_info()`/`clean_feed_data()`/
+`generate_feed_from_yaml()` and is untouched by this change.)
+
+Added `maker_relative_schema_path(string $target): string`, next to `mguid()` - `realpath()`-normalizes
+both `$target` and `getcwd()`, then computes the relative form by counting the common path prefix and
+walking `../` for the remainder. Using `realpath()` on both sides means it produces the correct result
+regardless of whether `$target` started absolute or was already relative (e.g. zpms's own `--dir` case),
+so no branching is needed for "already relative" input. `generate_feed()`'s `$arr += ['schema' =>
+$template]` (`:801`) now reads `$arr += ['schema' => maker_relative_schema_path($template)]` - the only
+line changed; every other call site was already confirmed cwd-relative-tolerant above.
+
+**Verified against erweb** (not just unit logic): re-ran `feed:gen:yaml` for `erweb_procedures` and
+`erweb_techniques` (26 + 3 existing items, all pre-existing files) - every file came out byte-identical
+to before the fix (the merge logic in `generate_feed()` already preserves an existing file's other
+top-level fields like `cmd`/`createdate`, and `schema:` was already relative from the old `sed` workaround,
+so a correct fix reproduces the same value with no diff). Also generated one genuinely new leaf item from
+scratch (added and then removed a throwaway `sections:` entry) and confirmed its freshly-written `schema:`
+came out `../classes/yaml/erweb_techniques.yaml` with no absolute-path artifact at any point. `feed:load`
+for both feeders showed "hashes same" on every row (zero unintended DB writes), and
+`bin/check_integrity.php` stayed clean. zweb's 55 pre-existing `.yml` files with absolute, host-specific
+`schema:` paths are a real, separate portability bug from this exact code path - deliberately untouched by
+this fix (they're not regenerated unless someone explicitly re-runs `feed:gen:yaml` there, at which point
+they'd now come out correctly relative instead of getting a fresh absolute path).
