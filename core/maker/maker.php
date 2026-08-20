@@ -1238,6 +1238,13 @@ function load_feed_data($name) {
         exit(-1);
     }
 
+    if(!isset($yfeed['title'])) {
+        echo("ERROR: Feed title is not set in $name\n");
+        exit(-1);
+    }
+
+    echo("Feed: `{$yfeed['title']}`\n");
+    $counts = ['added' => 0, 'updated' => 0, 'unchanged' => 0];
 
     // find source files
     $files = array();
@@ -1247,7 +1254,7 @@ function load_feed_data($name) {
     }
     // print_r('yml files: ' . print_r($files, 1));
 
-    
+
     foreach($files as $yfile) {
         $ydata = yaml_parse_file($yfile);
         // echo "schema: " . $ydata['schema'] . "\n";
@@ -1319,74 +1326,73 @@ function load_feed_data($name) {
         dbConnection::Connect();
 
         // echo("Classes: " . print_r(get_declared_classes(), 1));
-        if(!isset($yfeed['title'])) {
-            echo("ERROR: Feed title is not set in $name\n");
-            exit(-1);
-        }
+        foreach($yfeed['key']['value'] as $fkey) {
+            $itemName = $feeder_class[$fkey]->getname();
+            $itemName = ($itemName !== null && $itemName !== '') ? $itemName : '(unnamed)';
+            $label = basename($yfile) . " [$fkey] \"$itemName\"";
 
-        echo("Feed name: `{$yfeed['title']}`\n");
-        foreach($yfeed['key']['value'] as $fkey) { 
-            // echo("Feeder key: $fkey  name: " . $feeder_class[$fkey]->getname() . "   GUID: " . $feeder_class[$fkey]->getguid() . " HASH: " . $feeder_hash[$fkey] . "\n");
-            // echo(print_r($feeder_class, 1));
-        
             if(($fh=feedhashesClassEx::gethashByGuid($feeder_class[$fkey]->getguid()))) {
-                echo "$name: " .$feeder_class[$fkey]->getname() . "\t[$fkey]\tGUID exists!";
-                // print_r($fh);
                 if($fh->gethash() != $feeder_hash[$fkey]) {
-                    echo "\thashes differ!\n";
-
-                    // echo "new data\n";
-                    // print_r( $feeder_class[$fkey] );
 
                     $old_feeder_class = $schemaClass::sgetById($fh->getfeedid());
-                    // echo "found old class: " . print_r($old_feeder_class, 1);
-
-                    // echo "old data\n";
-                    // print_r($old_feeder_class);
+                    $oldFields = $old_feeder_class->getFields();
 
                     $fld = $feeder_class[$fkey]->getFields();
-                    // print_r( $fld );
 
                     $old_feeder_class->loadFields( $fld );
                     $old_feeder_class->update();
 
-                    // remove 'id' key
+                    // remove 'id' key from both sides before diffing/hashing - it always
+                    // differs trivially (DB-assigned) and isn't meaningful to report
                     if(isset($fld['id']))unset($fld['id']);
+                    if(isset($oldFields['id']))unset($oldFields['id']);
                     ksort($fld);
-                    // print_r($fld);
+                    ksort($oldFields);
+
+                    $changedFields = [];
+                    foreach($fld as $k => $v) {
+                        if(!array_key_exists($k, $oldFields) || $oldFields[$k] !== $v) {
+                            $changedFields[] = $k;
+                        }
+                    }
+                    if(empty($changedFields)) {
+                        $changedFields = ['(no field-level diff detected)'];
+                    }
 
                     $hash2 = hash('sha256', serialize( $fld ));
-                    echo("new hash: " . print_r($hash2, 1) . "\n");
-
                     $fh->sethash( $hash2 );
-
                     $fh->update();
 
-                    // $old_feeder_class->loadFields($feeder_class)
+                    echo "$label\tupdated: " . implode(', ', $changedFields) . "\n";
+                    $counts['updated']++;
                 } else {
-                    echo "\thashes same!\n";
+                    echo "$label\tunchanged\n";
+                    $counts['unchanged']++;
                 }
 
             } else {
-                echo("$name: adding " . $feeder_class[$fkey]->getname() . "\t[$fkey]\t{$feeder_hash[$fkey]}\n" );
-                
-                echo("Inserting feeder_class[ $fkey ] = " . print_r($feeder_class[$fkey], 1));
                 $feeder_class[$fkey]->insert();
 
                 $fexp = time() + 1 * 24 * 60 * 60;
-                
+
                 $fhash = new feedhashesClass(['guid' => $feeder_class[$fkey]->getguid(),
-                    'hash' => $feeder_hash[$fkey], 
+                    'hash' => $feeder_hash[$fkey],
                     'feedclass' => $schemaClass,
                     'feedname' => $name,
                     'feedid' => $feeder_class[$fkey]->getid(),
                     'expiry' => date('Y-m-d H:i:s', $fexp)]
                 );
                 $fhash->insert();
+
+                echo "$label\tadded\n";
+                $counts['added']++;
             }
         }
 
     }
+
+    $total = $counts['added'] + $counts['updated'] + $counts['unchanged'];
+    echo("Summary: $total item(s) - {$counts['added']} added, {$counts['updated']} updated, {$counts['unchanged']} unchanged.\n");
 }
 function sync_feed_fields($name) {
     echo("sync yaml feed fields to schema (yfile: $name)\n");
