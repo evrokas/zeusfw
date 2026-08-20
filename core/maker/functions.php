@@ -382,7 +382,7 @@ function syncTableWithYAML($yamlData, $pdo) {
         }
 
         if (!$found && ($existingName !== 'id')) {
-            $sql[] = "ALTER TABLE `$tableName` DROP `$existingName`";
+            $sql[] = "ALTER TABLE `$tableName` DROP `$existingName`;";
         }
     }
 
