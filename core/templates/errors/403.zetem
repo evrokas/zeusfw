@@ -1,0 +1,12 @@
+{% if(is_null($error)): %}
+    <h2>
+        <p>403 - Forbidden</p>
+    </h2>
+{% else: %}
+    <h2>
+        <p>403 - {{$error}}</p>
+    </h2>
+{% endif %}
+
+<p>Click <a href={{rel_url("/")}}>here</a> to redirect to home page</p>
+

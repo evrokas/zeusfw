@@ -126,3 +126,53 @@ for both feeders showed "hashes same" on every row (zero unintended DB writes), 
 `schema:` paths are a real, separate portability bug from this exact code path - deliberately untouched by
 this fix (they're not regenerated unless someone explicitly re-runs `feed:gen:yaml` there, at which point
 they'd now come out correctly relative instead of getting a fresh absolute path).
+
+## `core/router/ErrorHandlers.php` - `error_403()`/`error_500()` + opt-in crash catch-all (2026-08-21)
+
+At erweb's request (its own bare, English-only 404 page was the trigger - see erweb's `CLAUDE.md` for the
+app-level styling that motivated this): the framework only shipped `error_404()`/`error_401()` before this
+- no 403, no 500, and nothing anywhere that ever calls them automatically. Added the two missing HTTP
+error functions plus a genuinely new capability: a way for a 500 to ever actually be reachable at all,
+since nothing in this framework previously caught an uncaught exception or fatal error - a real crash just
+produced a raw PHP error dump or a blank response.
+
+**`error_403()`/`error_500()`** - identical shape to the existing two: `Renderer::render('403.zetem', ['error'
+=> $errmsg])` / `Renderer::render('500.zetem', ...)`. New bare fallback templates,
+`core/templates/errors/403.zetem`/`500.zetem`, matching `404.zetem`/`401.zetem`'s existing plain style (a
+generic app that never overrides them gets the same minimal look for all 4 codes now, not just 2).
+
+**`zeusfw_register_error_handlers(?string $cssPath = null): void`** - opt-in, not called anywhere in
+`bootstrap.php` or automatically by anything in core; an app calls it once, itself, from its own
+`index.php` (after `Renderer::init()`, since `error_500()` needs the renderer ready). Registers exactly
+two things:
+- `set_exception_handler()` for any uncaught `Throwable`.
+- `register_shutdown_function()` checking `error_get_last()`, but **only** for the genuinely fatal types
+  (`E_ERROR`/`E_PARSE`/`E_CORE_ERROR`/`E_COMPILE_ERROR`/`E_USER_ERROR`) - these already terminate the
+  script regardless, a shutdown function is the standard way to notice and respond to them.
+
+**Deliberately does *not* install a `set_error_handler()`** for ordinary warning/notice/deprecation
+levels - confirmed via erweb's own `CLAUDE.md` that it carries a known, accepted baseline of PHP 8.1
+deprecation warnings from earlier phases; converting every warning into a hard exception would turn each
+of those into a live 500 on every request that hits one, a real regression this function must never cause.
+Left completely untouched, exactly as if this function had never been called.
+
+**Both handlers build a minimal, hand-assembled `<html>` document rather than going through the calling
+app's normal page-rendering pipeline** (no `Kernel::renderPage()`, no nav/footer modules, no DB query) -
+deliberately: whatever just crashed may have left DB/module state unreliable, and the crash page itself
+must not risk a second failure by depending on the same pipeline. `error_500()`'s own `Renderer::render()`
+call has no DB dependency of its own, so it supplies the body; the wrapper only adds `<head>`/`<style>`/
+`<body>`, discarding any partial output buffer first (`ob_end_clean()`) so a half-rendered broken page
+never leaks through underneath it. `$cssPath`, if given, is inlined verbatim via `file_get_contents()` -
+optional, since the safest design for a real crash page is not depending on any external file (an app can
+supply nothing and rely entirely on its own `500.zetem` carrying self-contained inline styles - see
+erweb's own override for exactly that approach).
+
+**Verified against erweb** (not just unit logic): a temporary throwaway route
+(`/erweb-debug-crash` -> a handler that does `throw new RuntimeException(...)`, both removed before commit)
+confirmed the exception handler fires, returns HTTP 500, and renders erweb's styled crash page correctly -
+screenshotted, then the route/handler removed and `git status`/`diff` confirmed a byte-identical revert
+(no leftover artifact). Every normal page (`/el`, `/en`, a procedure page, `/el/tags`, `/el/search`) still
+returns 200 after registering the catch-all, confirming it changes nothing about the ordinary request
+path. `php -l` clean on `ErrorHandlers.php`; the two new bare templates never independently tested beyond
+`php -l`-equivalent manual review (no lint tool for `.zetem` files) since no app other than erweb currently
+overrides or exercises them.
