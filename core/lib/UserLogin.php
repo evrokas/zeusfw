@@ -53,6 +53,15 @@ function login($params) {
 function login_post($params) {
     global $kernel;
 
+    // Opt-in only -- see csrfClass::$enforceLogin's docblock. An app that
+    // hasn't called enableLoginProtection() (and put csrf_field() into its
+    // own login.zetem) reaches this unchanged, exactly as before this
+    // check existed.
+    if(csrfClass::$enforceLogin && !csrfClass::verifyRequest()) {
+        $kernel->addStatus('error', 'Μη έγκυρο token ασφαλείας (CSRF). Παρακαλώ προσπαθήστε ξανά.');
+        header('location: ' . rel_url('/login'));
+        exit();
+    }
 
     $us = UsersClassEx::getUser($_POST['username'], hash('sha256', $_POST['password']));
     // prelog("User: " . print_r( $us, 1 ));

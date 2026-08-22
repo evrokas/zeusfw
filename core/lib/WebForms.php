@@ -79,6 +79,13 @@ class formsClass {
 
         echopre("post:" . print_r($_POST, 1));
 
+        // Opt-in only -- see csrfClass::$enforceWebforms's docblock
+        // (core/lib/Csrf.php). An app that hasn't called
+        // enableWebformProtection() reaches this unchanged.
+        if(csrfClass::$enforceWebforms && !csrfClass::verifyRequest()) {
+            return csrfClass::requireValid();
+        }
+
         if(isset($_POST) && isset($_POST['submit'])) {
             $form = self::getFormByGUID($params['guid']);
             

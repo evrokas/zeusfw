@@ -502,6 +502,15 @@ function generateHTMLForm($formArray, $default_values = array() ) {
         // $elements[] = $buttonElement->render();
     }
 
+    // Purely additive -- see csrfClass::$enforceWebforms's docblock
+    // (core/lib/Csrf.php). Every DB-defined webform gets a token field
+    // regardless of whether the owning app has opted into enforcement;
+    // an app that hasn't is completely unaffected since nothing reads
+    // this input unless processform() is told to check it.
+    if(function_exists('csrf_field')) {
+        $elements[] = csrf_field();
+    }
+
     $template_suggestions = [];
     Renderer::getTemplateSuggestions(['type' => 'webform', 'name' => $formArray['name']], function($args, &$suggestions) {
         $suggestions[] = 'webform';
