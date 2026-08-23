@@ -1,0 +1,40 @@
+---
+table:
+  name: user_roles
+  class: user_rolesClass
+
+  fields:
+  - name: guid
+    type: '@guid'
+
+  - name: cdate
+    type: '@cdate'
+
+  - name: cuser
+    type: '@cuser'
+
+  - name: user_id
+    type: int
+    required: true
+
+  - name: role_id
+    type: int
+    required: true
+
+...
+
+# Many-to-many join: which roles (roles.id) a user (users.id) has. Replaces
+# users.roles (a single CHAR(36) column holding a raw, fixed-width,
+# space-separated string), which is left in place on the shared `users`
+# table for backward compatibility but is no longer read/written once an
+# app adopts this schema -- see core/lib/Rbac.php's
+# zeusfw_app_resolve_user_roles() (the login-time session-role hook) and,
+# for an app migrating existing users.roles data, its own migration script
+# (e.g. zpms's bin/migrate_roles.php).
+#
+# - guid      row guid
+# - cdate     creation date (when this role was assigned)
+# - cuser     creating user (who assigned it -- e.g. 'migration-script' for
+#             rows a one-time migration inserts)
+# - user_id   users.id
+# - role_id   roles.id

@@ -156,16 +156,15 @@ function login_post($params) {
     if($us && $passwordOk) {
         // user exists and password matches
 
-        // Opt-in extension point: an app can define
-        // zeusfw_app_resolve_user_roles(usersClass $user): ?string to
-        // supply the login role list from its own storage instead of the
-        // legacy users.roles column -- same function_exists() pattern
-        // already used for csrf_field() (core/lib/FormElement.php). An
-        // app that doesn't define it (i.e. every app except zpms as of
-        // this writing) gets $us->getroles() exactly as before; zpms
-        // defines it in web/rbac.php, returning null (falls back to
-        // getroles()) only for an account with no rows in its own
-        // user_roles table yet.
+        // zeusfw_app_resolve_user_roles(usersClass $user): ?string
+        // supplies the login role list from the RBAC user_roles table
+        // instead of the legacy users.roles column -- checked via
+        // function_exists(), same pattern already used for csrf_field()
+        // (core/lib/FormElement.php). Defined by default in core/lib/
+        // Rbac.php (loaded earlier in this file's own require chain, so
+        // it's always present by the time this runs), returning null
+        // (falls back to $us->getroles()) only for an account with no
+        // rows in user_roles yet.
         $uroles = function_exists('zeusfw_app_resolve_user_roles')
             ? (zeusfw_app_resolve_user_roles($us) ?? $us->getroles())
             : $us->getroles();

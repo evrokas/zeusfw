@@ -1,5 +1,7 @@
 <?php
 
+require_once(__DIR__ . '/admin_crud.php');
+
 class adminModule extends moduleClass {
     public function __construct($adir, $amodule, $atemplate) {
         parent::__construct($adir, $amodule, $atemplate);

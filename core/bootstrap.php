@@ -47,6 +47,7 @@ require_once(__DIR__ . "/lib/Recaptcha.php");
 require_once(__DIR__ . "/lib/Menutrail.php");
 require_once(__DIR__ . "/lib/Routetrail.php");
 require_once(__DIR__ . "/lib/Security.php");
+require_once(__DIR__ . "/lib/Rbac.php");
 require_once(__DIR__ . "/lib/Csrf.php");
 require_once(__DIR__ . "/lib/CookieSecurity.php");
 require_once(__DIR__ . "/lib/UserLogin.php");

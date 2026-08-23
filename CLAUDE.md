@@ -176,3 +176,95 @@ returns 200 after registering the catch-all, confirming it changes nothing about
 path. `php -l` clean on `ErrorHandlers.php`; the two new bare templates never independently tested beyond
 `php -l`-equivalent manual review (no lint tool for `.zetem` files) since no app other than erweb currently
 overrides or exercises them.
+
+## RBAC engine + admin CRUD UI moved into core (2026-08-23)
+
+A full RBAC (role/permission) system and a generic admin CRUD UI (`/admin/{entity}`)
+were originally built entirely inside zpms (`web/rbac.php`, `web/rbac_seed.php`,
+`web/admin_crud.php`) -- see zpms's own `CLAUDE.md` for that history, including two
+real bugs it worked around in this framework's older `SecurityClass::require()`
+(`core/lib/Security.php`, still present, still used for route-level `access:`/nav-menu
+gating via `SecurityClass::userIsPermitted()` -- unaffected by either bug or by this
+migration). The reusable *engine* half of that work is now framework-level, following
+the exact "define once in core, every app just consumes it" pattern already used for
+the `users` table -- zpms keeps only its own permission-slug vocabulary (`ZPMS_PERM_*`
+constants) and seed data, exactly as an app is expected to for anything domain-specific.
+
+**Schema** (`core/classes/yaml/{roles,permissions,role_permissions,user_roles}.yaml`,
+generated `core/classes/sql/*.sql` + `core/classes/*.php`, wired into `core/classes/
+bootstrap_classes.php`): standard RBAC shape -- `roles` (+ `is_superuser` bypass flag,
+replacing the old, broken `'administrator' => 'all'` string), `permissions`,
+`role_permissions`/`user_roles` (many-to-many joins, no DB-level FK constraints
+anywhere in this framework -- referential integrity is app-level only, same convention
+as every other table). Table names/columns are unchanged from zpms's original
+app-level YAMLs -- this is a pure code-location move, not a data migration; an app
+that already had these tables (zpms) keeps its existing rows untouched.
+
+**Extension classes** (`core/ClassExFW.php`, alongside the pre-existing
+`userTokensClassEx` precedent): `rolesClassEx`, `permissionsClassEx`,
+`role_permissionsClassEx`, `user_rolesClassEx` -- `sgetByName()` lookups, granted-
+permission-name resolution, and `assignRole()`/`removeRole()`. `user_rolesClassEx::
+getRolesForUser(int $userId, array $allPermissionSlugs = [])` takes the "every
+permission slug" list as a parameter now (used only for an is_superuser role's
+`permissions` array) rather than calling an app-specific function directly, since this
+class has no knowledge of any one app's permission vocabulary -- in practice this
+parameter is moot: `rbacClass::isPermitted()`'s is_superuser check short-circuits
+before ever reading that array, so the default `[]` is always correct.
+
+**Permission-check engine** (new `core/lib/Rbac.php`, required from `core/bootstrap.php`
+next to `lib/Security.php`): `rbacClass::isPermitted(string $permission): bool` /
+`rbacClass::require(string $permission): ?string` -- same contract as `SecurityClass::
+require()` (null on success, a rendered 401 on failure), always re-querying the
+database for the current user's actual roles rather than trusting `$_SESSION` (the
+session role list `Kernel::loginUser()` builds always carries an extra `"authenticated"`
+entry, which is what made `SecurityClass::require()` silently inert). Also defines the
+plain global function `zeusfw_app_resolve_user_roles(usersClass $user): ?string` --
+**must stay a plain function, not a class method**, since `core/lib/UserLogin.php`'s
+`login_post()` probes it via `function_exists()` before falling back to the legacy
+`users.roles` column (same pattern as `csrf_field()`, `core/lib/FormElement.php`). This
+was previously an app-defined opt-in extension point (only zpms defined it); now core
+defines it by default, so every app gets correct session-role resolution for free --
+in practice no app can still override it (core's own definition, loaded early in
+`bootstrap.php`'s require chain, always wins the `function_exists()` race before any
+app code runs). `ZEUSFW_PERM_MANAGE_USERS` (`= 'users-manage'`) is the framework's own
+canonical "can manage users/roles/permissions" slug, gating the admin module below --
+kept as the exact string zpms's own (now-retired) `ZPMS_PERM_USERS_MANAGE` already
+used/seeded, so adopting this needed zero data migration.
+
+**Admin CRUD module** (extends the pre-existing `core/modules/admin/` stub, previously
+just a `/admin` nav-landing page with no routes of its own beyond that): new
+`core/modules/admin/admin_crud.php` (required from `admin.php`) provides list/new/
+edit/delete for all 5 entities (`users`, `permissions`, `roles`, `role_permissions`,
+`user_roles` -- `users`' fields, e.g. name/email/uname/active/expired, are all
+core-generic `usersClass` columns, so it belongs here too, not just the 4 pure-RBAC
+tables), one metadata-driven engine (`zeusfw_admin_entity_defs()`) rather than five
+near-identical copies, matching this framework's "no autoloader/generic-engine-culture"
+style by being one hand-written file, not an abstraction layer. 6 routes (`admin_list`/
+`admin_new`/`admin_new_post`/`admin_edit`/`admin_edit_post`/`admin_delete`, all under
+`/admin/{entity}[/{id}]`) added to `core/modules/admin/admin.yaml`'s `routes:` block --
+live-injected into the router by `adminModule`'s constructor (`$router->
+initRouteTable($kernel->getConfig('routes'))`), the same mechanism already used for
+this module's pre-existing `/admin` route. Every route is gated on `rbacClass::
+require(ZEUSFW_PERM_MANAGE_USERS)`. An app opts in by listing `admin` under its own
+`settings.info.yaml`'s `modules:` (zpms already did, from the original app-level
+version of this feature).
+
+**Templates** (`core/templates/modules/admin/{admin_list,admin_form}.zetem`, moved
+verbatim from zpms's `web/templates/content/`): fully generic -- no app-specific
+markup. Both still reference zpms's own `boxicons`/`loader-library` CSS libraries
+(`attach_library()`) and reuse zpms's own `patients-*`/`icon-btn`/`admin-tab*` CSS
+classes from its `css/styles.css` -- a deliberate **verbatim** move (unstyled-but-
+functional for another app that hasn't defined those libraries/classes, byte-identical
+rendering for zpms, which still has them), matching this framework's existing
+"bare unstyled fallback, app can override/extend" precedent (see `core/templates/
+errors/*.zetem` above) rather than inventing a new core-owned design system as part of
+this change.
+
+**Critical migration-ordering note for any other app adopting this schema**: adding
+these core-level classes is *not* independently safe to deploy against an app that
+still has its own app-level `web/classes/yaml/{roles,permissions,role_permissions,
+user_roles}.yaml` (or same-named routes in its own `settings.info.yaml`) -- both would
+declare the same PHP class name ("Cannot redeclare class") or collide in the route
+table's `array_merge_recursive()` (turning scalar route fields into arrays, breaking
+`Router.php`'s dispatch). An app migrating onto this (as zpms did) must remove its own
+copies in the same change that adopts the core schema/routes, not as a follow-up.
