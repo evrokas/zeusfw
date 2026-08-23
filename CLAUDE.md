@@ -200,9 +200,19 @@ as every other table). Table names/columns are unchanged from zpms's original
 app-level YAMLs -- this is a pure code-location move, not a data migration; an app
 that already had these tables (zpms) keeps its existing rows untouched.
 
-**Extension classes** (`core/ClassExFW.php`, alongside the pre-existing
-`userTokensClassEx` precedent): `rolesClassEx`, `permissionsClassEx`,
-`role_permissionsClassEx`, `user_rolesClassEx` -- `sgetByName()` lookups, granted-
+**Extension classes** -- standalone files under `core/`, one per table
+(`core/rolesClassEx.php`, `core/permissionsClassEx.php`,
+`core/role_permissionsClassEx.php`, `core/user_rolesClassEx.php`), following the
+`extention:` YAML directive convention already established by
+`core/classes/yaml/feed_hashes.yaml` (`extention: __FWDIR__ . '/feedhashesClassEx.php'`)
+rather than the older, separate `core/ClassExFW.php` monolith (which still holds
+`userTokensClassEx`, an inconsistency predating this change, left as-is). `spill_class()`
+(`core/maker/maker.php`) reads a YAML's `table.extention` value and appends a conditional
+`require_once` to the *generated* class file itself (e.g. `core/classes/roles.php` ends
+with `if(file_exists(__FWDIR__.'/rolesClassEx.php')) { require_once(...); }`) -- so the Ex
+file self-loads the moment its base class is required via `core/classes/bootstrap_classes.php`,
+with no separate manual wiring needed anywhere. `rolesClassEx`, `permissionsClassEx`,
+`role_permissionsClassEx`, `user_rolesClassEx` provide `sgetByName()` lookups, granted-
 permission-name resolution, and `assignRole()`/`removeRole()`. `user_rolesClassEx::
 getRolesForUser(int $userId, array $allPermissionSlugs = [])` takes the "every
 permission slug" list as a parameter now (used only for an is_superuser role's
@@ -231,23 +241,45 @@ canonical "can manage users/roles/permissions" slug, gating the admin module bel
 kept as the exact string zpms's own (now-retired) `ZPMS_PERM_USERS_MANAGE` already
 used/seeded, so adopting this needed zero data migration.
 
-**Admin CRUD module** (extends the pre-existing `core/modules/admin/` stub, previously
-just a `/admin` nav-landing page with no routes of its own beyond that): new
-`core/modules/admin/admin_crud.php` (required from `admin.php`) provides list/new/
+**Admin CRUD ("`admin_user_crud`" package)** -- new `core/modules/admin/admin_crud.php`
+(required unconditionally from `core/bootstrap.php`, not gated behind the app opting into
+the pre-existing, separate `core/modules/admin/` nav-landing module) provides list/new/
 edit/delete for all 5 entities (`users`, `permissions`, `roles`, `role_permissions`,
 `user_roles` -- `users`' fields, e.g. name/email/uname/active/expired, are all
 core-generic `usersClass` columns, so it belongs here too, not just the 4 pure-RBAC
 tables), one metadata-driven engine (`zeusfw_admin_entity_defs()`) rather than five
 near-identical copies, matching this framework's "no autoloader/generic-engine-culture"
-style by being one hand-written file, not an abstraction layer. 6 routes (`admin_list`/
+style by being one hand-written file, not an abstraction layer. Its 6 routes (`admin_list`/
 `admin_new`/`admin_new_post`/`admin_edit`/`admin_edit_post`/`admin_delete`, all under
-`/admin/{entity}[/{id}]`) added to `core/modules/admin/admin.yaml`'s `routes:` block --
-live-injected into the router by `adminModule`'s constructor (`$router->
-initRouteTable($kernel->getConfig('routes'))`), the same mechanism already used for
-this module's pre-existing `/admin` route. Every route is gated on `rbacClass::
-require(ZEUSFW_PERM_MANAGE_USERS)`. An app opts in by listing `admin` under its own
-`settings.info.yaml`'s `modules:` (zpms already did, from the original app-level
-version of this feature).
+`/admin/{entity}[/{id}]`) live in **`core/zeusfw.info.yaml`** (a new file, directly under
+`core/`, matching `Kernel::__construct()`'s actual `__FWDIR__ . '/zeusfw.info.yaml'` read --
+**not** `core/config/zeusfw.info.yaml`, a different, pre-existing file with its own unrelated
+`libraries:` block that this Kernel read path never touches; confirmed by grepping
+`Kernel.php` directly rather than assuming). This is the *first* of the three
+`Kernel::addConfig()` merge layers (framework, then an app's own `config/site.info.yaml`,
+then `config/settings.info.yaml`), so these routes are available to any app on the
+framework unconditionally -- independent of any per-app module opt-in, unlike the previous
+(superseded) design that lived in `core/modules/admin/admin.yaml` and required the app to
+list `admin` under `modules:`. Every handler still checks `rbacClass::
+require(ZEUSFW_PERM_MANAGE_USERS)`.
+
+**Enabling/disabling framework packages** (new `core/lib/Packages.php`, `packagesClass::
+isEnabled(string $package): bool`): a generic, reusable toggle for `admin_user_crud` and any
+future optional framework package, checked as the *first* line of every gated handler (before
+even the permission check) -- a disabled package returns `error_404()`, the same observable
+result as a route that was never registered, without touching `Router.php`'s shared dispatch
+path at all (a deliberately smaller blast radius than a router-level gate would need).
+Controlled by `disabled_packages:`, a flat list of package-name strings -- declared empty in
+`core/zeusfw.info.yaml` and in each app's own `config/site.info.yaml` (e.g. zpms's), with a
+matching comment available in `config/settings.info.yaml` for an app-specific-only override.
+**Deliberately a list, not a map of booleans** (`{package: {enabled: false}}`) -- confirmed via
+direct test that `array_merge_recursive()` (what `addConfig()` uses for all three config
+layers) corrupts a nested scalar overridden across layers into an array
+(`array_merge_recursive(['enabled'=>true], ['enabled'=>false])` produces
+`['enabled'=>[true,false]]`, not `false`), while two lists merge safely via concatenation. A
+flat accumulating list means any layer can only ever *add* a package to the disabled set,
+never silently re-enable one a less specific layer already turned off, and every layer uses
+the exact same key with zero special-casing.
 
 **Templates** (`core/templates/modules/admin/{admin_list,admin_form}.zetem`, moved
 verbatim from zpms's `web/templates/content/`): fully generic -- no app-specific
@@ -266,5 +298,6 @@ still has its own app-level `web/classes/yaml/{roles,permissions,role_permission
 user_roles}.yaml` (or same-named routes in its own `settings.info.yaml`) -- both would
 declare the same PHP class name ("Cannot redeclare class") or collide in the route
 table's `array_merge_recursive()` (turning scalar route fields into arrays, breaking
-`Router.php`'s dispatch). An app migrating onto this (as zpms did) must remove its own
+`Router.php`'s dispatch, exactly the same corruption documented above for
+`disabled_packages`). An app migrating onto this (as zpms did) must remove its own
 copies in the same change that adopts the core schema/routes, not as a follow-up.

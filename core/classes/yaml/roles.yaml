@@ -2,6 +2,7 @@
 table:
   name: roles
   class: rolesClass
+  extention: __FWDIR__ . '/rolesClassEx.php'
 
   fields:
   - name: guid

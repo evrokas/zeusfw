@@ -16,15 +16,22 @@
  * never appear here; only the single gate below
  * (ZEUSFW_PERM_MANAGE_USERS, core/lib/Rbac.php) does.
  *
- * Every route below (see admin.yaml's admin_* routes) is gated on
- * ZEUSFW_PERM_MANAGE_USERS -- deliberately not granted to a non-superuser
- * role by default in any app's own seed data, since this page can create
- * a new is_superuser role and assign it to any account, including its own
- * operator's.
+ * The `admin_user_crud` package: routes are registered unconditionally in
+ * core/zeusfw.info.yaml (independent of any per-app module opt-in),
+ * this file is required unconditionally from core/bootstrap.php, and every
+ * handler below checks packagesClass::isEnabled('admin_user_crud')
+ * (core/lib/Packages.php) as its first line -- a site/app can turn this
+ * off via config/site.info.yaml's or config/settings.info.yaml's own
+ * `disabled_packages:` list without touching routing at all. Every handler
+ * also checks rbacClass::require(ZEUSFW_PERM_MANAGE_USERS) right after --
+ * deliberately not granted to a non-superuser role by default in any app's
+ * own seed data, since this page can create a new is_superuser role and
+ * assign it to any account, including its own operator's.
  *
- * Not a moduleClass itself (see admin.php's adminModule, which requires
- * this file) -- this is ordinary route-handler page content, parameterized
- * by an {entity} route segment instead of being one function per entity.
+ * Not a moduleClass -- this is ordinary route-handler page content,
+ * parameterized by an {entity} route segment instead of being one function
+ * per entity. Unrelated to core/modules/admin/'s own adminModule (the
+ * separate `/admin` nav-landing page, still module-opt-in as before).
  *
  * Originally built app-specific inside zpms (web/admin_crud.php) and moved
  * here so every app on the framework gets it for free.
@@ -232,6 +239,7 @@ function zeusfw_admin_new_instance(string $class, string $cuser, array $extraDef
 function admin_list($params) {
     global $kernel;
 
+    if (!packagesClass::isEnabled('admin_user_crud')) return error_404('This feature is not available.');
     if (($errmsg = rbacClass::require(ZEUSFW_PERM_MANAGE_USERS))) return $errmsg;
 
     $def = zeusfw_admin_entity_def($params['entity'] ?? '');
@@ -265,6 +273,7 @@ function admin_list($params) {
 }
 
 function admin_new($params) {
+    if (!packagesClass::isEnabled('admin_user_crud')) return error_404('This feature is not available.');
     if (($errmsg = rbacClass::require(ZEUSFW_PERM_MANAGE_USERS))) return $errmsg;
 
     $def = zeusfw_admin_entity_def($params['entity'] ?? '');
@@ -283,6 +292,7 @@ function admin_new($params) {
 function admin_new_post($params) {
     global $kernel;
 
+    if (!packagesClass::isEnabled('admin_user_crud')) return error_404('This feature is not available.');
     if (($errmsg = rbacClass::require(ZEUSFW_PERM_MANAGE_USERS))) return $errmsg;
     if (($err = csrfClass::requireValid())) return $err;
 
@@ -312,6 +322,7 @@ function admin_new_post($params) {
 }
 
 function admin_edit($params) {
+    if (!packagesClass::isEnabled('admin_user_crud')) return error_404('This feature is not available.');
     if (($errmsg = rbacClass::require(ZEUSFW_PERM_MANAGE_USERS))) return $errmsg;
 
     $entity = $params['entity'] ?? '';
@@ -337,6 +348,7 @@ function admin_edit($params) {
 function admin_edit_post($params) {
     global $kernel;
 
+    if (!packagesClass::isEnabled('admin_user_crud')) return error_404('This feature is not available.');
     if (($errmsg = rbacClass::require(ZEUSFW_PERM_MANAGE_USERS))) return $errmsg;
     if (($err = csrfClass::requireValid())) return $err;
 
@@ -365,6 +377,7 @@ function admin_edit_post($params) {
 function admin_delete($params) {
     global $kernel;
 
+    if (!packagesClass::isEnabled('admin_user_crud')) return error_404('This feature is not available.');
     if (($errmsg = rbacClass::require(ZEUSFW_PERM_MANAGE_USERS))) return $errmsg;
     if (($err = csrfClass::requireValid())) return $err;
 

@@ -2,6 +2,7 @@
 table:
   name: permissions
   class: permissionsClass
+  extention: __FWDIR__ . '/permissionsClassEx.php'
 
   fields:
   - name: guid
