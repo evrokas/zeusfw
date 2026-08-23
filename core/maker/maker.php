@@ -17,6 +17,11 @@ class DIR {
         'template:',        // YAML template to create feeder
         'dir:',             // YAML templates folder
         'update:',          // when 'feed:gen:yaml' force updating fields field1:field2:field3:...
+        // rbac:* commands (core/maker/rbac.php) -- users/permissions/roles/
+        // role_permissions/user_roles list/add/edit/remove
+        'email:', 'uname:', 'password:', 'active:', 'expired:',
+        'superuser:', 'role:', 'permission:', 'user:', 'label:',
+        'yes', 'prompt-password',
     );
     $options = array();
 
@@ -117,6 +122,14 @@ class DIR {
 
     require('functions.php');
     require('messages.php');
+    // __DIR__-qualified, unlike the two bare requires above -- a bare
+    // require('rbac.php') resolves against PHP's include_path, which by
+    // default includes '.' (cwd); zpms (among possibly other apps) has
+    // its own, unrelated web/rbac.php, and a bare require picked that one
+    // up instead of this file whenever maker.php was invoked with cwd set
+    // to an app directory containing a same-named file. Qualifying with
+    // __DIR__ makes this require unambiguous regardless of cwd.
+    require(__DIR__ . '/rbac.php');
 
     function mlog($s, $nl = true, $li=false) {
         if($li)echo __FILE__."(".__FUNCTION__."):".__LINE__.": ";
@@ -1781,10 +1794,35 @@ function makesure_dir_exists($dir) {
      
                 'msg:new' => '[user] [message] create new message for `user` with `message`',
 
+                'rbac:*' => '-- NOTE: --flag=value options must be given BEFORE the command name, e.g. `--name=x --label=y rbac:roles:add`, not after (PHP getopt() stops scanning at the first non-option argument, and the command name is one)',
+                'rbac:users:list' => 'list users (with their assigned roles)',
+                'rbac:users:add' => '--name= --email= --uname= [--password=] [--active=] [--expired=] add a new user',
+                'rbac:users:edit' => '[id] [--name=] [--email=] [--uname=] [--password=] [--prompt-password] [--active=] [--expired=] edit a user',
+                'rbac:users:remove' => '[id] [--yes] remove a user (cascades user_roles)',
+                'rbac:permissions:list' => 'list permissions',
+                'rbac:permissions:add' => '--name= --label= add a new permission',
+                'rbac:permissions:edit' => '[id] [--name=] [--label=] edit a permission',
+                'rbac:permissions:remove' => '[id] [--yes] remove a permission (cascades role_permissions)',
+                'rbac:roles:list' => 'list roles',
+                'rbac:roles:add' => '--name= --label= [--superuser=] add a new role',
+                'rbac:roles:edit' => '[id] [--name=] [--label=] [--superuser=] edit a role',
+                'rbac:roles:remove' => '[id] [--yes] remove a role (cascades role_permissions, user_roles)',
+                'rbac:role-permissions:list' => 'list role/permission grants',
+                'rbac:role-permissions:add' => '--role= --permission= grant a permission to a role (id or name)',
+                'rbac:role-permissions:edit' => '[id] [--role=] [--permission=] edit a grant',
+                'rbac:role-permissions:remove' => '[id] [--yes] revoke a grant',
+                'rbac:user-roles:list' => 'list user/role assignments',
+                'rbac:user-roles:add' => '--user= --role= assign a role to a user (id, uname, or name)',
+                'rbac:user-roles:edit' => '[id] [--user=] [--role=] edit an assignment',
+                'rbac:user-roles:remove' => '[id] [--yes] remove an assignment',
+
             ];
 
             foreach($commands as $key => $value) {
-                mlog(str_pad($key,20) . $value);
+                // Widened from 20 -- the longest pre-existing command name
+                // fit in 20, but several rbac:* names (e.g.
+                // 'rbac:role-permissions:remove') don't.
+                mlog(str_pad($key,30) . $value);
             }
             break;
 
@@ -2153,6 +2191,131 @@ function makesure_dir_exists($dir) {
             }
 
             message_new($optparams[1], $optparams[2], $optparams[3]);
+            break;
+
+        // -- RBAC: users ------------------------------------------------------
+        case 'rbac:users:list':
+            rbac_users_list();
+            break;
+
+        case 'rbac:users:add':
+            rbac_users_add($options);
+            break;
+
+        case 'rbac:users:edit':
+            if(empty($optparams[1]) || !ctype_digit($optparams[1])) {
+                mlog("Usage: {$argv[0]} [--name=] [--email=] [--uname=] [--password=] [--prompt-password] [--active=0|1] [--expired=0|1] rbac:users:edit <id>");
+                exit(-1);
+            }
+            rbac_users_edit((int)$optparams[1], $options);
+            break;
+
+        case 'rbac:users:remove':
+            if(empty($optparams[1]) || !ctype_digit($optparams[1])) {
+                mlog("Usage: {$argv[0]} [--yes] rbac:users:remove <id>");
+                exit(-1);
+            }
+            rbac_users_remove((int)$optparams[1], isset($options['yes']));
+            break;
+
+        // -- RBAC: permissions ------------------------------------------------
+        case 'rbac:permissions:list':
+            rbac_permissions_list();
+            break;
+
+        case 'rbac:permissions:add':
+            rbac_permissions_add($options);
+            break;
+
+        case 'rbac:permissions:edit':
+            if(empty($optparams[1]) || !ctype_digit($optparams[1])) {
+                mlog("Usage: {$argv[0]} [--name=] [--label=] rbac:permissions:edit <id>");
+                exit(-1);
+            }
+            rbac_permissions_edit((int)$optparams[1], $options);
+            break;
+
+        case 'rbac:permissions:remove':
+            if(empty($optparams[1]) || !ctype_digit($optparams[1])) {
+                mlog("Usage: {$argv[0]} [--yes] rbac:permissions:remove <id>");
+                exit(-1);
+            }
+            rbac_permissions_remove((int)$optparams[1], isset($options['yes']));
+            break;
+
+        // -- RBAC: roles ------------------------------------------------------
+        case 'rbac:roles:list':
+            rbac_roles_list();
+            break;
+
+        case 'rbac:roles:add':
+            rbac_roles_add($options);
+            break;
+
+        case 'rbac:roles:edit':
+            if(empty($optparams[1]) || !ctype_digit($optparams[1])) {
+                mlog("Usage: {$argv[0]} [--name=] [--label=] [--superuser=0|1] rbac:roles:edit <id>");
+                exit(-1);
+            }
+            rbac_roles_edit((int)$optparams[1], $options);
+            break;
+
+        case 'rbac:roles:remove':
+            if(empty($optparams[1]) || !ctype_digit($optparams[1])) {
+                mlog("Usage: {$argv[0]} [--yes] rbac:roles:remove <id>");
+                exit(-1);
+            }
+            rbac_roles_remove((int)$optparams[1], isset($options['yes']));
+            break;
+
+        // -- RBAC: role_permissions --------------------------------------------
+        case 'rbac:role-permissions:list':
+            rbac_role_permissions_list();
+            break;
+
+        case 'rbac:role-permissions:add':
+            rbac_role_permissions_add($options);
+            break;
+
+        case 'rbac:role-permissions:edit':
+            if(empty($optparams[1]) || !ctype_digit($optparams[1])) {
+                mlog("Usage: {$argv[0]} [--role=] [--permission=] rbac:role-permissions:edit <id>");
+                exit(-1);
+            }
+            rbac_role_permissions_edit((int)$optparams[1], $options);
+            break;
+
+        case 'rbac:role-permissions:remove':
+            if(empty($optparams[1]) || !ctype_digit($optparams[1])) {
+                mlog("Usage: {$argv[0]} [--yes] rbac:role-permissions:remove <id>");
+                exit(-1);
+            }
+            rbac_role_permissions_remove((int)$optparams[1], isset($options['yes']));
+            break;
+
+        // -- RBAC: user_roles -------------------------------------------------
+        case 'rbac:user-roles:list':
+            rbac_user_roles_list();
+            break;
+
+        case 'rbac:user-roles:add':
+            rbac_user_roles_add($options);
+            break;
+
+        case 'rbac:user-roles:edit':
+            if(empty($optparams[1]) || !ctype_digit($optparams[1])) {
+                mlog("Usage: {$argv[0]} [--user=] [--role=] rbac:user-roles:edit <id>");
+                exit(-1);
+            }
+            rbac_user_roles_edit((int)$optparams[1], $options);
+            break;
+
+        case 'rbac:user-roles:remove':
+            if(empty($optparams[1]) || !ctype_digit($optparams[1])) {
+                mlog("Usage: {$argv[0]} [--yes] rbac:user-roles:remove <id>");
+                exit(-1);
+            }
+            rbac_user_roles_remove((int)$optparams[1], isset($options['yes']));
             break;
 
         default:
