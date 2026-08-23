@@ -17,7 +17,7 @@
  * (ZEUSFW_PERM_MANAGE_USERS, core/lib/Rbac.php) does.
  *
  * The `admin_user_crud` package: routes are registered unconditionally in
- * core/zeusfw.info.yaml (independent of any per-app module opt-in),
+ * core/config/zeusfw.info.yaml (independent of any per-app module opt-in),
  * this file is required unconditionally from core/bootstrap.php, and every
  * handler below checks packagesClass::isEnabled('admin_user_crud')
  * (core/lib/Packages.php) as its first line -- a site/app can turn this

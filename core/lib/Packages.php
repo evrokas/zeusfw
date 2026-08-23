@@ -3,10 +3,10 @@
 /**
  * Generic enable/disable toggle for optional framework-provided
  * packages/modules (e.g. the admin_user_crud package -- see
- * core/modules/admin/admin_crud.php and core/zeusfw.info.yaml's
+ * core/modules/admin/admin_crud.php and core/config/zeusfw.info.yaml's
  * own `routes:`/`disabled_packages:` comments for that one's full
  * design). Any future framework package should register itself the same
- * way: declare its routes in core/zeusfw.info.yaml, pick a unique
+ * way: declare its routes in core/config/zeusfw.info.yaml, pick a unique
  * package name string, and call packagesClass::isEnabled('that-name') as
  * the first line of every one of its route handlers.
  *
@@ -26,7 +26,7 @@
  * (confirmed: array_merge_recursive(['enabled'=>true], ['enabled'=>false])
  * produces ['enabled'=>[true,false]], not ['enabled'=>false]). A list
  * that any layer can only ever ADD to has no such collision -- disabling
- * a package at any one layer (core/zeusfw.info.yaml, an app's own
+ * a package at any one layer (core/config/zeusfw.info.yaml, an app's own
  * config/site.info.yaml, or config/settings.info.yaml) is final; no layer
  * can silently re-enable what a less specific layer already turned off.
  */

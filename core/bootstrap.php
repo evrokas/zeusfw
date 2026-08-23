@@ -50,7 +50,7 @@ require_once(__DIR__ . "/lib/Security.php");
 require_once(__DIR__ . "/lib/Rbac.php");
 require_once(__DIR__ . "/lib/Packages.php");
 // Route handlers for the admin_user_crud package (routes registered in
-// core/zeusfw.info.yaml, unconditionally for every app -- see that
+// core/config/zeusfw.info.yaml, unconditionally for every app -- see that
 // file's own comments). Required unconditionally here too, so the handler
 // functions always exist to dispatch to; packagesClass::isEnabled() inside
 // each one is what actually makes the package effectively unavailable when

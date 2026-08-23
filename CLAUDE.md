@@ -251,11 +251,14 @@ tables), one metadata-driven engine (`zeusfw_admin_entity_defs()`) rather than f
 near-identical copies, matching this framework's "no autoloader/generic-engine-culture"
 style by being one hand-written file, not an abstraction layer. Its 6 routes (`admin_list`/
 `admin_new`/`admin_new_post`/`admin_edit`/`admin_edit_post`/`admin_delete`, all under
-`/admin/{entity}[/{id}]`) live in **`core/zeusfw.info.yaml`** (a new file, directly under
-`core/`, matching `Kernel::__construct()`'s actual `__FWDIR__ . '/zeusfw.info.yaml'` read --
-**not** `core/config/zeusfw.info.yaml`, a different, pre-existing file with its own unrelated
-`libraries:` block that this Kernel read path never touches; confirmed by grepping
-`Kernel.php` directly rather than assuming). This is the *first* of the three
+`/admin/{entity}[/{id}]`) live in **`core/config/zeusfw.info.yaml`**, merged into its
+pre-existing `libraries: webform:` block. `Kernel::__construct()` (`core/kernel/Kernel.php`)
+originally read `__FWDIR__ . '/zeusfw.info.yaml'` (no `config/`) -- confirmed by reading the
+constructor directly, which meant `core/config/zeusfw.info.yaml`'s `libraries:` block was
+never actually loaded by Kernel at all (dead config, an existing bug predating this change).
+Fixed as part of this work: `Kernel.php` now reads `__FWDIR__ . '/config/zeusfw.info.yaml'`,
+the intended, correct path -- activating that dormant `libraries:` block for every app on the
+framework as a side effect, in addition to making the routes below live. This is the *first* of the three
 `Kernel::addConfig()` merge layers (framework, then an app's own `config/site.info.yaml`,
 then `config/settings.info.yaml`), so these routes are available to any app on the
 framework unconditionally -- independent of any per-app module opt-in, unlike the previous
@@ -270,7 +273,7 @@ even the permission check) -- a disabled package returns `error_404()`, the same
 result as a route that was never registered, without touching `Router.php`'s shared dispatch
 path at all (a deliberately smaller blast radius than a router-level gate would need).
 Controlled by `disabled_packages:`, a flat list of package-name strings -- declared empty in
-`core/zeusfw.info.yaml` and in each app's own `config/site.info.yaml` (e.g. zpms's), with a
+`core/config/zeusfw.info.yaml` and in each app's own `config/site.info.yaml` (e.g. zpms's), with a
 matching comment available in `config/settings.info.yaml` for an app-specific-only override.
 **Deliberately a list, not a map of booleans** (`{package: {enabled: false}}`) -- confirmed via
 direct test that `array_merge_recursive()` (what `addConfig()` uses for all three config
