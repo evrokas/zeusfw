@@ -1,5 +1,5 @@
 
 {# Render input, textarea, select, or any other tag #}
 <td>
-    {{ $value }}
+    {{{ $value }}}
 </td>

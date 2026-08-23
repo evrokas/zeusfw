@@ -50,6 +50,30 @@ class LoginSecurityClass {
     }
 }
 
+/*
+ * users.upass historically stored an unsalted hash('sha256', $password) --
+ * fast to brute-force offline and, with no per-user salt, vulnerable to a
+ * single precomputed rainbow table across every account on every app on
+ * this framework. login_post() now verifies against either format and
+ * transparently rehashes to PASSWORD_DEFAULT (bcrypt) the moment a legacy
+ * account logs in successfully -- no separate migration script, no
+ * user-management UI needed (none exists in this framework yet), and no
+ * account is ever forced to reset a password it still knows correctly.
+ * Accounts that never log in again simply keep their old hash indefinitely,
+ * same as before this existed.
+ */
+function password_hash_is_legacy_sha256(?string $storedHash): bool {
+    return password_get_info((string)$storedHash)['algo'] === null;
+}
+
+function password_matches_stored_hash(string $rawPassword, ?string $storedHash): bool {
+    if ($storedHash === null || $storedHash === '') return false;
+    if (password_hash_is_legacy_sha256($storedHash)) {
+        return hash_equals($storedHash, hash('sha256', $rawPassword));
+    }
+    return password_verify($rawPassword, $storedHash);
+}
+
 
  function setup_rememberme(string $uname) {
     prelog("Setup selector:validator");
@@ -101,7 +125,12 @@ function login_post($params) {
         exit();
     }
 
-    $us = UsersClassEx::getUser($_POST['username'], hash('sha256', $_POST['password']));
+    // Looked up by username alone now, not by SQL-matching a precomputed
+    // hash -- see password_matches_stored_hash()'s docblock above for why:
+    // the stored hash can be either format, and only that helper knows
+    // which comparison applies.
+    $us = UsersClassEx::getUserAccount($_POST['username']);
+    $passwordOk = $us && password_matches_stored_hash((string)$_POST['password'], $us->getupass());
     // prelog("User: " . print_r( $us, 1 ));
 
     // Opt-in only -- see LoginSecurityClass's own docblock above. Checked
@@ -124,8 +153,8 @@ function login_post($params) {
         }
     }
 
-    if($us) {
-        // user exists
+    if($us && $passwordOk) {
+        // user exists and password matches
         echopre("try to login user ". $us->getuname() . " with rules: " . print_r($us->getroles()));
 
         // ask kernel to login user
@@ -133,6 +162,14 @@ function login_post($params) {
 
         if(isset($_POST['rememberme'])) {
             setup_rememberme($us->getuname());
+        }
+
+        // Transparent upgrade: an account still on the legacy unsalted
+        // sha256 format gets rehashed to PASSWORD_DEFAULT right here, the
+        // one place the plaintext password is ever available. See
+        // password_matches_stored_hash()'s docblock above.
+        if(password_hash_is_legacy_sha256($us->getupass())) {
+            $us->setupass(password_hash((string)$_POST['password'], PASSWORD_DEFAULT));
         }
 
         // reset wrong password counter
@@ -144,7 +181,6 @@ function login_post($params) {
     } else {
         // check for account with 'username' exists, if yes, then increase wrong password counter
         // for future reference
-        $us = UsersClassEx::getUserAccount( $_POST['username'] );
         if($us) {
             $us->setwrongpasscount( $us->getwrongpasscount() + 1);
             $us->update();
