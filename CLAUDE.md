@@ -304,3 +304,44 @@ table's `array_merge_recursive()` (turning scalar route fields into arrays, brea
 `Router.php`'s dispatch, exactly the same corruption documented above for
 `disabled_packages`). An app migrating onto this (as zpms did) must remove its own
 copies in the same change that adopts the core schema/routes, not as a follow-up.
+
+## `t()` gains `@placeholder` substitution; `dictionaryClassEx` gains admin/export helpers (2026-08-24)
+
+Two small, independent, additive pieces salvaged from zeusfw's own long-abandoned
+`dicom`/`nav` R&D branch (26 commits of Jan-Feb 2026 work that never merged --
+reviewed feature-by-feature, most of it superseded or unsafe to port; see the
+zpms-side salvage entry below for the larger, separate review of ZPMS's *own*
+`dicom`/`nav` branches, which is a different line of work entirely).
+
+**`t($token, array $values = [])`** (`core/kernel/utils.php`) -- the translation
+function now takes an optional second parameter for `@key` placeholder substitution
+in the resolved string, done via `strtr`-style `str_replace('@'.$key, $value, $text)`
+after translation resolves (works for both the plain-string and array-of-language-keys
+forms of `$token`). Fully backward-compatible -- every existing single-argument call
+site across zpms/erweb/docarc was grepped and confirmed unaffected (new param is
+optional). `core/kernel/utils.php`'s `echopre()` also picked up a real bug fix from
+the same source branch: the `while($fs[0] === $ap[0])` path-stripping loop now guards
+both sides with `isset()` first, so a call from a file whose path doesn't share every
+segment with `__APPDIR__` no longer risks an undefined-array-key warning once `$fs`/
+`$ap` are exhausted.
+
+**`dictionaryClassEx`** (`core/dictionaryClassEx.php`) gained 8 new static admin/export
+methods: `getAllTokens()`, `updateTranslation($token, $lang, $translation)`,
+`deleteToken($token)`, `getUntranslated($lang)`, `exportToYAML($lang)`,
+`importFromYAML($lang, $file)`, `getTranslationStats()`, `getRecentTokens($limit)` --
+useful building blocks for a future dictionary-admin UI, ported verbatim in spirit but
+**not** verbatim in code: the source branch's version of these methods (and a change it
+made to the existing `translateToken()`, deliberately **not** ported) built every SQL
+column-name list via `array_keys($kernel->getConfig('languages'))`. That's wrong --
+`getConfig('languages')` already returns the flat list of language codes as-is (e.g.
+`['en', 'gr']` for zpms, `['el', 'en']` for erweb), so `array_keys()` on it yields
+`[0, 1]`, not language codes -- every generated query would have referenced SQL columns
+named `0`/`1` instead of `en`/`gr`/`el`. Fixed while porting: every new method uses
+`$kernel->getConfig('languages')` directly, matching the untouched `translateToken()`'s
+own (already-correct) pattern. Verified against an in-memory SQLite stand-in for the
+real DB (not provisioned in this sandbox) with `languages => ['en', 'gr']`: seeded a
+row, round-tripped it through `updateTranslation()`/`getUntranslated()`/
+`getTranslationStats()`/`exportToYAML()`/`deleteToken()`/`getRecentTokens()`, and
+confirmed every generated query referenced the real `en`/`gr` columns (`getTranslationStats()`'s
+result keyed by `'en'`/`'gr'`, not `0`/`1`) -- this is exactly the class of bug that
+fix prevents, and the test would have failed loudly without it.
