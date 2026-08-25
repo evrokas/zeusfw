@@ -36,4 +36,8 @@ table:
 
   - name: roles
     type: '@guid'
+    
+  - name: ernsauth_username
+    type: varchar(128)
+    default: null
 ...
