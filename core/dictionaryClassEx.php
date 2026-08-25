@@ -72,9 +72,10 @@ class dictionaryClassEx extends dictionaryClass {
 
         // the $token is not found in the dictionary
         // add a new entry
-        $columns = implode(',', $langs);
+        // echopre("langs: " . print_r($langs, 1));
+        $columns = implode(',', array_keys($langs));
         $placeholders = implode(",", array_fill(0, count($langs), "?"));
-        $flagColumn = implode(",", array_map(fn($lang) => $lang . "_set", $langs));
+        $flagColumn = implode(",", array_map(fn($lang) => $lang . "_set", array_keys($langs)));
         $flagPlaceholders = "1,".implode(",", array_fill(1, count($langs)-1, "0"));
 
         $sql = "INSERT INTO dictionary ($columns, $flagColumn) VALUES ($placeholders,$flagPlaceholders)";
