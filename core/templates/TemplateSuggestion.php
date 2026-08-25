@@ -495,9 +495,16 @@ class TemplateSuggestion {
      */
     public static function findBestMatch(array $suggestions): ?string {
         foreach ($suggestions as $suggestion) {
-            $filename = $suggestion . self::$extension;
+            $filename = $suggestion;
             if (isset(self::$templateFiles[$filename])) {
                 return $filename;
+            }
+            // Also try with extension appended
+            if (!str_ends_with($filename, self::$extension)) {
+                $filenameWithExt = $filename . self::$extension;
+                if (isset(self::$templateFiles[$filenameWithExt])) {
+                    return $filenameWithExt;
+                }
             }
         }
         return null;
