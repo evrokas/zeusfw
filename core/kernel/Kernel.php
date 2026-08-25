@@ -594,6 +594,12 @@ class Kernel {
             $alternate_languages = $this->seoHelper->getAlternateLanguages();
         }
 
+        // Resolve page template — supports page--{routename}.zetem overrides
+        $routename = $_SESSION['route_match']['_routename'] ?? '';
+        $page_suggestions = TemplateSuggestion::forPage($routename);
+        $page_template = TemplateSuggestion::findBestMatch($page_suggestions) ?? 'page.zetem';
+        // echopre("page suggestions: " . print_r($page_suggestions, 1));
+        // echopre("page template: " . $page_template);
         // final render
         Renderer::view('main.zetem',
         [
@@ -610,6 +616,7 @@ class Kernel {
             'language_metadata' => $language_metadata,
             'alternate_languages' => $alternate_languages,
             'current_language' => $this->getCurrentLanguage(),
+            'page_template' => $page_template,
         ]);
 
         $t2 = hrtime();
