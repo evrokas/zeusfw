@@ -38,7 +38,24 @@
 }
 
 function login($params) {
-    return (Renderer::render("login.zetem", ['action' => 'login']));
+    global $kernel;
+    $ernsauth_enabled = false;
+    $sso_url = '';
+    if (defined('__APPDIR__')) {
+        $ernsauth_config = __APPDIR__ . '/config/ernsauth.php';
+        if (file_exists($ernsauth_config)) {
+            require_once $ernsauth_config;
+            $ernsauth_enabled = defined('ERNSAUTH_ENABLED') && ERNSAUTH_ENABLED;
+            if ($ernsauth_enabled) {
+                $sso_url = $kernel->rel_url('/sso.php');
+            }
+        }
+    }
+    return (Renderer::render("login.zetem", [
+        'action'          => 'login',
+        'ernsauth_enabled' => $ernsauth_enabled,
+        'sso_url'         => $sso_url,
+    ]));
 }
 
 function login_post($params) {
