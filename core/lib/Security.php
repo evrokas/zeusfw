@@ -31,12 +31,16 @@ class SecurityClass {
         $arole = trim( $arole );
         $arole = str_replace(['  '],[' '], $arole);
         $rolelist = explode( ' ', $arole );
-        // echo "<pre>processRoles: " . print_r( $rolelist, 1 ) . "</pre>";
+
+        echo "<pre>arole: {$arole} processRoles: " . print_r( $rolelist, 1 ) . "</pre>";
         $loop = 0; $ok = 0;
+        echopre("rolelist: " . print_r($rolelist, 1));
+        echopre("self roles: " . print_r(self::$roles, 1));
         while($loop < count($rolelist)) {
             foreach(self::$roles as $rlkey => $rldata) {
-                // echo "<pre>$loop: Checking " . $rlkey . " <> " . $rolelist[$loop] . "</pre>";
+                echo "<pre>$loop: Checking " . $rlkey . " <> " . $rolelist[$loop] . "</pre>";
                 if($rlkey == $rolelist[ $loop ]) {
+                    echopre("ok");
                     $ok = 1;
                     break;
                 }
@@ -57,7 +61,7 @@ class SecurityClass {
     static function userIsPermitted($aperm) {
         global $kernel;
         $permlist = self::processRoles($aperm);
-        // echopre("permissions list: " . print_r($permlist, 1));
+        echopre("permissions list: " . print_r($permlist, 1));
         if(!$permlist) {
             echo "One or more roles in [" . print_r( $aperm, 1 ) . "] is not configured correct. Please check!";
             exit();
