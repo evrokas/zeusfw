@@ -361,7 +361,18 @@ class Renderer {
         while (preg_match($includePattern, $code, $match)) {
             $includedFile = trim($match[2]);
 
-            if (isset(self::$template_files[$includedFile])) {
+            if (str_starts_with($includedFile, '$')) {
+                // Variable reference — defer to runtime dynamic include
+                $varName = substr($includedFile, 1);
+                $replacement = '<?php '
+                    . '$_dyn_tpl = $variable_context[\'' . $varName . '\'] ?? \'\'; '
+                    . 'if ($_dyn_tpl && isset(' . get_called_class() . '::$template_files[$_dyn_tpl])) { '
+                    .     get_called_class() . '::view($_dyn_tpl, $variable_context); '
+                    . '} else { '
+                    .     'echo "<!-- WARNING: dynamic template not found: " . htmlspecialchars($_dyn_tpl) . " -->"; '
+                    . '} '
+                    . '?>';
+            } elseif (isset(self::$template_files[$includedFile])) {
                 $replacement = self::emmitComment(" {$match[1]}: $includedFile ")
                     . self::includeFiles($includedFile, $dependencies)
                     . self::emmitComment(" end {$match[1]}: $includedFile ", '', false);
