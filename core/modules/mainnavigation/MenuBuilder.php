@@ -174,7 +174,7 @@ class MenuBuilder {
         foreach ($permissions as $permission) {
             // if (!$this->security->hasPermission($permission)) {
             if ($errmsg=SecurityClass::require($permission)) {
-                echopre($errmsg);
+                // echopre($errmsg);
                 return false;
             }
         }
