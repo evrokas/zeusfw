@@ -227,8 +227,19 @@ function createFieldDefinition($field, bool $includeFieldName = false) {
             $default = $field['default'] ? "1" : "0";
 
         $required = $required ? " NOT NULL " : '';
-        if(!is_null($default))
-            $default = " DEFAULT " . "" . addslashes($default) . "";
+        if(!is_null($default)) {
+            if(is_numeric($default)) {
+                $def = $default;
+            } else {
+                switch(strtoupper($default)) {
+                    case 'CURRENT_TIMESTAMP': $def = $default;
+                    break;
+
+                    default: $def = "\"" . $default . "\"";
+                }
+            }
+            $default = " DEFAULT " . $def;
+        }
         else
             $default = (!$required) ? " DEFAULT NULL " : "";
             // $default = "";  //(!$required) ? " DEFAULT NULL " : "";
