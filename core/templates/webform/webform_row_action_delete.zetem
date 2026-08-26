@@ -1,0 +1,30 @@
+{#
+    Row action button for a results-table row -- type: delete (core/lib/
+    FormElement.php's generateHTMLTableRowButton()). Delete is a POST
+    <form>, not a bare link, since it's a mutating action that needs CSRF
+    protection -- same established convention as this app's other row-
+    delete flows (zpms's patients_list.zetem / the framework's
+    admin_list.zetem): the `confirmation` marker attribute (intercepted by
+    generic JS -- see zpms's scripts.js) triggers a native confirm()
+    dialog before the form submits.
+
+    $url is the form's `action`, resolved by the button's `handler` (a
+    plain PHP function-name string) from this row's guid/fields -- null
+    when no handler is wired yet, rendered as a disabled placeholder
+    button in that case (no <form> at all, so there's nothing to submit).
+
+    csrf_field() is guarded by function_exists(), same "purely additive,
+    opt-in per app" convention already used in webform.zetem/
+    generateHTMLForm() -- an app that hasn't wired CSRF protection is
+    unaffected.
+#}
+{% if(!empty($url)): %}
+<form class="inline-delete-form" method="post" action="{{{ $url }}}" confirmation>
+    {% if(function_exists('csrf_field')): %}
+        {{ csrf_field() }}
+    {% endif %}
+    <button type="submit" class="icon-btn icon-btn-danger" title="{{{ $tooltip }}}"><i class="{{{ $icon }}}"></i></button>
+</form>
+{% else: %}
+<button type="button" class="icon-btn icon-btn-danger" title="{{{ $tooltip }}}" disabled><i class="{{{ $icon }}}"></i></button>
+{% endif %}

@@ -8,6 +8,37 @@
 // names are copied through as-is and validated later, at render time,
 // against that form's own `inputs` list (WebForms.php/FormElement.php) --
 // not here, since this function has no knowledge of rendering concerns.
+// Normalizes a table_view's row-action button list (yaml: `type`
+// edit/delete/anything-else-treated-as-custom, optional `icon`/`tooltip`
+// overriding the type's preset, optional `handler` -- a plain PHP
+// function-name string, resolved at render time, same convention as
+// setupFormActionHandler()/processform()'s own $handler elsewhere in this
+// file's sibling WebForms.php, rather than a new callback-registry system).
+// `edit`/`delete` get a sensible default icon/tooltip so a form only has to
+// say `type: edit` to get a correctly-labeled button; `custom` has no
+// default -- the yaml must supply both itself, since there's no sensible
+// generic icon/label for an arbitrary action.
+function zeusfw_normalize_table_row_buttons($buttons) {
+    $presetDefaults = [
+        'edit' => ['icon' => 'bx bx-edit', 'tooltip' => 'Edit'],
+        'delete' => ['icon' => 'bx bx-trash', 'tooltip' => 'Delete'],
+    ];
+
+    $normalized = [];
+    foreach ((array) $buttons as $button) {
+        $type = $button['type'] ?? 'custom';
+        $defaults = $presetDefaults[$type] ?? [];
+
+        $normalized[] = [
+            'type' => $type,
+            'icon' => $button['icon'] ?? ($defaults['icon'] ?? 'bx bx-dots-horizontal-rounded'),
+            'tooltip' => $button['tooltip'] ?? ($defaults['tooltip'] ?? ($button['label'] ?? 'Action')),
+            'handler' => $button['handler'] ?? null,
+        ];
+    }
+    return $normalized;
+}
+
 function zeusfw_normalize_view_field_entries($entries) {
     $normalized = [];
     foreach ((array) $entries as $fieldEntry) {
@@ -96,13 +127,27 @@ function generateHTMLFormArray($yamlData) {
     // that key is absent.
     //
     // `default` is a reserved key naming which view applies when a caller
-    // doesn't request one explicitly -- every other key is a view name,
-    // whose value is an ordered field-entry list (see
-    // zeusfw_normalize_view_field_entries() above).
+    // doesn't request one explicitly. `buttons`/`actions_label` are two
+    // more reserved keys -- optional per-row action buttons (Edit/Delete/
+    // custom, see zeusfw_normalize_table_row_buttons() above) and the
+    // header text for that synthetic actions column (defaults to
+    // "Actions" at render time, WebForms.php, if omitted here). Both
+    // apply once per table_view, not per named view -- which columns are
+    // showing doesn't change what actions exist on the underlying row.
+    // Every other key is a view name, whose value is an ordered
+    // field-entry list (see zeusfw_normalize_view_field_entries() above).
     if (!empty($yamlData['table_view'])) {
         foreach ($yamlData['table_view'] as $viewName => $viewValue) {
             if ($viewName === 'default') {
                 $formArray['table_view']['default'] = $viewValue;
+                continue;
+            }
+            if ($viewName === 'buttons') {
+                $formArray['table_view']['buttons'] = zeusfw_normalize_table_row_buttons($viewValue);
+                continue;
+            }
+            if ($viewName === 'actions_label') {
+                $formArray['table_view']['actions_label'] = $viewValue;
                 continue;
             }
 
