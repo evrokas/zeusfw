@@ -17,8 +17,13 @@ class formsClass {
     static function getFormByGUID($guid): null|webFormsClass {
         // retrieve form from database
         $dbForm = webFormsClass::sgetAllFilter('webforms', ['guid' => $guid]);
-        echopre("Searching for form by guid `$guid`");
-        echopre(print_r($dbForm, 1));
+        // echopre("Searching for form by guid `$guid`");
+        // echopre(print_r($dbForm, 1));
+
+        // Same "not found is a normal outcome, not a crash" fix as
+        // getForm() above -- a guid with no matching row used to be an
+        // uncaught "undefined array key 0" warning.
+        if(!$dbForm)return null;
 
         return ($dbForm[0]);
     }
@@ -61,7 +66,7 @@ class formsClass {
         
         $formArray = json_decode($form->getdata(), true);
         $formClass = $form->getform_class();
-        echopre("store form results, formClass: $formClass");
+        // echopre("store form results, formClass: $formClass");
         $classData = new $formClass( $results );
         // echopre(print_r($classData, 1));
         
@@ -75,9 +80,18 @@ class formsClass {
     }
 
     static function processform($params) {
-        echopre("Processing form: " . $params['guid']);
+        // These used to be unconditional echopre() calls -- meaning every
+        // POST to this endpoint (this app's admin-only clinics/doctors
+        // forms among them, now that they're actually wired up) dumped
+        // the raw $_POST body (including the CSRF token) and, further
+        // down, the entire $_SESSION array straight into the page's HTML
+        // output. Left commented out, matching how every other debug
+        // echopre() in this file is already handled, rather than deleted
+        // outright, since they're genuinely useful when debugging a form
+        // by hand.
+        // echopre("Processing form: " . $params['guid']);
 
-        echopre("post:" . print_r($_POST, 1));
+        // echopre("post:" . print_r($_POST, 1));
 
         // Opt-in only -- see csrfClass::$enforceWebforms's docblock
         // (core/lib/Csrf.php). An app that hasn't called
@@ -88,11 +102,11 @@ class formsClass {
 
         if(isset($_POST) && isset($_POST['submit'])) {
             $form = self::getFormByGUID($params['guid']);
-            
-            echopre("Found form " . print_r($form, 1));
-            echopre(print_r($_POST, 1));
-            
-            echopre(print_r($_SESSION, 1));
+
+            // echopre("Found form " . print_r($form, 1));
+            // echopre(print_r($_POST, 1));
+
+            // echopre(print_r($_SESSION, 1));
 
             global $kernel;
             $_POST['cuser'] = $kernel->getUserName();
@@ -100,10 +114,10 @@ class formsClass {
 
             if(isset($_SESSION['handler'])) {
                 $form_handler = $_SESSION['handler'];
-                echopre("form_handler: " . print_r($form_handler, 1));
+                // echopre("form_handler: " . print_r($form_handler, 1));
                 $guid = $form_handler['guid'];
                 $handler = $form_handler['handler'];
-                echopre("form $guid handler $handler");
+                // echopre("form $guid handler $handler");
 
 
                 
@@ -136,7 +150,7 @@ class formsClass {
     }
 
     static function viewform($params) {
-        echopre("Viewing form: " . $params['formname']);
+        // echopre("Viewing form: " . $params['formname']);
 
         return self::renderFormResults($params['formname']);
     }
@@ -144,6 +158,14 @@ class formsClass {
 
     static function renderFormResults($formname, $filter_fields = array()) {
         $form = self::getForm($formname);
+        // getForm() returns null when no `webforms` row exists for this
+        // form name yet (e.g. `maker.php form:load` was never run for it)
+        // -- every other call site here already treats that as a normal,
+        // non-fatal outcome (renderForm() below returns a "not found"
+        // string instead of crashing); this one used to call ->getdata()
+        // on that null unconditionally, a hard fatal error rather than a
+        // page that simply has nothing to show yet.
+        if(!$form) return '';
 
         $formArray = json_decode($form->getdata(), true);
         // echopre(print_r($formArray, 1));
@@ -157,7 +179,14 @@ class formsClass {
         // unset($formArray['buttons']);
 
         $output = [$formClass . ' table results'];
-        if(!count($results))return $output;
+        // Was a bare `return $output` -- $output is an array, so every
+        // {{$var}} call site (a plain zetem echo, not a foreach) printed
+        // PHP's "Array to string conversion" warning followed by the
+        // literal word "Array" whenever a form had zero rows yet (e.g. a
+        // fresh install with no clinics/doctors entered). imploding here
+        // matches the string this function already returns below when
+        // there ARE results.
+        if(!count($results))return implode('<br>', $output);
         
         $html = [];
         $formArray['inputs_list'] = [];
