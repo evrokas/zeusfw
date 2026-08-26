@@ -63,18 +63,30 @@ class formsClass {
 
     // $formname string form name, $results array of results
     static function storeFormResults($form, $results) {
-        
+
         $formArray = json_decode($form->getdata(), true);
         $formClass = $form->getform_class();
+
+        // guid/cdate/cuser (the @guid/@cdate/@cuser yaml shorthand types
+        // every generated entity class expects) are bookkeeping fields,
+        // never actual form *inputs* -- a plain webform submission never
+        // carries them. Without a guid specifically, insert() binds NULL
+        // into a NOT NULL column and the query fails outright, which is
+        // exactly what silently broke every generic (no custom
+        // $_SESSION['handler']) webform submission before this fix, once
+        // the call below was even reached at all. Only fill in what's
+        // actually missing, so a caller that already set these (e.g. a
+        // custom handler building its own $results) is unaffected.
+        if(empty($results['guid']))$results['guid'] = guid();
+        if(empty($results['cdate']))$results['cdate'] = getDBtime();
+        if(empty($results['cuser'])) {
+            global $kernel;
+            if(isset($kernel))$results['cuser'] = $kernel->getUserName();
+        }
+
         // echopre("store form results, formClass: $formClass");
         $classData = new $formClass( $results );
         // echopre(print_r($classData, 1));
-        
-        // $classData->setguid( guid() );
-        // $classData->setcdate( getDBtime() );
-        
-        // global $kernel;
-        // $classData->setcuser( $kernel->getUserName() );
 
         $classData->insert();
     }
@@ -100,7 +112,15 @@ class formsClass {
             return csrfClass::requireValid();
         }
 
-        if(isset($_POST) && isset($_POST['submit'])) {
+        // Was `isset($_POST) && isset($_POST['submit'])` -- $_POST is
+        // always set on this POST-only route (see webforms_post in
+        // settings.info.yaml), and no button this framework generates has
+        // ever been named literally "submit": ButtonElement names it
+        // 'button_' . $label (e.g. button_Submit), so that second check
+        // was never true for a real submission -- every generic (no
+        // custom $_SESSION['handler']) webform silently saved nothing,
+        // regardless of which button was clicked.
+        if(!empty($_POST)) {
             $form = self::getFormByGUID($params['guid']);
 
             // echopre("Found form " . print_r($form, 1));
@@ -110,7 +130,12 @@ class formsClass {
 
             global $kernel;
             $_POST['cuser'] = $kernel->getUserName();
-            $_POST['pdob'] = getDBtime();
+            // Was `$_POST['pdob'] = getDBtime();` -- unconditionally
+            // stomped any real 'pdob' (date of birth) field a form
+            // actually submitted (e.g. operations.yaml's "Date of birth"
+            // input) with the current timestamp, discarding whatever the
+            // user typed. This function has no business special-casing
+            // one particular app's field name at all.
 
             if(isset($_SESSION['handler'])) {
                 $form_handler = $_SESSION['handler'];
@@ -138,11 +163,19 @@ class formsClass {
                     return "ERROR: no form handler is defined";
                 }
             }
-            // self::storeFormResults($form, $_POST);
 
-            // echopre("session:" . print_r($_SESSION, 1));
-
-
+            // No app-specific handler registered for this form -- generic
+            // fallback: save directly via the form's own entity class
+            // (storeFormResults() fills in guid/cdate/cuser, none of which
+            // are real form inputs) and return to wherever the form was
+            // submitted from, same "redirect to the referring page"
+            // convention this app already uses elsewhere for a plain
+            // save-and-go-back action.
+            if($form) {
+                self::storeFormResults($form, $_POST);
+            }
+            header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
+            exit();
         }
 
 

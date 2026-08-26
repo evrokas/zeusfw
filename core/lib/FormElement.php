@@ -410,6 +410,39 @@ class ButtonElement extends FormElement {
         parent::__construct($formname, $element);
     }
 
+    // FormElement::getTemplate()'s suggestion list falls all the way back
+    // to the bare 'form_element' template when nothing more specific
+    // matches -- correct for a text/select/textarea input, but that
+    // template only ever closes a <select> or <textarea> tag, leaving any
+    // other $tag (a <button>) unclosed with no visible label text. Only a
+    // button whose own yaml `type:` happens to be the literal string
+    // "button" ever reached 'form_element_button.zetem' by suggestion-name
+    // coincidence; type: submit/reset fell through to the broken generic
+    // one instead. Every button, regardless of its submit/reset/button
+    // type, needs the same real button markup -- so this override swaps
+    // the generic 'form_element' fallback for 'form_element_button',
+    // keeping every more-specific suggestion (per name, per form+name,
+    // per type--button_type) so an app can still override one exact
+    // button if it wants to.
+    public function getTemplate($formname) {
+        $tem_suggestions = [];
+        Renderer::getTemplateSuggestions([
+                'form' => $formname,
+                'type' => $this->element['type'] ?? null,
+                'button_type' => $this->element['button_type'] ?? null,
+                'name' => $this->element['name']
+            ],
+            function($args, &$suggestions) {
+                $suggestions[] = 'form_element_button';
+                $suggestions[] = 'form_element_' . $args['type'];
+                if($args['button_type'])
+                    $suggestions[] = 'form_element_' . $args['type'] . '--' . $args['button_type'];
+                $suggestions[] = 'form_element_' . $args['name'];
+                $suggestions[] = 'form_element_' . $args['form'] . '_' . $args['name'];
+        }, $tem_suggestions);
+        return [Renderer::getTemplate($tem_suggestions), $tem_suggestions];
+    }
+
     public function generateHTML() {
         $attributes = $this->element['attributes'] ?? [];
         $attributes['name'] = $this->element['name'];
