@@ -64,6 +64,46 @@ function generateHTMLFormArray($yamlData) {
         }
     }
 
+    // Optional per-view results-table column lists (form: -> table: ->
+    // <view-name>: [...] in the yaml -- a sibling of inputs:/buttons:,
+    // NOT the same thing as this yaml file's own document-root `table:`
+    // key, which describes the DB schema and is never read here). Entirely
+    // additive: a form with no `table:` block under `form:` gets no
+    // 'table' key in $formArray at all, and WebForms.php's
+    // renderFormResults() falls back to its pre-existing "show every
+    // input" behavior whenever that key is absent.
+    //
+    // `default` is a reserved key naming which view applies when a caller
+    // doesn't request one explicitly -- every other key under `table:` is
+    // a view name, whose value is an ordered list of field entries (each
+    // either a plain field-name string, or a {name, label} map to also
+    // override that field's display label for this view only). Field
+    // names are copied through as-is and validated later, at render time,
+    // against that form's own `inputs` list (WebForms.php) -- not here,
+    // since this function has no knowledge of rendering concerns.
+    if (!empty($yamlData['form']['table'])) {
+        foreach ($yamlData['form']['table'] as $viewName => $viewValue) {
+            if ($viewName === 'default') {
+                $formArray['table']['default'] = $viewValue;
+                continue;
+            }
+
+            $columns = [];
+            foreach ((array) $viewValue as $fieldEntry) {
+                if (is_string($fieldEntry)) {
+                    $columns[] = ['name' => $fieldEntry, 'label' => null];
+                } else if (!empty($fieldEntry['name'])) {
+                    $columns[] = [
+                        'name' => $fieldEntry['name'],
+                        'label' => $fieldEntry['label'] ?? null,
+                    ];
+                }
+            }
+
+            $formArray['table'][$viewName] = $columns;
+        }
+    }
+
     return $formArray; // Return the array for further processing
 }
 

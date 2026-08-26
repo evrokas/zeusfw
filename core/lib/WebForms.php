@@ -189,7 +189,16 @@ class formsClass {
     }
 
 
-    static function renderFormResults($formname, $filter_fields = array()) {
+    // $view (new, optional, always appended LAST) names one of this form's
+    // yaml-declared result-table views (form: -> table: -> <view-name>: [...],
+    // see generateHTMLFormArray() in core/maker/functions.php) -- deliberately
+    // added as a 3rd parameter rather than replacing/reordering the existing
+    // $filter_fields, so every pre-existing 0/1/2-arg call site anywhere on
+    // the framework keeps behaving identically. A form with no `table:`
+    // block, or a $view that doesn't resolve to a real view, falls back to
+    // exactly the pre-existing "every field that exists on the entity,
+    // optionally narrowed by $filter_fields" behavior.
+    static function renderFormResults($formname, $filter_fields = array(), $view = null) {
         $form = self::getForm($formname);
         // getForm() returns null when no `webforms` row exists for this
         // form name yet (e.g. `maker.php form:load` was never run for it)
@@ -217,20 +226,60 @@ class formsClass {
         // the literal word "Array".
         if(!count($results))return '';
 
+        // Resolve which named view (if any) applies: an explicit $view
+        // argument wins; otherwise fall back to the yaml's own `default:`
+        // view, if it declared one; otherwise no view applies at all.
+        // $columns, once resolved, is an ordered list of ['name' => ...,
+        // 'label' => ...|null] controlling both which fields become
+        // columns AND their left-to-right order -- generateHTMLFormTable()
+        // derives its header row from whatever labels end up on
+        // inputs_list[0], so a per-column 'label' override just needs to be
+        // written onto that row's copy of the field definition below.
+        $resolvedView = $view ?? ($formArray['table']['default'] ?? null);
+        $columns = null;
+        if($resolvedView && !empty($formArray['table'][$resolvedView])) {
+            $columns = $formArray['table'][$resolvedView];
+        }
+
+        if($columns === null) {
+            // Legacy path -- no `table:` block on this form, or the
+            // resolved view name doesn't exist: exactly today's behavior,
+            // unchanged. Declared-input order, optionally narrowed by
+            // $filter_fields.
+            $columns = [];
+            foreach($formArray['inputs'] as $input) {
+                if(empty($filter_fields) || in_array($input['name'], array_values($filter_fields))) {
+                    $columns[] = ['name' => $input['name'], 'label' => null];
+                }
+            }
+        }
+
+        // Indexed by name for O(1) lookup below, instead of re-scanning
+        // $formArray['inputs'] per column per row.
+        $inputsByName = array_column($formArray['inputs'], null, 'name');
+
         $formArray['inputs_list'] = [];
 
         foreach($results as $entry) {
             $input_row = [];
             $fields = $entry->getFields();
             // echopre("Fields: " . print_r($fields, 1));
-            foreach($formArray['inputs'] as $key => $input) {
-                if(key_exists($input['name'], $fields) &&
-                (empty($filter_fields) || (!empty($filter_fields) && in_array($input['name'], array_values($filter_fields))))) {
-                    $formArray['inputs'][$key]['default'] = $fields[ $input['name'] ];
-                    $formArray['inputs'][$key]['attributes']['disabled'] = "disabled";
+            foreach($columns as $column) {
+                $name = $column['name'];
+                // A view may only ever surface a field that's also a real
+                // form input (rendering a column needs that field's `type`
+                // to pick the right *Element class) -- an unknown/stale
+                // name in a view's field list, or one no longer present on
+                // the loaded entity, is silently skipped, same as the
+                // legacy path's own key_exists() check always was.
+                if(!isset($inputsByName[$name]) || !key_exists($name, $fields))continue;
 
-                    $input_row[] = $formArray['inputs'][$key];
-                }
+                $inputDef = $inputsByName[$name];
+                $inputDef['default'] = $fields[$name];
+                $inputDef['attributes']['disabled'] = "disabled";
+                if(!empty($column['label']))$inputDef['label'] = $column['label'];
+
+                $input_row[] = $inputDef;
             }
             $formArray['inputs_list'][] = $input_row;
         }
