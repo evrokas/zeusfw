@@ -29,12 +29,17 @@ class formsClass {
     }
 
 
-    // $view (new, optional, appended last -- same convention as
+    // $view (optional, appended last -- same convention as
     // renderFormResults()'s own $view below) names one of this form's
     // yaml-declared form_view views; passed straight through to
     // generateHTMLForm(), which resolves it against that form's own
-    // `default` when omitted.
-    static function renderForm($formname, $view = null) {
+    // `default` when omitted. $default_values (new, also appended last)
+    // is passed straight through too -- e.g. an existing row's field
+    // values, to render this same create-form pre-filled for editing
+    // (paired with a `row_guid` hidden input in that form's own yaml and
+    // storeFormResults()'s row_guid handling below, so submitting it
+    // updates that row instead of inserting a new one).
+    static function renderForm($formname, $view = null, $default_values = array()) {
         $form = self::getForm($formname);
         if($form) {
             $data = $form->getdata();
@@ -42,7 +47,7 @@ class formsClass {
 
             // echopre( print_r($formArray, 1));
             $formArray['attributes']['action'] = rel_url("/webform/processform/".$form->getguid());
-            return generateHTMLForm( $formArray, [], $view );
+            return generateHTMLForm( $formArray, $default_values, $view );
         } else {
             return "Form '$formname' not found!";
         }
@@ -71,6 +76,37 @@ class formsClass {
 
         $formArray = json_decode($form->getdata(), true);
         $formClass = $form->getform_class();
+
+        // A `row_guid` field present and non-empty means this submission
+        // is editing an EXISTING row rather than creating a new one --
+        // deliberately a distinct field from `guid` (the reserved
+        // bookkeeping column below), never a real declared form input,
+        // only ever populated by a hidden field an app's own edit view
+        // adds to that form's yaml (see renderForm()'s $default_values
+        // param above) and prefilled with that row's real guid. A plain
+        // "Add New" submission never has row_guid populated (the hidden
+        // field renders empty when nothing prefills it), so it always
+        // falls through to the insert path below unaffected. Only the
+        // form's own declared inputs are copied onto the existing row --
+        // guid/cdate/cuser/deleted etc. are deliberately left untouched.
+        if(!empty($results['row_guid'])) {
+            $existingRows = $formClass::sgetAllFilter($formArray['name'], ['guid' => $results['row_guid']]);
+            $existing = $existingRows[0] ?? null;
+            if($existing) {
+                foreach($formArray['inputs'] as $input) {
+                    $name = $input['name'];
+                    if($name === 'row_guid')continue;
+                    if(!array_key_exists($name, $results))continue;
+
+                    $setter = 'set' . $name;
+                    if(method_exists($existing, $setter)) {
+                        $existing->$setter($results[$name]);
+                    }
+                }
+                $existing->update();
+                return;
+            }
+        }
 
         // guid/cdate/cuser (the @guid/@cdate/@cuser yaml shorthand types
         // every generated entity class expects) are bookkeeping fields,
@@ -185,6 +221,45 @@ class formsClass {
 
 
         return "Form: {$params['guid']}";
+    }
+
+    // Generic per-row delete handler for any webform-managed entity --
+    // a natural companion to processform()'s own insert/update path
+    // above, reachable from a route like
+    // `/webform/delete/{formname}/{guid}` (an app wires that route
+    // itself, same as webforms_post/webforms_view). $params carries the
+    // route's own `formname`/`guid` (the ROW's guid, not the form's --
+    // unlike processform(), which is keyed by the form's own guid).
+    //
+    // Always a hard delete -- there's no generic way for this
+    // framework-level function to know whether a given entity has a
+    // `deleted` column to soft-delete through instead (unlike guid/
+    // cdate/cuser, `deleted` was never a reserved/required column on
+    // every webform-backed table), and no query here (renderFormResults()
+    // included) filters by it either. An app whose entity DOES have a
+    // `deleted` column and wants soft-delete semantics should register
+    // its own $_SESSION['handler'] (setupFormActionHandler()) rather than
+    // relying on this generic path -- same escape hatch processform()
+    // already offers for anything beyond its own generic insert/update.
+    static function deleteFormRow($params) {
+        if(csrfClass::$enforceWebforms && !csrfClass::verifyRequest()) {
+            return csrfClass::requireValid();
+        }
+
+        $form = self::getForm($params['formname']);
+        if($form) {
+            $formArray = json_decode($form->getdata(), true);
+            $formClass = $form->getform_class();
+
+            $rows = $formClass::sgetAllFilter($formArray['name'], ['guid' => $params['guid']]);
+            $row = $rows[0] ?? null;
+            if($row) {
+                $row->delete();
+            }
+        }
+
+        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
+        exit();
     }
 
     static function viewform($params) {
