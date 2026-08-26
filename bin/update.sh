@@ -109,6 +109,20 @@ php $MAKER spill:class:all
 echo "web -> update:bootstrap"
 php $MAKER  update:bootstrap
 
+# Load/refresh the app-specific webforms whose `webforms` DB row a
+# Settings-style page renders from (zpms: Clinics/Doctors -- see its
+# README.md, "Settings page: Clinics/Doctors management"). form:load is
+# idempotent (updates the existing row instead of duplicating it) but
+# exits -1 on a missing yaml file, so this is guarded by file existence
+# the same way the table-import step above guards on $sqlfile -- a no-op
+# on any app checkout that doesn't have these forms.
+for form in clinics doctors; do
+    if [ -f "yaml/$form.yaml" ]; then
+        echo "web -> form:load $form"
+        php $MAKER form:load yaml/$form.yaml
+    fi
+done
+
 
 db_new_web_tables=`php $MAKER --app-dir=$BASEDIR tables:new:web`
 
