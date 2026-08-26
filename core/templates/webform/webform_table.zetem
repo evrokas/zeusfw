@@ -1,7 +1,25 @@
+{#
+    $headers is a flat list of column labels (generateHTMLFormTable(), FormElement.php)
+    derived from the first data row's own field definitions -- escaped here with
+    {{{ }}} since a label can come from app-authored yaml. $element (one per row) is
+    already fully-rendered <td> markup from FormElement::genetateHTMLforTable(), so
+    it's echoed raw with {{ }} like the rest of this framework's own generated HTML.
+#}
 <table>
-    {% foreach($elements as $element): %}
+    {% if(!empty($headers)): %}
+    <thead>
         <tr>
-            {{ $element }}
-        </tr>    
-    {% endforeach %}
+            {% foreach($headers as $header): %}
+                <th>{{{ $header }}}</th>
+            {% endforeach %}
+        </tr>
+    </thead>
+    {% endif %}
+    <tbody>
+        {% foreach($elements as $element): %}
+            <tr>
+                {{ $element }}
+            </tr>
+        {% endforeach %}
+    </tbody>
 </table>
