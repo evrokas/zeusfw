@@ -1,0 +1,18 @@
+{#
+    Row action button for a results-table row -- type: edit or type: custom
+    (core/lib/FormElement.php's generateHTMLTableRowButton()). $url is the
+    href the button's `handler` resolved (a plain PHP function-name string,
+    called with this row's guid/fields), or null when no handler is wired
+    yet or it returned nothing -- rendered as a disabled placeholder in
+    that case, in the exact same visual slot, so the actions column always
+    looks complete even before an app wires real behavior.
+
+    icon-btn matches this app's own established action-button convention
+    (see zpms's patients_list.zetem / the framework's admin_list.zetem) --
+    not a new class invented for this.
+#}
+{% if(!empty($url)): %}
+<a class="icon-btn" href="{{{ $url }}}" title="{{{ $tooltip }}}"><i class="{{{ $icon }}}"></i></a>
+{% else: %}
+<button type="button" class="icon-btn" title="{{{ $tooltip }}}" disabled><i class="{{{ $icon }}}"></i></button>
+{% endif %}

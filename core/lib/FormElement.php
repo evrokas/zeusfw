@@ -669,6 +669,53 @@ function generateHTMLTableRow($formname, $variables) {
 
 
 
+// Renders one row's action-buttons <td> (Edit/Delete/custom -- see
+// zeusfw_normalize_table_row_buttons(), core/maker/functions.php). Called
+// once per row from generateHTMLFormTable() below; the returned string is
+// appended as one more entry in that row's own $row_elements, exactly
+// like a regular field's rendered <td>, so the row is still just a flat
+// implode(' ', ...) string -- webform_table.zetem needs no changes.
+function generateHTMLTableRowActions($formName, array $rowMeta, array $buttons) {
+    $rendered = [];
+    foreach($buttons as $button) {
+        $rendered[] = generateHTMLTableRowButton($formName, $rowMeta, $button);
+    }
+    return '<td class="actions">' . implode(' ', $rendered) . '</td>';
+}
+
+// Resolves one button's URL by calling its `handler` (a plain function-
+// name string, same convention as setupFormActionHandler()/processform()
+// in WebForms.php) with this row's guid/fields, then renders either a
+// real, working link/form or a disabled placeholder in the exact same
+// visual slot -- there is deliberately no "handler missing" case that
+// renders nothing at all, so the actions column never looks broken or
+// incomplete just because an app hasn't wired real behavior yet.
+function generateHTMLTableRowButton($formName, array $rowMeta, array $button) {
+    $handler = $button['handler'] ?? null;
+    $url = null;
+    if($handler && function_exists($handler)) {
+        $url = $handler($rowMeta['guid'], $rowMeta['fields']);
+    }
+
+    $isDelete = ($button['type'] ?? '') === 'delete';
+
+    $template_suggestions = [];
+    Renderer::getTemplateSuggestions(['type' => 'webform', 'name' => $formName], function($args, &$suggestions) use ($isDelete) {
+        $suggestion = $isDelete ? 'webform_row_action_delete' : 'webform_row_action_link';
+        $suggestions[] = $suggestion;
+        $suggestions[] = $suggestion . '__' . $args['name'];
+    }, $template_suggestions);
+
+    $template = Renderer::getTemplate($template_suggestions);
+
+    return Renderer::render($template, [
+                                'url' => $url,
+                                'icon' => $button['icon'] ?? '',
+                                'tooltip' => $button['tooltip'] ?? '',
+                            ],
+                        [$template_suggestions, $template]);
+}
+
 function generateHTMLFormTable($formArray) {
     $formName = $formArray['name'] ?? null;
     if(!$formName) {
@@ -677,6 +724,8 @@ function generateHTMLFormTable($formArray) {
     }
     $formAttributes = $formArray['attributes'] ?? [];
     $inputs_lists = $formArray['inputs_list'] ?? [];
+    $row_meta = $formArray['row_meta'] ?? [];
+    $row_buttons = $formArray['row_buttons'] ?? [];
 
     // we do not neeed buttons or controls in table form
     // $buttons = $formArray['buttons'] ?? [];
@@ -693,10 +742,16 @@ function generateHTMLFormTable($formArray) {
             $headers[] = $input['label'] ?? ucfirst($input['name']);
         }
     }
+    // The actions column's own header -- the "header description for that
+    // field" a synthetic, non-data column still needs so it doesn't read
+    // as blank/broken -- only appears when there are buttons to show.
+    if(!empty($row_buttons)) {
+        $headers[] = $formArray['actions_label'] ?? 'Actions';
+    }
 
     $elements = [];
 
-    foreach($inputs_lists as $inputs) {
+    foreach($inputs_lists as $rowIndex => $inputs) {
         $row_elements = [];
         foreach($inputs as $input) {
             // echopre("processing form input: " . print_r($input,1));
@@ -711,6 +766,11 @@ function generateHTMLFormTable($formArray) {
             } else {
                 $row_elements[] = "<!-- unsupported input type: " . htmlspecialchars($input['type']) . " -->";
             }
+        }
+
+        if(!empty($row_buttons)) {
+            $meta = $row_meta[$rowIndex] ?? ['guid' => null, 'fields' => []];
+            $row_elements[] = generateHTMLTableRowActions($formName, $meta, $row_buttons);
         }
 
         // $elements[] = generateHTMLTableRow($formName, $row_elements);

@@ -268,6 +268,14 @@ class formsClass {
         $inputsByName = array_column($formArray['inputs'], null, 'name');
 
         $formArray['inputs_list'] = [];
+        // One entry per row, same index as inputs_list -- the row's own
+        // guid/fields, needed to resolve per-row action buttons (below)
+        // but otherwise irrelevant to the column-rendering loop above.
+        // $entry->getguid() is only ever captured here, never exposed as a
+        // regular column: `guid` is a bookkeeping field (see
+        // storeFormResults()'s own comment on this file), never a real
+        // form input, so it can never appear in $columns.
+        $formArray['row_meta'] = [];
 
         foreach($results as $entry) {
             $input_row = [];
@@ -291,7 +299,18 @@ class formsClass {
                 $input_row[] = $inputDef;
             }
             $formArray['inputs_list'][] = $input_row;
+            $formArray['row_meta'][] = ['guid' => $entry->getguid(), 'fields' => $fields];
         }
+
+        // Optional per-row action buttons (Edit/Delete/custom -- see
+        // zeusfw_normalize_table_row_buttons(), core/maker/functions.php)
+        // and the header label for that synthetic column, both declared
+        // once per table_view (not per named view -- the same row actions
+        // make sense regardless of which columns happen to be showing).
+        // Copied to top-level keys generateHTMLFormTable() reads directly,
+        // same as inputs_list/row_meta above.
+        $formArray['row_buttons'] = $formArray['table_view']['buttons'] ?? [];
+        $formArray['actions_label'] = $formArray['table_view']['actions_label'] ?? 'Actions';
 
         // generateHTMLFormTable() derives the column headers itself from
         // the first row of inputs_list built above (FormElement.php), so
