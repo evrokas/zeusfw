@@ -29,15 +29,20 @@ class formsClass {
     }
 
 
-    static function renderForm($formname) {
+    // $view (new, optional, appended last -- same convention as
+    // renderFormResults()'s own $view below) names one of this form's
+    // yaml-declared form_view views; passed straight through to
+    // generateHTMLForm(), which resolves it against that form's own
+    // `default` when omitted.
+    static function renderForm($formname, $view = null) {
         $form = self::getForm($formname);
         if($form) {
             $data = $form->getdata();
             $formArray = json_decode($data, true);
-            
+
             // echopre( print_r($formArray, 1));
             $formArray['attributes']['action'] = rel_url("/webform/processform/".$form->getguid());
-            return generateHTMLForm( $formArray );
+            return generateHTMLForm( $formArray, [], $view );
         } else {
             return "Form '$formname' not found!";
         }
@@ -49,7 +54,7 @@ class formsClass {
                 $data = $form->getdata();
                 $formArray = json_decode($data, true);
                 $formArray['attributes']['action'] = rel_url("/webform/processform/".$form->getguid());
-                
+
                 return $formArray;
 
         } else {
@@ -57,9 +62,9 @@ class formsClass {
         }
     }
 
-    static function renderFormArray($formArray) {
-        return generateHTMLForm( $formArray );
-    } 
+    static function renderFormArray($formArray, $view = null) {
+        return generateHTMLForm( $formArray, [], $view );
+    }
 
     // $formname string form name, $results array of results
     static function storeFormResults($form, $results) {
@@ -190,11 +195,12 @@ class formsClass {
 
 
     // $view (new, optional, always appended LAST) names one of this form's
-    // yaml-declared result-table views (form: -> table: -> <view-name>: [...],
-    // see generateHTMLFormArray() in core/maker/functions.php) -- deliberately
-    // added as a 3rd parameter rather than replacing/reordering the existing
-    // $filter_fields, so every pre-existing 0/1/2-arg call site anywhere on
-    // the framework keeps behaving identically. A form with no `table:`
+    // yaml-declared result-table views (document-root table_view: ->
+    // <view-name>: [...], see generateHTMLFormArray() in
+    // core/maker/functions.php) -- deliberately added as a 3rd parameter
+    // rather than replacing/reordering the existing $filter_fields, so
+    // every pre-existing 0/1/2-arg call site anywhere on the framework
+    // keeps behaving identically. A form with no `table_view:`
     // block, or a $view that doesn't resolve to a real view, falls back to
     // exactly the pre-existing "every field that exists on the entity,
     // optionally narrowed by $filter_fields" behavior.
@@ -235,14 +241,17 @@ class formsClass {
         // derives its header row from whatever labels end up on
         // inputs_list[0], so a per-column 'label' override just needs to be
         // written onto that row's copy of the field definition below.
-        $resolvedView = $view ?? ($formArray['table']['default'] ?? null);
+        // 'table_view' -- a document-root yaml key (promoted/renamed from
+        // an earlier `form: -> table:` location; see
+        // generateHTMLFormArray(), core/maker/functions.php).
+        $resolvedView = $view ?? ($formArray['table_view']['default'] ?? null);
         $columns = null;
-        if($resolvedView && !empty($formArray['table'][$resolvedView])) {
-            $columns = $formArray['table'][$resolvedView];
+        if($resolvedView && !empty($formArray['table_view'][$resolvedView])) {
+            $columns = $formArray['table_view'][$resolvedView];
         }
 
         if($columns === null) {
-            // Legacy path -- no `table:` block on this form, or the
+            // Legacy path -- no `table_view:` block on this form, or the
             // resolved view name doesn't exist: exactly today's behavior,
             // unchanged. Declared-input order, optionally narrowed by
             // $filter_fields.
