@@ -8,6 +8,21 @@
 // names are copied through as-is and validated later, at render time,
 // against that form's own `inputs` list (WebForms.php/FormElement.php) --
 // not here, since this function has no knowledge of rendering concerns.
+function zeusfw_normalize_view_field_entries($entries) {
+    $normalized = [];
+    foreach ((array) $entries as $fieldEntry) {
+        if (is_string($fieldEntry)) {
+            $normalized[] = ['name' => $fieldEntry, 'label' => null];
+        } else if (!empty($fieldEntry['name'])) {
+            $normalized[] = [
+                'name' => $fieldEntry['name'],
+                'label' => $fieldEntry['label'] ?? null,
+            ];
+        }
+    }
+    return $normalized;
+}
+
 // Normalizes a table_view's row-action button list (yaml: `type`
 // edit/delete/anything-else-treated-as-custom, optional `icon`/`tooltip`
 // overriding the type's preset, optional `handler` -- a plain PHP
@@ -35,21 +50,6 @@ function zeusfw_normalize_table_row_buttons($buttons) {
             'tooltip' => $button['tooltip'] ?? ($defaults['tooltip'] ?? ($button['label'] ?? 'Action')),
             'handler' => $button['handler'] ?? null,
         ];
-    }
-    return $normalized;
-}
-
-function zeusfw_normalize_view_field_entries($entries) {
-    $normalized = [];
-    foreach ((array) $entries as $fieldEntry) {
-        if (is_string($fieldEntry)) {
-            $normalized[] = ['name' => $fieldEntry, 'label' => null];
-        } else if (!empty($fieldEntry['name'])) {
-            $normalized[] = [
-                'name' => $fieldEntry['name'],
-                'label' => $fieldEntry['label'] ?? null,
-            ];
-        }
     }
     return $normalized;
 }
