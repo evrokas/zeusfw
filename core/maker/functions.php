@@ -1,5 +1,48 @@
 <?php
 
+// Normalizes one view/group's ordered field-entry list (yaml: a plain
+// field-name string, or a {name, label} map to override that field's
+// display label for this view/group only) into a consistent
+// ['name' => ..., 'label' => ...|null] shape. Shared by table_view and
+// form_view -- both use the exact same field-entry convention. Field
+// names are copied through as-is and validated later, at render time,
+// against that form's own `inputs` list (WebForms.php/FormElement.php) --
+// not here, since this function has no knowledge of rendering concerns.
+function zeusfw_normalize_view_field_entries($entries) {
+    $normalized = [];
+    foreach ((array) $entries as $fieldEntry) {
+        if (is_string($fieldEntry)) {
+            $normalized[] = ['name' => $fieldEntry, 'label' => null];
+        } else if (!empty($fieldEntry['name'])) {
+            $normalized[] = [
+                'name' => $fieldEntry['name'],
+                'label' => $fieldEntry['label'] ?? null,
+            ];
+        }
+    }
+    return $normalized;
+}
+
+// Normalizes one form_view group (or a view's own top-level content, which
+// shares the same shape minus `buttons`): optional `fields` (see above)
+// and optional `groups`, an ordered list of nested sub-groups sharing this
+// same shape -- recursive, so nesting depth is unbounded. Mixed content
+// (both `fields` and `groups` on the same node) is preserved as-is; render
+// time (FormElement.php) walks `fields` then `groups`, in that order.
+function zeusfw_normalize_form_view_group($group) {
+    $normalized = [
+        'label' => $group['label'] ?? null,
+        'fields' => zeusfw_normalize_view_field_entries($group['fields'] ?? []),
+        'groups' => [],
+    ];
+
+    foreach ((array) ($group['groups'] ?? []) as $subGroup) {
+        $normalized['groups'][] = zeusfw_normalize_form_view_group($subGroup);
+    }
+
+    return $normalized;
+}
+
 function generateHTMLFormArray($yamlData) {
     $formArray = []; // Super array to hold all form elements
 
@@ -34,73 +77,81 @@ function generateHTMLFormArray($yamlData) {
         $formArray['inputs'][] = $inputElement;
     }
 
-    // Add buttons
-    if (!empty($yamlData['form']['buttons'])) {
-        foreach ($yamlData['form']['buttons'] as $button) {
-            $buttonType = $button['type'] ?? 'button';
-            $buttonLabel = $button['label'] ?? 'Button';
-            $buttonValue = $button['value'] ?? $buttonLabel;
-            $buttonAction = $button['action'] ?? '';
-            // Was hardcoded to "submit" regardless of the button's own
-            // `type:` -- ButtonElement::generateHTML() uses button_type
-            // (not type) as the actual HTML type="..." attribute, so
-            // every button (Submit, Reset, Cancel alike) rendered
-            // type="submit": clicking Reset or Cancel submitted the form
-            // instead of resetting/cancelling it. button_type remains a
-            // distinct, explicitly-overridable field (e.g. for a
-            // differently-styled submit variant) -- only the *default*
-            // changes, to actually match the button's own type.
-            $buttonButType = $button['button_type'] ?? $buttonType;
+    // Note: `form: -> buttons:` is no longer read here -- buttons now live
+    // exclusively per-view, under the new document-root `form_view:` key
+    // (below), since different views may reasonably want different
+    // actions. There is deliberately no fallback to a form-level
+    // `buttons:` any more (a form not yet migrated to `form_view` simply
+    // renders with none -- see generateHTMLForm()'s own fallback comment
+    // in FormElement.php).
 
-            $buttonElement = [
-                'type' => $buttonType,
-                'label' => $buttonLabel,
-                'value' => $buttonValue,
-                'action' => $buttonAction,
-                'button_type' => $buttonButType
-            ];
-
-            $formArray['buttons'][] = $buttonElement;
-        }
-    }
-
-    // Optional per-view results-table column lists (form: -> table: ->
-    // <view-name>: [...] in the yaml -- a sibling of inputs:/buttons:,
-    // NOT the same thing as this yaml file's own document-root `table:`
-    // key, which describes the DB schema and is never read here). Entirely
-    // additive: a form with no `table:` block under `form:` gets no
-    // 'table' key in $formArray at all, and WebForms.php's
-    // renderFormResults() falls back to its pre-existing "show every
-    // input" behavior whenever that key is absent.
+    // Optional per-view results-table column lists -- a document-ROOT
+    // `table_view:` key (promoted here from an earlier `form: -> table:`
+    // location, and renamed, specifically to avoid any confusion with
+    // this same yaml file's OWN unrelated document-root `table:` key,
+    // which describes the DB schema and is never read here). Entirely
+    // additive: a form with no `table_view:` block gets no 'table_view'
+    // key in $formArray at all, and WebForms.php's renderFormResults()
+    // falls back to its pre-existing "show every input" behavior whenever
+    // that key is absent.
     //
     // `default` is a reserved key naming which view applies when a caller
-    // doesn't request one explicitly -- every other key under `table:` is
-    // a view name, whose value is an ordered list of field entries (each
-    // either a plain field-name string, or a {name, label} map to also
-    // override that field's display label for this view only). Field
-    // names are copied through as-is and validated later, at render time,
-    // against that form's own `inputs` list (WebForms.php) -- not here,
-    // since this function has no knowledge of rendering concerns.
-    if (!empty($yamlData['form']['table'])) {
-        foreach ($yamlData['form']['table'] as $viewName => $viewValue) {
+    // doesn't request one explicitly -- every other key is a view name,
+    // whose value is an ordered field-entry list (see
+    // zeusfw_normalize_view_field_entries() above).
+    if (!empty($yamlData['table_view'])) {
+        foreach ($yamlData['table_view'] as $viewName => $viewValue) {
             if ($viewName === 'default') {
-                $formArray['table']['default'] = $viewValue;
+                $formArray['table_view']['default'] = $viewValue;
                 continue;
             }
 
-            $columns = [];
-            foreach ((array) $viewValue as $fieldEntry) {
-                if (is_string($fieldEntry)) {
-                    $columns[] = ['name' => $fieldEntry, 'label' => null];
-                } else if (!empty($fieldEntry['name'])) {
-                    $columns[] = [
-                        'name' => $fieldEntry['name'],
-                        'label' => $fieldEntry['label'] ?? null,
-                    ];
-                }
+            $formArray['table_view'][$viewName] = zeusfw_normalize_view_field_entries($viewValue);
+        }
+    }
+
+    // Optional named views of the CREATE/EDIT form itself -- a document-
+    // ROOT `form_view:` key, mirroring `table_view:` above (default +
+    // named views), but for the form rather than its results table. Each
+    // view shares `zeusfw_normalize_form_view_group()`'s shape (`fields`/
+    // `groups`, recursive/nestable) for its own top-level content, plus a
+    // `buttons` list (the exact same per-button shape `form: -> buttons:`
+    // used to carry, just relocated: a form with a `form_view` MUST
+    // define buttons on (at least) its default view, or its create-form
+    // renders with none at all -- see FormElement.php's generateHTMLForm()).
+    if (!empty($yamlData['form_view'])) {
+        foreach ($yamlData['form_view'] as $viewName => $viewValue) {
+            if ($viewName === 'default') {
+                $formArray['form_view']['default'] = $viewValue;
+                continue;
             }
 
-            $formArray['table'][$viewName] = $columns;
+            $view = zeusfw_normalize_form_view_group($viewValue);
+
+            $buttons = [];
+            foreach ((array) ($viewValue['buttons'] ?? []) as $button) {
+                $buttonType = $button['type'] ?? 'button';
+                $buttonLabel = $button['label'] ?? 'Button';
+                $buttonValue = $button['value'] ?? $buttonLabel;
+                $buttonAction = $button['action'] ?? '';
+                // button_type defaults to the button's own `type:` (not
+                // hardcoded to "submit") -- see the historical note this
+                // replaced, in git blame, for why that mattered: every
+                // button (Submit, Reset, Cancel alike) used to render
+                // type="submit" regardless of its own declared type.
+                $buttonButType = $button['button_type'] ?? $buttonType;
+
+                $buttons[] = [
+                    'type' => $buttonType,
+                    'label' => $buttonLabel,
+                    'value' => $buttonValue,
+                    'action' => $buttonAction,
+                    'button_type' => $buttonButType,
+                ];
+            }
+            $view['buttons'] = $buttons;
+
+            $formArray['form_view'][$viewName] = $view;
         }
     }
 

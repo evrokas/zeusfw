@@ -495,39 +495,128 @@ class RangeElement extends FormElement {
     }
 }
 
-function generateHTMLForm($formArray, $default_values = array() ) {
+// Instantiates one field's *Element class exactly the way generateHTMLForm()
+// always has (ucfirst(type) . 'Element', falling back to BasicInputElement),
+// applying a per-view/per-group label override when the field entry carries
+// one. Shared by the flat (no form_view) path and the grouped-view walk
+// below, so both render an individual field identically.
+function generateHTMLFormFieldElement($formName, array $inputsByName, $fieldEntry, $default_values) {
+    $name = is_string($fieldEntry) ? $fieldEntry : ($fieldEntry['name'] ?? null);
+    if(!$name || !isset($inputsByName[$name]))return null;
+
+    $input = $inputsByName[$name];
+    if(!is_string($fieldEntry) && !empty($fieldEntry['label']))$input['label'] = $fieldEntry['label'];
+
+    $className = ucfirst($input['type']) . 'Element';
+    if(!class_exists($className))$className = 'BasicInputElement';
+
+    return new $className($formName, $input, $default_values[$name] ?? null);
+}
+
+// Renders one form_view group (or a view's own unwrapped top-level content
+// -- see generateHTMLForm() below) into a flat list of already-rendered
+// HTML strings: one per direct field, plus one per nested sub-group, each
+// already wrapped in its own <fieldset> by generateHTMLFormGroup(). A
+// group's `fields` and `groups` can freely mix (rendered in that order,
+// fields first then sub-groups, matching yaml declaration intent since
+// zeusfw_normalize_form_view_group() -- core/maker/functions.php --
+// preserves both lists independently rather than interleaving them).
+// $formelements (name => Element instance, mirroring the old flat loop's
+// own bookkeeping map, currently unused by webform.zetem but preserved for
+// parity) is threaded through by reference so it ends up flat regardless
+// of nesting depth.
+function generateHTMLFormGroupElements($formName, array $node, array $inputsByName, $default_values, array &$formelements) {
+    $parts = [];
+
+    foreach(($node['fields'] ?? []) as $fieldEntry) {
+        $element = generateHTMLFormFieldElement($formName, $inputsByName, $fieldEntry, $default_values);
+        if(!$element)continue;
+
+        $parts[] = $element->generateHTML();
+        $name = is_string($fieldEntry) ? $fieldEntry : $fieldEntry['name'];
+        $formelements[$name] = $element;
+    }
+
+    foreach(($node['groups'] ?? []) as $subGroup) {
+        $subParts = generateHTMLFormGroupElements($formName, $subGroup, $inputsByName, $default_values, $formelements);
+        $parts[] = generateHTMLFormGroup($formName, $subGroup['label'] ?? null, $subParts);
+    }
+
+    return $parts;
+}
+
+// Wraps one group's already-rendered field/sub-group HTML in a real
+// <fieldset> (core/templates/webform/form_group.zetem) -- nested groups
+// recursively produce nested <fieldset>s, since generateHTMLFormGroupElements()
+// above already flattens each sub-group's own rendering into a single
+// string before handing it up to its parent.
+function generateHTMLFormGroup($formName, $label, array $elements) {
+    $template_suggestions = [];
+    Renderer::getTemplateSuggestions(['type' => 'webform', 'name' => $formName], function($args, &$suggestions) {
+        $suggestions[] = 'form_group';
+        $suggestions[] = 'form_group__' . $args['name'];
+    }, $template_suggestions);
+
+    $template = Renderer::getTemplate($template_suggestions);
+
+    return Renderer::render($template, [
+                                'label' => $label,
+                                'elements' => $elements,
+                            ],
+                        [$template_suggestions, $template]);
+}
+
+// $view (new, optional, always appended LAST) names one of this form's
+// yaml-declared form_view views (form_view: -> <view-name>: {fields,
+// groups, buttons}, see generateHTMLFormArray() in
+// core/maker/functions.php) -- deliberately added as a 3rd parameter
+// rather than reordering the existing $default_values, so every
+// pre-existing 0/1/2-arg call site anywhere on the framework keeps
+// behaving identically.
+function generateHTMLForm($formArray, $default_values = array(), $view = null) {
     $formName = $formArray['name'] ?? null;
     if(!$formName) {
         echo "Form is not named. Please set form name and try again.\n";
         exit(-1);
     }
     $formAttributes = $formArray['attributes'] ?? [];
-    $inputs = $formArray['inputs'] ?? [];
-    $buttons = $formArray['buttons'] ?? [];
-    $elements = [];
-    $controls = [];
+    $inputsByName = array_column($formArray['inputs'] ?? [], null, 'name');
+
+    // Resolve which form_view applies: an explicit $view argument wins;
+    // otherwise fall back to the yaml's own `default:` view, if declared;
+    // otherwise no view applies at all.
+    $formViews = $formArray['form_view'] ?? [];
+    $resolvedView = $view ?? ($formViews['default'] ?? null);
+    $viewNode = ($resolvedView && !empty($formViews[$resolvedView])) ? $formViews[$resolvedView] : null;
+
     $formelements = [];
 
+    if($viewNode) {
+        $elements = generateHTMLFormGroupElements($formName, $viewNode, $inputsByName, $default_values, $formelements);
+        $buttons = $viewNode['buttons'] ?? [];
+    } else {
+        // Graceful-degradation fallback -- a form with no `form_view` at
+        // all, or an unresolvable view name: render every input flat, in
+        // declared order (this function's own pre-form_view behavior),
+        // but with ZERO buttons -- there's no longer a form-level
+        // `buttons:` to fall back to (buttons now live exclusively under
+        // form_view, see generateHTMLFormArray()). Not an officially
+        // supported "legacy" path -- every real webform yaml in this
+        // framework is expected to define form_view -- just a defensive
+        // default so a not-yet-migrated form degrades instead of fataling.
+        $elements = [];
+        foreach(($formArray['inputs'] ?? []) as $input) {
+            $className = ucfirst($input['type']) . 'Element';
+            if(!class_exists($className))$className = 'BasicInputElement';
 
-
-    foreach($inputs as $input) {
-        $className = ucfirst($input['type']) . 'Element';
-        if(!class_exists($className))$className = 'BasicInputElement';
-
-        if(class_exists($className)) {
-            // echo(" Generating class for input {$input['name']}\n");
-            $element = new $className( $formName, $input, $default_values[ $input['name'] ] ?? null);
+            $element = new $className($formName, $input, $default_values[$input['name']] ?? null);
             $elements[] = $element->generateHTML();
-            $formelements[ $input['name' ] ] = $element;
-
-            // $elements[] = $element->render();
-        } else {
-            $elements[] = "<!-- unsupported input type: " . htmlspecialchars($input['type']) . " -->";
+            $formelements[$input['name']] = $element;
         }
+        $buttons = [];
     }
 
-    // echopre("form elements: " . print_r($formelements, 1));
-
+    $controls = [];
     foreach($buttons as $button) {
         // echopre("button: " . print_r($button, 1));
         $buttonElement = new ButtonElement( $formName, $button );
@@ -549,14 +638,14 @@ function generateHTMLForm($formArray, $default_values = array() ) {
         $suggestions[] = 'webform';
         $suggestions[] = 'webform--' . $args['name'];
     }, $template_suggestions);
-    
+
     // print_r($template_suggestions);
     $template = Renderer::getTemplate($template_suggestions);
 
     $formAttributes['class'] = 'webform';
 
     return Renderer::render($template, [
-                                'attributes' => $formAttributes, 
+                                'attributes' => $formAttributes,
                                 'elements' => $elements,
                                 'formelements' => $formelements,
                                 'controls' => $controls
