@@ -209,80 +209,38 @@ class formsClass {
         $results = $formClass::sgetAllFilter($formArray['name']);
         // echopre("Results: " . print_r($results, 1));
 
-        // unset($formArray['buttons']);
+        // A form with zero rows yet (e.g. a fresh install with no
+        // clinics/doctors entered) has nothing to show -- was previously a
+        // bare `return $output` with $output still an array at that point,
+        // so every {{$var}} call site (a plain zetem echo, not a foreach)
+        // printed PHP's "Array to string conversion" warning followed by
+        // the literal word "Array".
+        if(!count($results))return '';
 
-        $output = [$formClass . ' table results'];
-        // Was a bare `return $output` -- $output is an array, so every
-        // {{$var}} call site (a plain zetem echo, not a foreach) printed
-        // PHP's "Array to string conversion" warning followed by the
-        // literal word "Array" whenever a form had zero rows yet (e.g. a
-        // fresh install with no clinics/doctors entered). imploding here
-        // matches the string this function already returns below when
-        // there ARE results.
-        if(!count($results))return implode('<br>', $output);
-        
-        $html = [];
         $formArray['inputs_list'] = [];
 
-        $input_row = [];
-        $out = [];
-
-        // get fields from first result
-        $fields = $results[0]->getFields();
-
-        $out[] = "<thead>";
-        // setup headers
-        foreach($formArray['inputs'] as $key => $input) {
-            // echopre("Input: " . $input['name']);
-            // echopre("Filter field: " . print_r(array_values($filter_fields), 1));
-            // echopre("in filter: " . in_array($input['name'], array_values($filter_fields)));
-            if(key_exists($input['name'], $fields) &&
-            (empty($filter_fields) || (!empty($filter_fields) && in_array($input['name'], array_values($filter_fields))))) {
-                // $out[] = "{{ " . $fields[ $input['name' ] ] . " }} ";
-                $out[] = "<td> " . $input['name' ] . "</td>";
-
-                // $formArray['inputs'][$key]['default'] = $fields[ $input['name'] ];
-                // $formArray['inputs'][$key]['attributes']['disabled'] = "disabled";
-                
-                // $input_row[] = $formArray['inputs'][$key];
-            }
-        }
-        $out[] = "</thead>";
-        $output[] = implode(',', $out);
-
         foreach($results as $entry) {
-            $out = [];
             $input_row = [];
             $fields = $entry->getFields();
             // echopre("Fields: " . print_r($fields, 1));
             foreach($formArray['inputs'] as $key => $input) {
-                // echopre("Input: " . $input['name']);
-                // echopre("Filter field: " . print_r(array_values($filter_fields), 1));
-                // echopre("in filter: " . in_array($input['name'], array_values($filter_fields)));
                 if(key_exists($input['name'], $fields) &&
                 (empty($filter_fields) || (!empty($filter_fields) && in_array($input['name'], array_values($filter_fields))))) {
-                    $out[] = "{{ " . $fields[ $input['name' ] ] . " }} ";
-
                     $formArray['inputs'][$key]['default'] = $fields[ $input['name'] ];
                     $formArray['inputs'][$key]['attributes']['disabled'] = "disabled";
-                    
+
                     $input_row[] = $formArray['inputs'][$key];
                 }
             }
             $formArray['inputs_list'][] = $input_row;
-
-            // $output[] = implode(',', $out);
         }
-        // echopre("input_lists: " . print_r($formArray, 1));
-        $html[] = generateHTMLFormTable($formArray);
 
-
-        $htmloutput = implode('', $html);
-        $output[] = $htmloutput;
-
-        $output = implode('<br>', $output);
-
-        return $output;
+        // generateHTMLFormTable() derives the column headers itself from
+        // the first row of inputs_list built above (FormElement.php), so
+        // there's no separate hand-built header markup here any more --
+        // that was the source of the broken comma-joined ", clinic_name,"
+        // output shown with no <table>/<tr> wrapper at all.
+        return generateHTMLFormTable($formArray);
     }
 }
 

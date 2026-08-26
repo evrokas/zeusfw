@@ -1,5 +1,12 @@
+{#
+    Generic results-table cell renderer -- the fallback FormElement::getTableTemplate()
+    (core/lib/FormElement.php) suggests for any field type/name/form combination with
+    no more specific form_table_element_* override. Previously no file at all matched
+    any of that function's suggestions, so every table cell in every webform's results
+    listing (Clinics/Doctors/Operations on zpms) rendered nothing.
 
-{# Render input, textarea, select, or any other tag #}
-<td>
-    {{{ $value }}}
-</td>
+    $value is the raw stored field value -- always escaped here (unlike
+    form_element_button.zetem's raw echo of static, yaml-authored button labels), since
+    this is real, DB-stored, potentially user-entered data being displayed back.
+#}
+<td>{{{ $value }}}</td>

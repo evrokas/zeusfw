@@ -593,8 +593,20 @@ function generateHTMLFormTable($formArray) {
     // $buttons = $formArray['buttons'] ?? [];
     // $controls = [];
 
+    // Headers come from the first row's own field definitions (already
+    // filtered down to whichever fields renderFormResults() actually
+    // selected -- via $filter_fields there, or simply "exists on this
+    // entity" otherwise) rather than re-deriving that filter here, so
+    // there's exactly one place that decides which columns appear.
+    $headers = [];
+    if(!empty($inputs_lists[0])) {
+        foreach($inputs_lists[0] as $input) {
+            $headers[] = $input['label'] ?? ucfirst($input['name']);
+        }
+    }
+
     $elements = [];
-    
+
     foreach($inputs_lists as $inputs) {
         $row_elements = [];
         foreach($inputs as $input) {
@@ -636,8 +648,9 @@ function generateHTMLFormTable($formArray) {
     $formAttributes['class'] = 'webform';
 
     return Renderer::render($template, [
-                                'attributes' => $formAttributes, 
+                                'attributes' => $formAttributes,
                                 'elements' => $elements,
+                                'headers' => $headers,
                                 // 'controls' => $controls
                             ],
                         [$template_suggestions, $template]);
