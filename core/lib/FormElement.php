@@ -107,9 +107,17 @@ class InputElement extends FormElement {
         $attributes['name'] = $this->element['name'];
         $attributes['type'] = $this->element['type'];
 
-        if (isset($this->element['default'])) {
-            $attributes['value'] = $this->element['default'];
-        } else $attributes['value'] = $this->default_value ?? null;
+        // $this->default_value (the constructor's own $default param, set
+        // per-render by a caller -- e.g. an edit view prefilling this
+        // field with an existing row's real value) must win over
+        // $this->element['default'] (the yaml's static placeholder
+        // default, which generateHTMLFormArray() always sets to at least
+        // '' for every input, so a plain isset() check on it alone is
+        // never false) -- otherwise a per-render prefill can never
+        // actually show up. No existing call site passes a non-null
+        // default_value today, so this changes nothing for current
+        // behavior; it's what makes that parameter usable at all.
+        $attributes['value'] = $this->default_value ?? $this->element['default'] ?? null;
 
         $variables = [
             'label' => $this->element['label'] ?? ucfirst($this->element['name']),
@@ -295,9 +303,8 @@ class BasicInputElement extends FormElement {
         $attributes['name'] = $this->element['name'];
         $attributes['type'] = $this->element['type'];
 
-        if (isset($this->element['default'])) {
-            $attributes['value'] = $this->element['default'];
-        } else $attributes['value'] = $this->default_value ?? null;
+        // Same priority fix as InputElement above -- see its comment.
+        $attributes['value'] = $this->default_value ?? $this->element['default'] ?? null;
 
         $variables = [
             'label' => $this->element['label'] ?? ucfirst($this->element['name']),
@@ -366,8 +373,12 @@ class HiddenElement extends FormElement {
         $attributes['name'] = $this->element['name'];
         $attributes['type'] = 'hidden';
 
-        if (isset($this->element['default'])) {
-            $attributes['value'] = $this->element['default'];
+        // Same priority fix as InputElement/BasicInputElement above -- a
+        // per-render prefill (e.g. an edit view's row guid) must win over
+        // the yaml's own static default.
+        $value = $this->default_value ?? $this->element['default'] ?? null;
+        if ($value !== null) {
+            $attributes['value'] = $value;
         }
 
         $variables = [
