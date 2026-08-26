@@ -41,7 +41,16 @@ function generateHTMLFormArray($yamlData) {
             $buttonLabel = $button['label'] ?? 'Button';
             $buttonValue = $button['value'] ?? $buttonLabel;
             $buttonAction = $button['action'] ?? '';
-            $buttonButType = $button['button_type'] ?? "submit";
+            // Was hardcoded to "submit" regardless of the button's own
+            // `type:` -- ButtonElement::generateHTML() uses button_type
+            // (not type) as the actual HTML type="..." attribute, so
+            // every button (Submit, Reset, Cancel alike) rendered
+            // type="submit": clicking Reset or Cancel submitted the form
+            // instead of resetting/cancelling it. button_type remains a
+            // distinct, explicitly-overridable field (e.g. for a
+            // differently-styled submit variant) -- only the *default*
+            // changes, to actually match the button's own type.
+            $buttonButType = $button['button_type'] ?? $buttonType;
 
             $buttonElement = [
                 'type' => $buttonType,
