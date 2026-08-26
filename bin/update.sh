@@ -109,20 +109,6 @@ php $MAKER spill:class:all
 echo "web -> update:bootstrap"
 php $MAKER  update:bootstrap
 
-# Load/refresh the app-specific webforms whose `webforms` DB row a
-# Settings-style page renders from (zpms: Clinics/Doctors -- see its
-# README.md, "Settings page: Clinics/Doctors management"). form:load is
-# idempotent (updates the existing row instead of duplicating it) but
-# exits -1 on a missing yaml file, so this is guarded by file existence
-# the same way the table-import step above guards on $sqlfile -- a no-op
-# on any app checkout that doesn't have these forms.
-for form in clinics doctors; do
-    if [ -f "yaml/$form.yaml" ]; then
-        echo "web -> form:load $form"
-        php $MAKER form:load yaml/$form.yaml
-    fi
-done
-
 
 db_new_web_tables=`php $MAKER --app-dir=$BASEDIR tables:new:web`
 
@@ -256,4 +242,43 @@ if [[ $answer == [yY] ]]; then
     echo "Cleaned $feed_clean_no feeds";
 
     popd
+fi
+
+
+echo 'Updating webforms...'
+
+# Load/refresh the app-specific webforms whose `webforms` DB row a
+# Settings-style page's formsClass::renderForm()/renderFormResults() needs
+# to actually render (zpms: Clinics/Doctors, Operations -- see zpms's own
+# README.md, "Settings page: Clinics/Doctors management"). A webform yaml
+# is any web/classes/yaml/*.yaml with a top-level `form:` key -- scanned
+# generically rather than by hardcoded name, since any app on the
+# framework can define its own. Empty on an app with none, in which case
+# nothing below prompts for anything.
+webforms=`grep -l '^form:' $BASEDIR/web/classes/yaml/*.yaml 2>/dev/null | xargs -n1 basename 2>/dev/null | sed 's/\.yaml$//'`
+
+if [[ ! -z $webforms ]]; then
+    echo "The following webforms were found: " $webforms
+
+    read -p "Do you want to update forms? [y/N/all] " formsupdate
+    echo
+
+    if [[ $formsupdate == [yYaA] ]]; then
+        pushd web/classes
+
+        for form in $webforms; do
+            if [[ $formsupdate == [yY] ]]; then
+                read -p "Do you want to update form $form? [y/N] " formimport
+            else
+                formimport="y"
+            fi
+
+            if [[ $formimport == [yY] ]]; then
+                echo "web -> form:load $form"
+                php $MAKER form:load yaml/$form.yaml
+            fi
+        done
+
+        popd
+    fi
 fi
