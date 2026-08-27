@@ -1,28 +1,14 @@
-{# 
-    {% if(isset($label)): %}
-    <label>{{ $label }}</label>
-{% endif %}
-#}
-
-{# Render input, textarea, select, or any other tag #}
 {#
-<{{ $tag }} {% foreach($attributes as $key => $value): %}{{ $key }}="{{ $value }}" {% endforeach %}>
-    {% if ( $tag == 'select' ): %}
+    Deliberately no <label> before the button -- unlike form_element.zetem
+    (text/select/textarea inputs, which need a separate label), a button's
+    own visible text is {{$label}} inside the tag itself.
 
-    Render options for a select element
-
-    {% foreach($options as $option): %}
-            <option value="{{ $option['value'] }}" {% if ( $option['selected'] ): %}selected{% endif %}>{{ $option['label'] }}</option>
-        {% endforeach %}
-
-        </{{ $tag }}>
-    {% elseif ( $tag == 'textarea'): %}
-
-    Render default content for a textarea
-
-    {{ $default }}
-        </{{ $tag }}>
-    {% endif %}
+    $attributes already carries this button's own name/type/value
+    (ButtonElement::generateHTML()) -- rendered the same
+    foreach-over-$attributes way form_element.zetem renders its own
+    opening tag, not the attributes() helper (that function only handles
+    an Attributes object or ['attributes' => Attributes], not a plain
+    array like this one -- it silently returns '' for this shape, which
+    is why every button here used to render with no attributes at all).
 #}
-{# <!-- </{{ $tag }}> --> #}
-<button {% attributes( $attributes ) %} type="{{$type}}" name="{{$type}}" value="{{$value}}">{{$label}}</button>
+<button {% foreach($attributes as $key => $value): %}{{ $key }}="{{ $value }}" {% endforeach %}>{{$label}}</button>

@@ -6,11 +6,73 @@
  * in database, retrieving the hases and validating selector&validator
  * implementing another approach into the code is difficult and unnecessary
  * 
- * based on web pages: 
+ * based on web pages:
  * https://www.phptutorial.net/php-tutorial/php-remember-me/
  * https://paragonie.com/blog/2015/04/secure-authentication-php-with-long-term-persistence
- * 
+ *
  */
+
+/*
+ * Opt-in login hardening -- same reasoning and shape as
+ * csrfClass::$enforceLogin/$enforceWebforms (Csrf.php): both default off,
+ * so every app already on this framework keeps its exact current login
+ * behavior unless it explicitly opts in. Split into two independent
+ * switches because they carry very different rollout risk:
+ *
+ * - $enforceLockout (brute-force lockout via the existing wrongpasscount
+ *   counter, already tracked -- just never enforced until now): safe to
+ *   enable immediately on any app. Every account starts at
+ *   wrongpasscount=0, so turning this on can't retroactively lock anyone
+ *   out; it only starts counting failed attempts from here on.
+ *
+ * - $enforceAccountStatus (active/expired columns must both be correct):
+ *   NOT safe to enable blindly. core/classes/yaml/users.yaml defaults a
+ *   brand-new row to active=false, expired=true, so any account created
+ *   by hand (raw SQL -- there's no user-management UI anywhere in this
+ *   framework or any app on it yet) without explicitly setting both could
+ *   be logging in successfully *today* purely because nothing has ever
+ *   checked those columns before now. Enable this only after confirming
+ *   every real, currently-working account's row actually has active=1
+ *   and expired=0 -- otherwise this locks them out the moment it's
+ *   deployed.
+ */
+class LoginSecurityClass {
+    static $enforceLockout = false;
+    static $enforceAccountStatus = false;
+    static $maxWrongPassCount = 5;
+
+    static function enableLockout(): void {
+        self::$enforceLockout = true;
+    }
+
+    static function enableAccountStatusEnforcement(): void {
+        self::$enforceAccountStatus = true;
+    }
+}
+
+/*
+ * users.upass historically stored an unsalted hash('sha256', $password) --
+ * fast to brute-force offline and, with no per-user salt, vulnerable to a
+ * single precomputed rainbow table across every account on every app on
+ * this framework. login_post() now verifies against either format and
+ * transparently rehashes to PASSWORD_DEFAULT (bcrypt) the moment a legacy
+ * account logs in successfully -- no separate migration script, no
+ * user-management UI needed (none exists in this framework yet), and no
+ * account is ever forced to reset a password it still knows correctly.
+ * Accounts that never log in again simply keep their old hash indefinitely,
+ * same as before this existed.
+ */
+function password_hash_is_legacy_sha256(?string $storedHash): bool {
+    return password_get_info((string)$storedHash)['algo'] === null;
+}
+
+function password_matches_stored_hash(string $rawPassword, ?string $storedHash): bool {
+    if ($storedHash === null || $storedHash === '') return false;
+    if (password_hash_is_legacy_sha256($storedHash)) {
+        return hash_equals($storedHash, hash('sha256', $rawPassword));
+    }
+    return password_verify($rawPassword, $storedHash);
+}
 
 
  function setup_rememberme(string $uname) {
@@ -53,18 +115,74 @@ function login($params) {
 function login_post($params) {
     global $kernel;
 
+    // Opt-in only -- see csrfClass::$enforceLogin's docblock. An app that
+    // hasn't called enableLoginProtection() (and put csrf_field() into its
+    // own login.zetem) reaches this unchanged, exactly as before this
+    // check existed.
+    if(csrfClass::$enforceLogin && !csrfClass::verifyRequest()) {
+        $kernel->addStatus('error', 'Μη έγκυρο token ασφαλείας (CSRF). Παρακαλώ προσπαθήστε ξανά.');
+        header('location: ' . rel_url('/login'));
+        exit();
+    }
 
-    $us = UsersClassEx::getUser($_POST['username'], hash('sha256', $_POST['password']));
+    // Looked up by username alone now, not by SQL-matching a precomputed
+    // hash -- see password_matches_stored_hash()'s docblock above for why:
+    // the stored hash can be either format, and only that helper knows
+    // which comparison applies.
+    $us = UsersClassEx::getUserAccount($_POST['username']);
+    $passwordOk = $us && password_matches_stored_hash((string)$_POST['password'], $us->getupass());
     // prelog("User: " . print_r( $us, 1 ));
+
+    // Opt-in only -- see LoginSecurityClass's own docblock above. Checked
+    // even when the submitted password is correct: that's the whole point
+    // of a lockout (a correct password on a locked-out account must still
+    // be refused), and an inactive/expired account must never be allowed
+    // in regardless of password correctness.
     if($us) {
-        // user exists
-        echopre("try to login user ". $us->getuname() . " with rules: " . print_r($us->getroles()));
-        
+        $lockedOut = LoginSecurityClass::$enforceLockout
+            && ((int)$us->getwrongpasscount() >= LoginSecurityClass::$maxWrongPassCount);
+        $disabled = LoginSecurityClass::$enforceAccountStatus
+            && (!$us->getactive() || $us->getexpired());
+        if($lockedOut || $disabled) {
+            $kernel->addStatus('warning', $lockedOut
+                ? 'Ο λογαριασμός έχει κλειδωθεί λόγω πολλών αποτυχημένων προσπαθειών σύνδεσης. Επικοινωνήστε με τον διαχειριστή.'
+                : 'Ο λογαριασμός δεν είναι ενεργός.');
+            error_log('login refused for ' . $us->getuname() . ($lockedOut ? ' (locked out)' : ' (inactive/expired)'));
+            header('location: ' . rel_url('/login'));
+            exit();
+        }
+    }
+
+    if($us && $passwordOk) {
+        // user exists and password matches
+
+        // zeusfw_app_resolve_user_roles(usersClass $user): ?string
+        // supplies the login role list from the RBAC user_roles table
+        // instead of the legacy users.roles column -- checked via
+        // function_exists(), same pattern already used for csrf_field()
+        // (core/lib/FormElement.php). Defined by default in core/lib/
+        // Rbac.php (loaded earlier in this file's own require chain, so
+        // it's always present by the time this runs), returning null
+        // (falls back to $us->getroles()) only for an account with no
+        // rows in user_roles yet.
+        $uroles = function_exists('zeusfw_app_resolve_user_roles')
+            ? (zeusfw_app_resolve_user_roles($us) ?? $us->getroles())
+            : $us->getroles();
+        echopre("try to login user ". $us->getuname() . " with rules: " . print_r($uroles));
+
         // ask kernel to login user
-        $kernel->loginUser($us->getuname(), $us->getroles());
+        $kernel->loginUser($us->getuname(), $uroles);
 
         if(isset($_POST['rememberme'])) {
             setup_rememberme($us->getuname());
+        }
+
+        // Transparent upgrade: an account still on the legacy unsalted
+        // sha256 format gets rehashed to PASSWORD_DEFAULT right here, the
+        // one place the plaintext password is ever available. See
+        // password_matches_stored_hash()'s docblock above.
+        if(password_hash_is_legacy_sha256($us->getupass())) {
+            $us->setupass(password_hash((string)$_POST['password'], PASSWORD_DEFAULT));
         }
 
         // reset wrong password counter
@@ -76,7 +194,6 @@ function login_post($params) {
     } else {
         // check for account with 'username' exists, if yes, then increase wrong password counter
         // for future reference
-        $us = UsersClassEx::getUserAccount( $_POST['username'] );
         if($us) {
             $us->setwrongpasscount( $us->getwrongpasscount() + 1);
             $us->update();

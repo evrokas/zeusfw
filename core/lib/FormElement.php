@@ -107,9 +107,17 @@ class InputElement extends FormElement {
         $attributes['name'] = $this->element['name'];
         $attributes['type'] = $this->element['type'];
 
-        if (isset($this->element['default'])) {
-            $attributes['value'] = $this->element['default'];
-        } else $attributes['value'] = $this->default_value ?? null;
+        // $this->default_value (the constructor's own $default param, set
+        // per-render by a caller -- e.g. an edit view prefilling this
+        // field with an existing row's real value) must win over
+        // $this->element['default'] (the yaml's static placeholder
+        // default, which generateHTMLFormArray() always sets to at least
+        // '' for every input, so a plain isset() check on it alone is
+        // never false) -- otherwise a per-render prefill can never
+        // actually show up. No existing call site passes a non-null
+        // default_value today, so this changes nothing for current
+        // behavior; it's what makes that parameter usable at all.
+        $attributes['value'] = $this->default_value ?? $this->element['default'] ?? null;
 
         $variables = [
             'label' => $this->element['label'] ?? ucfirst($this->element['name']),
@@ -295,9 +303,8 @@ class BasicInputElement extends FormElement {
         $attributes['name'] = $this->element['name'];
         $attributes['type'] = $this->element['type'];
 
-        if (isset($this->element['default'])) {
-            $attributes['value'] = $this->element['default'];
-        } else $attributes['value'] = $this->default_value ?? null;
+        // Same priority fix as InputElement above -- see its comment.
+        $attributes['value'] = $this->default_value ?? $this->element['default'] ?? null;
 
         $variables = [
             'label' => $this->element['label'] ?? ucfirst($this->element['name']),
@@ -366,8 +373,12 @@ class HiddenElement extends FormElement {
         $attributes['name'] = $this->element['name'];
         $attributes['type'] = 'hidden';
 
-        if (isset($this->element['default'])) {
-            $attributes['value'] = $this->element['default'];
+        // Same priority fix as InputElement/BasicInputElement above -- a
+        // per-render prefill (e.g. an edit view's row guid) must win over
+        // the yaml's own static default.
+        $value = $this->default_value ?? $this->element['default'] ?? null;
+        if ($value !== null) {
+            $attributes['value'] = $value;
         }
 
         $variables = [
@@ -408,6 +419,39 @@ class ButtonElement extends FormElement {
         $element['name'] = 'button_' . $element['label'];
 
         parent::__construct($formname, $element);
+    }
+
+    // FormElement::getTemplate()'s suggestion list falls all the way back
+    // to the bare 'form_element' template when nothing more specific
+    // matches -- correct for a text/select/textarea input, but that
+    // template only ever closes a <select> or <textarea> tag, leaving any
+    // other $tag (a <button>) unclosed with no visible label text. Only a
+    // button whose own yaml `type:` happens to be the literal string
+    // "button" ever reached 'form_element_button.zetem' by suggestion-name
+    // coincidence; type: submit/reset fell through to the broken generic
+    // one instead. Every button, regardless of its submit/reset/button
+    // type, needs the same real button markup -- so this override swaps
+    // the generic 'form_element' fallback for 'form_element_button',
+    // keeping every more-specific suggestion (per name, per form+name,
+    // per type--button_type) so an app can still override one exact
+    // button if it wants to.
+    public function getTemplate($formname) {
+        $tem_suggestions = [];
+        Renderer::getTemplateSuggestions([
+                'form' => $formname,
+                'type' => $this->element['type'] ?? null,
+                'button_type' => $this->element['button_type'] ?? null,
+                'name' => $this->element['name']
+            ],
+            function($args, &$suggestions) {
+                $suggestions[] = 'form_element_button';
+                $suggestions[] = 'form_element_' . $args['type'];
+                if($args['button_type'])
+                    $suggestions[] = 'form_element_' . $args['type'] . '--' . $args['button_type'];
+                $suggestions[] = 'form_element_' . $args['name'];
+                $suggestions[] = 'form_element_' . $args['form'] . '_' . $args['name'];
+        }, $tem_suggestions);
+        return [Renderer::getTemplate($tem_suggestions), $tem_suggestions];
     }
 
     public function generateHTML() {
@@ -462,39 +506,128 @@ class RangeElement extends FormElement {
     }
 }
 
-function generateHTMLForm($formArray, $default_values = array() ) {
+// Instantiates one field's *Element class exactly the way generateHTMLForm()
+// always has (ucfirst(type) . 'Element', falling back to BasicInputElement),
+// applying a per-view/per-group label override when the field entry carries
+// one. Shared by the flat (no form_view) path and the grouped-view walk
+// below, so both render an individual field identically.
+function generateHTMLFormFieldElement($formName, array $inputsByName, $fieldEntry, $default_values) {
+    $name = is_string($fieldEntry) ? $fieldEntry : ($fieldEntry['name'] ?? null);
+    if(!$name || !isset($inputsByName[$name]))return null;
+
+    $input = $inputsByName[$name];
+    if(!is_string($fieldEntry) && !empty($fieldEntry['label']))$input['label'] = $fieldEntry['label'];
+
+    $className = ucfirst($input['type']) . 'Element';
+    if(!class_exists($className))$className = 'BasicInputElement';
+
+    return new $className($formName, $input, $default_values[$name] ?? null);
+}
+
+// Renders one form_view group (or a view's own unwrapped top-level content
+// -- see generateHTMLForm() below) into a flat list of already-rendered
+// HTML strings: one per direct field, plus one per nested sub-group, each
+// already wrapped in its own <fieldset> by generateHTMLFormGroup(). A
+// group's `fields` and `groups` can freely mix (rendered in that order,
+// fields first then sub-groups, matching yaml declaration intent since
+// zeusfw_normalize_form_view_group() -- core/maker/functions.php --
+// preserves both lists independently rather than interleaving them).
+// $formelements (name => Element instance, mirroring the old flat loop's
+// own bookkeeping map, currently unused by webform.zetem but preserved for
+// parity) is threaded through by reference so it ends up flat regardless
+// of nesting depth.
+function generateHTMLFormGroupElements($formName, array $node, array $inputsByName, $default_values, array &$formelements) {
+    $parts = [];
+
+    foreach(($node['fields'] ?? []) as $fieldEntry) {
+        $element = generateHTMLFormFieldElement($formName, $inputsByName, $fieldEntry, $default_values);
+        if(!$element)continue;
+
+        $parts[] = $element->generateHTML();
+        $name = is_string($fieldEntry) ? $fieldEntry : $fieldEntry['name'];
+        $formelements[$name] = $element;
+    }
+
+    foreach(($node['groups'] ?? []) as $subGroup) {
+        $subParts = generateHTMLFormGroupElements($formName, $subGroup, $inputsByName, $default_values, $formelements);
+        $parts[] = generateHTMLFormGroup($formName, $subGroup['label'] ?? null, $subParts);
+    }
+
+    return $parts;
+}
+
+// Wraps one group's already-rendered field/sub-group HTML in a real
+// <fieldset> (core/templates/webform/form_group.zetem) -- nested groups
+// recursively produce nested <fieldset>s, since generateHTMLFormGroupElements()
+// above already flattens each sub-group's own rendering into a single
+// string before handing it up to its parent.
+function generateHTMLFormGroup($formName, $label, array $elements) {
+    $template_suggestions = [];
+    Renderer::getTemplateSuggestions(['type' => 'webform', 'name' => $formName], function($args, &$suggestions) {
+        $suggestions[] = 'form_group';
+        $suggestions[] = 'form_group__' . $args['name'];
+    }, $template_suggestions);
+
+    $template = Renderer::getTemplate($template_suggestions);
+
+    return Renderer::render($template, [
+                                'label' => $label,
+                                'elements' => $elements,
+                            ],
+                        [$template_suggestions, $template]);
+}
+
+// $view (new, optional, always appended LAST) names one of this form's
+// yaml-declared form_view views (form_view: -> <view-name>: {fields,
+// groups, buttons}, see generateHTMLFormArray() in
+// core/maker/functions.php) -- deliberately added as a 3rd parameter
+// rather than reordering the existing $default_values, so every
+// pre-existing 0/1/2-arg call site anywhere on the framework keeps
+// behaving identically.
+function generateHTMLForm($formArray, $default_values = array(), $view = null) {
     $formName = $formArray['name'] ?? null;
     if(!$formName) {
         echo "Form is not named. Please set form name and try again.\n";
         exit(-1);
     }
     $formAttributes = $formArray['attributes'] ?? [];
-    $inputs = $formArray['inputs'] ?? [];
-    $buttons = $formArray['buttons'] ?? [];
-    $elements = [];
-    $controls = [];
+    $inputsByName = array_column($formArray['inputs'] ?? [], null, 'name');
+
+    // Resolve which form_view applies: an explicit $view argument wins;
+    // otherwise fall back to the yaml's own `default:` view, if declared;
+    // otherwise no view applies at all.
+    $formViews = $formArray['form_view'] ?? [];
+    $resolvedView = $view ?? ($formViews['default'] ?? null);
+    $viewNode = ($resolvedView && !empty($formViews[$resolvedView])) ? $formViews[$resolvedView] : null;
+
     $formelements = [];
 
+    if($viewNode) {
+        $elements = generateHTMLFormGroupElements($formName, $viewNode, $inputsByName, $default_values, $formelements);
+        $buttons = $viewNode['buttons'] ?? [];
+    } else {
+        // Graceful-degradation fallback -- a form with no `form_view` at
+        // all, or an unresolvable view name: render every input flat, in
+        // declared order (this function's own pre-form_view behavior),
+        // but with ZERO buttons -- there's no longer a form-level
+        // `buttons:` to fall back to (buttons now live exclusively under
+        // form_view, see generateHTMLFormArray()). Not an officially
+        // supported "legacy" path -- every real webform yaml in this
+        // framework is expected to define form_view -- just a defensive
+        // default so a not-yet-migrated form degrades instead of fataling.
+        $elements = [];
+        foreach(($formArray['inputs'] ?? []) as $input) {
+            $className = ucfirst($input['type']) . 'Element';
+            if(!class_exists($className))$className = 'BasicInputElement';
 
-
-    foreach($inputs as $input) {
-        $className = ucfirst($input['type']) . 'Element';
-        if(!class_exists($className))$className = 'BasicInputElement';
-
-        if(class_exists($className)) {
-            // echo(" Generating class for input {$input['name']}\n");
-            $element = new $className( $formName, $input, $default_values[ $input['name'] ] ?? null);
+            $element = new $className($formName, $input, $default_values[$input['name']] ?? null);
             $elements[] = $element->generateHTML();
-            $formelements[ $input['name' ] ] = $element;
-
-            // $elements[] = $element->render();
-        } else {
-            $elements[] = "<!-- unsupported input type: " . htmlspecialchars($input['type']) . " -->";
+            $formelements[$input['name']] = $element;
         }
+        $buttons = [];
     }
 
-    // echopre("form elements: " . print_r($formelements, 1));
-
+    $controls = [];
     foreach($buttons as $button) {
         // echopre("button: " . print_r($button, 1));
         $buttonElement = new ButtonElement( $formName, $button );
@@ -502,19 +635,28 @@ function generateHTMLForm($formArray, $default_values = array() ) {
         // $elements[] = $buttonElement->render();
     }
 
+    // Purely additive -- see csrfClass::$enforceWebforms's docblock
+    // (core/lib/Csrf.php). Every DB-defined webform gets a token field
+    // regardless of whether the owning app has opted into enforcement;
+    // an app that hasn't is completely unaffected since nothing reads
+    // this input unless processform() is told to check it.
+    if(function_exists('csrf_field')) {
+        $elements[] = csrf_field();
+    }
+
     $template_suggestions = [];
     Renderer::getTemplateSuggestions(['type' => 'webform', 'name' => $formArray['name']], function($args, &$suggestions) {
         $suggestions[] = 'webform';
         $suggestions[] = 'webform--' . $args['name'];
     }, $template_suggestions);
-    
+
     // print_r($template_suggestions);
     $template = Renderer::getTemplate($template_suggestions);
 
     $formAttributes['class'] = 'webform';
 
     return Renderer::render($template, [
-                                'attributes' => $formAttributes, 
+                                'attributes' => $formAttributes,
                                 'elements' => $elements,
                                 'formelements' => $formelements,
                                 'controls' => $controls
@@ -538,6 +680,53 @@ function generateHTMLTableRow($formname, $variables) {
 
 
 
+// Renders one row's action-buttons <td> (Edit/Delete/custom -- see
+// zeusfw_normalize_table_row_buttons(), core/maker/functions.php). Called
+// once per row from generateHTMLFormTable() below; the returned string is
+// appended as one more entry in that row's own $row_elements, exactly
+// like a regular field's rendered <td>, so the row is still just a flat
+// implode(' ', ...) string -- webform_table.zetem needs no changes.
+function generateHTMLTableRowActions($formName, array $rowMeta, array $buttons) {
+    $rendered = [];
+    foreach($buttons as $button) {
+        $rendered[] = generateHTMLTableRowButton($formName, $rowMeta, $button);
+    }
+    return '<td class="actions">' . implode(' ', $rendered) . '</td>';
+}
+
+// Resolves one button's URL by calling its `handler` (a plain function-
+// name string, same convention as setupFormActionHandler()/processform()
+// in WebForms.php) with this row's guid/fields, then renders either a
+// real, working link/form or a disabled placeholder in the exact same
+// visual slot -- there is deliberately no "handler missing" case that
+// renders nothing at all, so the actions column never looks broken or
+// incomplete just because an app hasn't wired real behavior yet.
+function generateHTMLTableRowButton($formName, array $rowMeta, array $button) {
+    $handler = $button['handler'] ?? null;
+    $url = null;
+    if($handler && function_exists($handler)) {
+        $url = $handler($rowMeta['guid'], $rowMeta['fields']);
+    }
+
+    $isDelete = ($button['type'] ?? '') === 'delete';
+
+    $template_suggestions = [];
+    Renderer::getTemplateSuggestions(['type' => 'webform', 'name' => $formName], function($args, &$suggestions) use ($isDelete) {
+        $suggestion = $isDelete ? 'webform_row_action_delete' : 'webform_row_action_link';
+        $suggestions[] = $suggestion;
+        $suggestions[] = $suggestion . '__' . $args['name'];
+    }, $template_suggestions);
+
+    $template = Renderer::getTemplate($template_suggestions);
+
+    return Renderer::render($template, [
+                                'url' => $url,
+                                'icon' => $button['icon'] ?? '',
+                                'tooltip' => $button['tooltip'] ?? '',
+                            ],
+                        [$template_suggestions, $template]);
+}
+
 function generateHTMLFormTable($formArray) {
     $formName = $formArray['name'] ?? null;
     if(!$formName) {
@@ -546,14 +735,34 @@ function generateHTMLFormTable($formArray) {
     }
     $formAttributes = $formArray['attributes'] ?? [];
     $inputs_lists = $formArray['inputs_list'] ?? [];
+    $row_meta = $formArray['row_meta'] ?? [];
+    $row_buttons = $formArray['row_buttons'] ?? [];
 
     // we do not neeed buttons or controls in table form
     // $buttons = $formArray['buttons'] ?? [];
     // $controls = [];
 
+    // Headers come from the first row's own field definitions (already
+    // filtered down to whichever fields renderFormResults() actually
+    // selected -- via $filter_fields there, or simply "exists on this
+    // entity" otherwise) rather than re-deriving that filter here, so
+    // there's exactly one place that decides which columns appear.
+    $headers = [];
+    if(!empty($inputs_lists[0])) {
+        foreach($inputs_lists[0] as $input) {
+            $headers[] = $input['label'] ?? ucfirst($input['name']);
+        }
+    }
+    // The actions column's own header -- the "header description for that
+    // field" a synthetic, non-data column still needs so it doesn't read
+    // as blank/broken -- only appears when there are buttons to show.
+    if(!empty($row_buttons)) {
+        $headers[] = $formArray['actions_label'] ?? 'Actions';
+    }
+
     $elements = [];
-    
-    foreach($inputs_lists as $inputs) {
+
+    foreach($inputs_lists as $rowIndex => $inputs) {
         $row_elements = [];
         foreach($inputs as $input) {
             // echopre("processing form input: " . print_r($input,1));
@@ -568,6 +777,11 @@ function generateHTMLFormTable($formArray) {
             } else {
                 $row_elements[] = "<!-- unsupported input type: " . htmlspecialchars($input['type']) . " -->";
             }
+        }
+
+        if(!empty($row_buttons)) {
+            $meta = $row_meta[$rowIndex] ?? ['guid' => null, 'fields' => []];
+            $row_elements[] = generateHTMLTableRowActions($formName, $meta, $row_buttons);
         }
 
         // $elements[] = generateHTMLTableRow($formName, $row_elements);
@@ -594,8 +808,9 @@ function generateHTMLFormTable($formArray) {
     $formAttributes['class'] = 'webform';
 
     return Renderer::render($template, [
-                                'attributes' => $formAttributes, 
+                                'attributes' => $formAttributes,
                                 'elements' => $elements,
+                                'headers' => $headers,
                                 // 'controls' => $controls
                             ],
                         [$template_suggestions, $template]);

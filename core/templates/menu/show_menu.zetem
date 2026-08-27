@@ -5,7 +5,7 @@
                 {% if(isset($menuitem['submenu']) && 
                     (!isset($menuitem['submenu-visibility']) || 
                         (isset($menuitem['submenu-visibility']) && $menuitem['submenu-visibility'] != "hide")) ): %}
-                    <li {{{$menuitem['attributes'] }}}>
+                    <li {{$menuitem['attributes'] }}>
                         {# <!-- {{attributes($menuitem)}} --> #}
                         {% if(isset($menuitem['url'])): %}
                             <a href="{{(isset($menuitem['url']))?rel_url($menuitem['url']):'#';}}">

@@ -1,0 +1,25 @@
+{#
+    Renders one form_view group (core/lib/FormElement.php's
+    generateHTMLFormGroup()/generateHTMLFormGroupElements()) as a real
+    <fieldset>/<legend> -- $elements is already a flat list of fully-
+    rendered HTML strings (one per direct field, or one per nested
+    sub-group already wrapped in its own <fieldset> by a recursive call to
+    this same template), so this level only ever needs to handle its own
+    wrapper. $label is escaped with {{{ }}} since it comes from
+    app-authored yaml, same convention used for webform_table.zetem's
+    column headers.
+
+    Reuses .form_elements (the same class webform.zetem's own top-level
+    wrapper uses) for the inner field spacing, so a field looks identical
+    whether it sits at a view's unwrapped top level or inside a group.
+#}
+<fieldset>
+    {% if(!empty($label)): %}
+        <legend>{{{ $label }}}</legend>
+    {% endif %}
+    <div class="form_elements">
+        {% foreach($elements as $element): %}
+            {{ $element }}
+        {% endforeach %}
+    </div>
+</fieldset>

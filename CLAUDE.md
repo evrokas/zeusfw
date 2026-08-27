@@ -177,6 +177,175 @@ path. `php -l` clean on `ErrorHandlers.php`; the two new bare templates never in
 `php -l`-equivalent manual review (no lint tool for `.zetem` files) since no app other than erweb currently
 overrides or exercises them.
 
+## RBAC engine + admin CRUD UI moved into core (2026-08-23)
+
+A full RBAC (role/permission) system and a generic admin CRUD UI (`/admin/{entity}`)
+were originally built entirely inside zpms (`web/rbac.php`, `web/rbac_seed.php`,
+`web/admin_crud.php`) -- see zpms's own `CLAUDE.md` for that history, including two
+real bugs it worked around in this framework's older `SecurityClass::require()`
+(`core/lib/Security.php`, still present, still used for route-level `access:`/nav-menu
+gating via `SecurityClass::userIsPermitted()` -- unaffected by either bug or by this
+migration). The reusable *engine* half of that work is now framework-level, following
+the exact "define once in core, every app just consumes it" pattern already used for
+the `users` table -- zpms keeps only its own permission-slug vocabulary (`ZPMS_PERM_*`
+constants) and seed data, exactly as an app is expected to for anything domain-specific.
+
+**Schema** (`core/classes/yaml/{roles,permissions,role_permissions,user_roles}.yaml`,
+generated `core/classes/sql/*.sql` + `core/classes/*.php`, wired into `core/classes/
+bootstrap_classes.php`): standard RBAC shape -- `roles` (+ `is_superuser` bypass flag,
+replacing the old, broken `'administrator' => 'all'` string), `permissions`,
+`role_permissions`/`user_roles` (many-to-many joins, no DB-level FK constraints
+anywhere in this framework -- referential integrity is app-level only, same convention
+as every other table). Table names/columns are unchanged from zpms's original
+app-level YAMLs -- this is a pure code-location move, not a data migration; an app
+that already had these tables (zpms) keeps its existing rows untouched.
+
+**Extension classes** -- standalone files under `core/`, one per table
+(`core/rolesClassEx.php`, `core/permissionsClassEx.php`,
+`core/role_permissionsClassEx.php`, `core/user_rolesClassEx.php`), following the
+`extention:` YAML directive convention already established by
+`core/classes/yaml/feed_hashes.yaml` (`extention: __FWDIR__ . '/feedhashesClassEx.php'`)
+rather than the older, separate `core/ClassExFW.php` monolith (which still holds
+`userTokensClassEx`, an inconsistency predating this change, left as-is). `spill_class()`
+(`core/maker/maker.php`) reads a YAML's `table.extention` value and appends a conditional
+`require_once` to the *generated* class file itself (e.g. `core/classes/roles.php` ends
+with `if(file_exists(__FWDIR__.'/rolesClassEx.php')) { require_once(...); }`) -- so the Ex
+file self-loads the moment its base class is required via `core/classes/bootstrap_classes.php`,
+with no separate manual wiring needed anywhere. `rolesClassEx`, `permissionsClassEx`,
+`role_permissionsClassEx`, `user_rolesClassEx` provide `sgetByName()` lookups, granted-
+permission-name resolution, and `assignRole()`/`removeRole()`. `user_rolesClassEx::
+getRolesForUser(int $userId, array $allPermissionSlugs = [])` takes the "every
+permission slug" list as a parameter now (used only for an is_superuser role's
+`permissions` array) rather than calling an app-specific function directly, since this
+class has no knowledge of any one app's permission vocabulary -- in practice this
+parameter is moot: `rbacClass::isPermitted()`'s is_superuser check short-circuits
+before ever reading that array, so the default `[]` is always correct.
+
+**Permission-check engine** (new `core/lib/Rbac.php`, required from `core/bootstrap.php`
+next to `lib/Security.php`): `rbacClass::isPermitted(string $permission): bool` /
+`rbacClass::require(string $permission): ?string` -- same contract as `SecurityClass::
+require()` (null on success, a rendered 401 on failure), always re-querying the
+database for the current user's actual roles rather than trusting `$_SESSION` (the
+session role list `Kernel::loginUser()` builds always carries an extra `"authenticated"`
+entry, which is what made `SecurityClass::require()` silently inert). Also defines the
+plain global function `zeusfw_app_resolve_user_roles(usersClass $user): ?string` --
+**must stay a plain function, not a class method**, since `core/lib/UserLogin.php`'s
+`login_post()` probes it via `function_exists()` before falling back to the legacy
+`users.roles` column (same pattern as `csrf_field()`, `core/lib/FormElement.php`). This
+was previously an app-defined opt-in extension point (only zpms defined it); now core
+defines it by default, so every app gets correct session-role resolution for free --
+in practice no app can still override it (core's own definition, loaded early in
+`bootstrap.php`'s require chain, always wins the `function_exists()` race before any
+app code runs). `ZEUSFW_PERM_MANAGE_USERS` (`= 'users-manage'`) is the framework's own
+canonical "can manage users/roles/permissions" slug, gating the admin module below --
+kept as the exact string zpms's own (now-retired) `ZPMS_PERM_USERS_MANAGE` already
+used/seeded, so adopting this needed zero data migration.
+
+**Admin CRUD ("`admin_user_crud`" package)** -- new `core/modules/admin/admin_crud.php`
+(required unconditionally from `core/bootstrap.php`, not gated behind the app opting into
+the pre-existing, separate `core/modules/admin/` nav-landing module) provides list/new/
+edit/delete for all 5 entities (`users`, `permissions`, `roles`, `role_permissions`,
+`user_roles` -- `users`' fields, e.g. name/email/uname/active/expired, are all
+core-generic `usersClass` columns, so it belongs here too, not just the 4 pure-RBAC
+tables), one metadata-driven engine (`zeusfw_admin_entity_defs()`) rather than five
+near-identical copies, matching this framework's "no autoloader/generic-engine-culture"
+style by being one hand-written file, not an abstraction layer. Its 6 routes (`admin_list`/
+`admin_new`/`admin_new_post`/`admin_edit`/`admin_edit_post`/`admin_delete`, all under
+`/admin/{entity}[/{id}]`) live in **`core/config/zeusfw.info.yaml`**, merged into its
+pre-existing `libraries: webform:` block. `Kernel::__construct()` (`core/kernel/Kernel.php`)
+originally read `__FWDIR__ . '/zeusfw.info.yaml'` (no `config/`) -- confirmed by reading the
+constructor directly, which meant `core/config/zeusfw.info.yaml`'s `libraries:` block was
+never actually loaded by Kernel at all (dead config, an existing bug predating this change).
+Fixed as part of this work: `Kernel.php` now reads `__FWDIR__ . '/config/zeusfw.info.yaml'`,
+the intended, correct path -- activating that dormant `libraries:` block for every app on the
+framework as a side effect, in addition to making the routes below live. This is the *first* of the three
+`Kernel::addConfig()` merge layers (framework, then an app's own `config/site.info.yaml`,
+then `config/settings.info.yaml`), so these routes are available to any app on the
+framework unconditionally -- independent of any per-app module opt-in, unlike the previous
+(superseded) design that lived in `core/modules/admin/admin.yaml` and required the app to
+list `admin` under `modules:`. Every handler still checks `rbacClass::
+require(ZEUSFW_PERM_MANAGE_USERS)`.
+
+**Enabling/disabling framework packages** (new `core/lib/Packages.php`, `packagesClass::
+isEnabled(string $package): bool`): a generic, reusable toggle for `admin_user_crud` and any
+future optional framework package, checked as the *first* line of every gated handler (before
+even the permission check) -- a disabled package returns `error_404()`, the same observable
+result as a route that was never registered, without touching `Router.php`'s shared dispatch
+path at all (a deliberately smaller blast radius than a router-level gate would need).
+Controlled by `disabled_packages:`, a flat list of package-name strings -- declared empty in
+`core/config/zeusfw.info.yaml` and in each app's own `config/site.info.yaml` (e.g. zpms's), with a
+matching comment available in `config/settings.info.yaml` for an app-specific-only override.
+**Deliberately a list, not a map of booleans** (`{package: {enabled: false}}`) -- confirmed via
+direct test that `array_merge_recursive()` (what `addConfig()` uses for all three config
+layers) corrupts a nested scalar overridden across layers into an array
+(`array_merge_recursive(['enabled'=>true], ['enabled'=>false])` produces
+`['enabled'=>[true,false]]`, not `false`), while two lists merge safely via concatenation. A
+flat accumulating list means any layer can only ever *add* a package to the disabled set,
+never silently re-enable one a less specific layer already turned off, and every layer uses
+the exact same key with zero special-casing.
+
+**Templates** (`core/templates/modules/admin/{admin_list,admin_form}.zetem`, moved
+verbatim from zpms's `web/templates/content/`): fully generic -- no app-specific
+markup. Both still reference zpms's own `boxicons`/`loader-library` CSS libraries
+(`attach_library()`) and reuse zpms's own `patients-*`/`icon-btn`/`admin-tab*` CSS
+classes from its `css/styles.css` -- a deliberate **verbatim** move (unstyled-but-
+functional for another app that hasn't defined those libraries/classes, byte-identical
+rendering for zpms, which still has them), matching this framework's existing
+"bare unstyled fallback, app can override/extend" precedent (see `core/templates/
+errors/*.zetem` above) rather than inventing a new core-owned design system as part of
+this change.
+
+**Critical migration-ordering note for any other app adopting this schema**: adding
+these core-level classes is *not* independently safe to deploy against an app that
+still has its own app-level `web/classes/yaml/{roles,permissions,role_permissions,
+user_roles}.yaml` (or same-named routes in its own `settings.info.yaml`) -- both would
+declare the same PHP class name ("Cannot redeclare class") or collide in the route
+table's `array_merge_recursive()` (turning scalar route fields into arrays, breaking
+`Router.php`'s dispatch, exactly the same corruption documented above for
+`disabled_packages`). An app migrating onto this (as zpms did) must remove its own
+copies in the same change that adopts the core schema/routes, not as a follow-up.
+
+## `t()` gains `@placeholder` substitution; `dictionaryClassEx` gains admin/export helpers (2026-08-24)
+
+Two small, independent, additive pieces salvaged from zeusfw's own long-abandoned
+`dicom`/`nav` R&D branch (26 commits of Jan-Feb 2026 work that never merged --
+reviewed feature-by-feature, most of it superseded or unsafe to port; see the
+zpms-side salvage entry below for the larger, separate review of ZPMS's *own*
+`dicom`/`nav` branches, which is a different line of work entirely).
+
+**`t($token, array $values = [])`** (`core/kernel/utils.php`) -- the translation
+function now takes an optional second parameter for `@key` placeholder substitution
+in the resolved string, done via `strtr`-style `str_replace('@'.$key, $value, $text)`
+after translation resolves (works for both the plain-string and array-of-language-keys
+forms of `$token`). Fully backward-compatible -- every existing single-argument call
+site across zpms/erweb/docarc was grepped and confirmed unaffected (new param is
+optional). `core/kernel/utils.php`'s `echopre()` also picked up a real bug fix from
+the same source branch: the `while($fs[0] === $ap[0])` path-stripping loop now guards
+both sides with `isset()` first, so a call from a file whose path doesn't share every
+segment with `__APPDIR__` no longer risks an undefined-array-key warning once `$fs`/
+`$ap` are exhausted.
+
+**`dictionaryClassEx`** (`core/dictionaryClassEx.php`) gained 8 new static admin/export
+methods: `getAllTokens()`, `updateTranslation($token, $lang, $translation)`,
+`deleteToken($token)`, `getUntranslated($lang)`, `exportToYAML($lang)`,
+`importFromYAML($lang, $file)`, `getTranslationStats()`, `getRecentTokens($limit)` --
+useful building blocks for a future dictionary-admin UI, ported verbatim in spirit but
+**not** verbatim in code: the source branch's version of these methods (and a change it
+made to the existing `translateToken()`, deliberately **not** ported) built every SQL
+column-name list via `array_keys($kernel->getConfig('languages'))`. That's wrong --
+`getConfig('languages')` already returns the flat list of language codes as-is (e.g.
+`['en', 'gr']` for zpms, `['el', 'en']` for erweb), so `array_keys()` on it yields
+`[0, 1]`, not language codes -- every generated query would have referenced SQL columns
+named `0`/`1` instead of `en`/`gr`/`el`. Fixed while porting: every new method uses
+`$kernel->getConfig('languages')` directly, matching the untouched `translateToken()`'s
+own (already-correct) pattern. Verified against an in-memory SQLite stand-in for the
+real DB (not provisioned in this sandbox) with `languages => ['en', 'gr']`: seeded a
+row, round-tripped it through `updateTranslation()`/`getUntranslated()`/
+`getTranslationStats()`/`exportToYAML()`/`deleteToken()`/`getRecentTokens()`, and
+confirmed every generated query referenced the real `en`/`gr` columns (`getTranslationStats()`'s
+result keyed by `'en'`/`'gr'`, not `0`/`1`) -- this is exactly the class of bug that
+fix prevents, and the test would have failed loudly without it.
+
 ### `Accessibility.php` / `accessibilityClass` (2026-08-27)
 
 At direct request: a framework-level accessibility widget - a floating toggle button + panel offering

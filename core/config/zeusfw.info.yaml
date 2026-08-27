@@ -1,5 +1,66 @@
 libraries:
   webform:
-    css: 
+    css:
       - webform:
         src: 'css/webform.css'
+
+# Framework-provided routes -- merged into every app's route table
+# unconditionally (Kernel::__construct() reads this file first, before
+# site.info.yaml/settings.info.yaml, then addConfig()'s
+# array_merge_recursive() layers the other two on top), so these are
+# available to any app on the framework without that app needing to list
+# a module or define its own route entries. An app can still turn a
+# route's *behavior* off without touching routing at all -- see
+# `disabled_packages` below and core/lib/Packages.php.
+routes:
+  # admin_user_crud package -- generic list/add/edit/delete UI for the
+  # users/permissions/roles/role_permissions/user_roles tables (handlers
+  # in core/modules/admin/admin_crud.php, required unconditionally from
+  # core/bootstrap.php). Every handler checks
+  # packagesClass::isEnabled('admin_user_crud') and
+  # rbacClass::require(ZEUSFW_PERM_MANAGE_USERS) as its first two lines.
+  admin_list:
+    title: "Admin: list"
+    url: "/admin/{entity}"
+    handler: admin_list
+    method: get
+  admin_new:
+    title: "Admin: new"
+    url: "/admin/{entity}/new"
+    handler: admin_new
+    method: get
+  admin_new_post:
+    title: "Admin: new"
+    url: "/admin/{entity}/new"
+    handler: admin_new_post
+    method: post
+  admin_edit:
+    title: "Admin: edit"
+    url: "/admin/{entity}/{id}/edit"
+    handler: admin_edit
+    method: get
+  admin_edit_post:
+    title: "Admin: edit"
+    url: "/admin/{entity}/{id}/edit"
+    handler: admin_edit_post
+    method: post
+  admin_delete:
+    title: "Admin: delete"
+    url: "/admin/{entity}/{id}/delete"
+    handler: admin_delete
+    method: post
+
+# Accumulating disable-list for optional framework packages/modules (see
+# core/lib/Packages.php's packagesClass::isEnabled()). Every config layer
+# -- this file, an app's config/site.info.yaml, an app's own
+# config/settings.info.yaml -- merges into the SAME flat list
+# (array_merge_recursive() concatenates lists safely; it does NOT merge
+# safely on a nested scalar like `enabled: true/false` under the same key
+# across layers -- confirmed: that corrupts into an array instead of
+# picking the later value -- which is why this is a plain accumulating
+# list of package names to turn OFF, not a map of booleans). A package
+# with no entry here is enabled by default. Empty here -- nothing is
+# framework-disabled by default; a site/app opts OUT per package.
+#
+# Packages currently registered: `admin_user_crud` (see routes: above).
+disabled_packages: []

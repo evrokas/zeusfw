@@ -1,0 +1,47 @@
+---
+table:
+  name: roles
+  class: rolesClass
+  extention: __FWDIR__ . '/rolesClassEx.php'
+
+  fields:
+  - name: guid
+    type: '@guid'
+
+  - name: cdate
+    type: '@cdate'
+
+  - name: cuser
+    type: '@cuser'
+
+  - name: name
+    type: varchar(64)
+    required: true
+
+  - name: label
+    type: varchar(255)
+    required: true
+
+  - name: is_superuser
+    type: boolean
+    default: false
+
+...
+
+# A named, assignable bundle of permissions -- framework-level RBAC schema,
+# shared by every app on ZeusFW (same "define once in core, every app just
+# consumes it" pattern already used for the `users` table). See
+# core/lib/Rbac.php's docblock for the full permission-check design, and
+# core/modules/admin/ for the generic admin CRUD UI covering this table.
+# An app's own permission *vocabulary* (which permission slugs actually
+# exist, seed role/permission data) stays app-specific -- see e.g. zpms's
+# web/rbac.php / web/rbac_seed.php for that half.
+#
+# - guid           row guid
+# - cdate          creation date
+# - cuser          creating user (system/migration script for the seeded rows)
+# - name           short slug (e.g. 'power-user')
+# - label          human-readable name, shown in the admin UI
+# - is_superuser   bypasses the permission check entirely (see
+#                  rbacClass::isPermitted() in core/lib/Rbac.php). Grant
+#                  this to at most a small number of trusted accounts.

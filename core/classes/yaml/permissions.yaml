@@ -1,0 +1,40 @@
+---
+table:
+  name: permissions
+  class: permissionsClass
+  extention: __FWDIR__ . '/permissionsClassEx.php'
+
+  fields:
+  - name: guid
+    type: '@guid'
+
+  - name: cdate
+    type: '@cdate'
+
+  - name: cuser
+    type: '@cuser'
+
+  - name: name
+    type: varchar(64)
+    required: true
+
+  - name: label
+    type: varchar(255)
+    required: true
+
+...
+
+# Registry of every fine-grained permission string an app checks via
+# rbacClass::require()/rbacClass::isPermitted() (core/lib/Rbac.php) -- e.g.
+# 'patients-view-list', 'appointment-edit'. A role is granted a permission
+# via a row in role_permissions, not by editing code/YAML, so this table is
+# what makes that assignable without a deploy (via core/modules/admin/'s
+# generic admin UI, or an app's own seed script). Which permission slugs
+# actually exist is app-specific -- see e.g. zpms's web/rbac.php for its
+# own permission vocabulary and web/rbac_seed.php for the seed list.
+#
+# - guid    row guid
+# - cdate   creation date
+# - cuser   creating user (system/migration script for the seeded rows)
+# - name    the permission slug exactly as passed to rbacClass::require()
+# - label   human-readable description, shown in the admin UI

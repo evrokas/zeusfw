@@ -295,7 +295,12 @@ class Renderer {
 		$code = self::compileComments($code);
 		$code = self::compileBlock($code);
 		$code = self::compileYield($code);
-		$code = self::compileEscapedEchos($code);
+		// {{{ }}} is meant to be the escaped-echo form (see compileEscapedEchos0()
+		// and filter_e()'s docblock below) -- this was wired to
+		// compileEscapedEchos() instead, which only casts to string and applies
+		// no escaping at all, silently defeating every {{{ }}} in every app on
+		// this framework. Fixed to call the real escaping version.
+		$code = self::compileEscapedEchos0($code);
 		$code = self::compileEchos($code);
 		// $code = self::compilePHPplain($code);
 		$code = self::compilePHP($code);
@@ -447,12 +452,14 @@ class Renderer {
 		return $out;
 	}
 
-	// HTML-escapes a value for safe output - {{ } } and {{{ } }} both compile
-	// to a bare echo with no escaping (compileEscapedEchos() casts to string
-	// only; the real htmlentities() version, compileEscapedEchos0(), is never
-	// called), so this filter is the opt-in way for an app to get the same
-	// escaping discipline PHP's own htmlspecialchars() gives. Semantics match
-	// e.g. a typical hand-rolled `e()` helper: ENT_QUOTES|ENT_HTML5, UTF-8.
+	// HTML-escapes a value for safe output. {{{ }}} (compileEscapedEchos0(),
+	// wired into compileCode() above) is the primary way to get this for a
+	// template echo -- htmlspecialchars(ENT_QUOTES, 'UTF-8'), same as here.
+	// This filter exists for the same escaping need inside a filter chain,
+	// or from plain PHP code building a string outside any template (e.g. a
+	// flash message mixing trusted markup with an untrusted value -- see
+	// zpms's own CLAUDE.md for a real call site). ENT_HTML5 here vs bare
+	// ENT_QUOTES there makes no practical difference for this use.
 	static function filter_e($token, $args = array() ) {
 		return htmlspecialchars( (string) $token, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
 	}
@@ -462,7 +469,15 @@ class Renderer {
 	}
 
 	static function compileEscapedEchos0($code) {
-		return preg_replace('~\{{{\s*(.+?)\s*\}}}~is', '<?php echo htmlentities($1, ENT_QUOTES, \'UTF-8\') ?>', $code);
+		// htmlspecialchars, not htmlentities -- matches filter_e() above.
+		// htmlentities() additionally transliterates every non-ASCII
+		// character with a named-entity equivalent (e.g. every Greek
+		// letter), which is no safer against injection -- htmlspecialchars
+		// already covers the five characters that actually matter for
+		// HTML/attribute breakout (& < > " ') -- but bloats and mangles
+		// the readability of any non-Latin-script content. Several apps on
+		// this framework (zpms foremost) are Greek-language throughout.
+		return preg_replace('~\{{{\s*(.+?)\s*\}}}~is', '<?php echo htmlspecialchars((string) ($1), ENT_QUOTES, \'UTF-8\') ?>', $code);
 	}
 	static function compileEscapedEchos($code) {
 		return preg_replace('~\{{{\s*(.+?)\s*\}}}~is', '<?php echo (string) $1 ?>', $code);
