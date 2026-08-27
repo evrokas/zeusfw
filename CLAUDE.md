@@ -176,3 +176,108 @@ returns 200 after registering the catch-all, confirming it changes nothing about
 path. `php -l` clean on `ErrorHandlers.php`; the two new bare templates never independently tested beyond
 `php -l`-equivalent manual review (no lint tool for `.zetem` files) since no app other than erweb currently
 overrides or exercises them.
+
+### `Accessibility.php` / `accessibilityClass` (2026-08-27)
+
+At direct request: a framework-level accessibility widget - a floating toggle button + panel offering
+4 disability **profiles** (Blind, Color Blindness, Dyslexia, Epilepsy Safe) and 4 individual **page
+options** (Contrast, Font Size, Letter Spacing, Hide Images). Added for erweb (user chose erweb over
+zweb/zpms when asked which app should get the visible widget - the module itself is framework-wide and
+any app can adopt it the same way).
+
+**Why this is one big self-contained `render()` call, not a `moduleClass` or a shared asset file.**
+Confirmed by exhaustive search before writing this: ZeusFW core has **never** shipped a shared CSS/JS
+asset directory - every app's `web/css`/`web/js` has always been entirely local to that app, with core
+only ever providing PHP (`core/lib/`, `core/templates/`). `moduleClass` (`core/lib/Modules.php`) is also
+the wrong shape - it renders page-*region* UI blocks wired via `settings.info.yaml`'s `structure:` map
+(nav/footer-style), not a floating overlay with no region of its own. The one real precedent for
+"drop-in UI surface with zero app-side asset dependency" is `ErrorHandlers.php`'s crash pages, which
+hand-assemble their own `<style>` rather than linking an external file - `accessibilityClass::render()`
+does the same thing at larger scale: one call returns a single self-contained HTML string (inline
+`<style>`, inline `<script>`, its own CSS custom-property namespace `--zfa-*` so it never depends on or
+collides with the calling app's own design tokens) that a caller echoes once into its page, typically
+near the end of `<body>` (see erweb's own `CLAUDE.md` entry for the exact call site next to its
+back-to-top button).
+
+**How it actually changes the page.** Every effect is a class or CSS custom property toggled on
+`<html>`, read back by generic selectors - the widget has no knowledge of the calling app's markup:
+- `zfw-a11y-contrast-high` / `zfw-a11y-contrast-invert` - a 3-state cycle (normal/high/inverted) on the
+  **Contrast** option. Inverted mode counter-inverts the widget's own root (`#zfw-a11y-root`) so the
+  panel itself doesn't turn into an unreadable inverted mess along with the rest of the page.
+- `--zfa-font-scale` (CSS custom property, 5 steps 100/115/130/145/160%) drives `html { font-size:
+  calc(100% * var(--zfa-font-scale, 1)); }` - scales every rem-based size site-wide for the **Font
+  Size** option, since every app in this ecosystem already uses rem-based type scales.
+- `zfw-a11y-spacing-wide` / `zfw-a11y-spacing-wider` - letter-spacing/word-spacing on `body` for the
+  **Letter Spacing** option.
+- `zfw-a11y-hide-images` - `img { visibility: hidden !important; }` for **Hide Images**. Scoped to
+  `<img>` only (not background-images/`<picture>`/`<video>` posters) - a real, documented scope limit,
+  not an oversight.
+- **Blind** profile (`zfw-a11y-blind`) - stronger focus-visible outlines, plus a page-level read-aloud
+  control (Web Speech API `SpeechSynthesisUtterance`) that appears in the panel only while this profile
+  is active. Reads `document.querySelector('main, [role="main"]')` (overridable via
+  `render()`'s `readAloudSelector` arg), falling back to `<body>` if nothing matches; `lang` is taken
+  from `<html lang>` so the correct voice/pronunciation is selected. Gracefully disables itself
+  (button disabled, "not available in this browser" label) when `window.speechSynthesis` doesn't exist,
+  rather than silently doing nothing.
+- **Dyslexia** profile (`zfw-a11y-dyslexia`) - increased `line-height`/letter-spacing/word-spacing,
+  forces left-aligned text (`text-align: left !important` on `p`/`li`, overriding any `justify`), and a
+  `max-width: 68ch` cap - all pure CSS, no new font asset added (see the color-blindness note below for
+  why this class stays conservative rather than reaching for an unverified "ideal" fix).
+- **Epilepsy Safe** profile (`zfw-a11y-epilepsy`) - `* { animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior:
+  auto !important; }`. This is a *forced* override (works regardless of the visitor's OS-level
+  `prefers-reduced-motion` setting), not a re-read of that media query - deliberately, since this
+  profile exists specifically for a visitor who wants motion killed on this one site regardless of what
+  their OS is currently set to.
+- **Color Blindness** profile (`zfw-a11y-colorblind`) - `filter: saturate(0.35) contrast(1.15)` on the
+  whole page (again excluding the widget's own root). **Deliberately not three separate per-deficiency
+  "correction" filters** (protanopia/deuteranopia/tritanopia) - true daltonization correction is a
+  composed multi-step color transform, and no verified, authoritative single-matrix correction values
+  were available while building this (a websearch during development surfaced only *simulation*
+  matrices - Viénot/Brettel/Mollon-style, meant to show a sighted person what a colorblind person sees -
+  which is the opposite of what a colorblind visitor needs applied to their own screen; shipping an
+  unverified "correction" matrix risked doing active harm rather than helping). Desaturation + a
+  contrast boost is a simpler, safe, well-understood mitigation that helps regardless of deficiency
+  type, at the cost of not being type-specific - documented here so a future revision with genuinely
+  verified matrices knows why this started simpler rather than assuming the simplicity was an oversight.
+
+**State** persists client-side only, in the visitor's own browser via `localStorage`
+(`zfw_a11y_state`) - never sent to the server, never shared across visitors, the same
+browser-storage-is-per-viewer-only convention DocArc's own docs describe elsewhere in this ecosystem.
+A **Reset all** button clears every profile/option back to defaults in one action.
+
+**Every string dropped into the emitted `<script>` block goes through `json_encode()`**, never raw
+PHP-to-JS interpolation - a label or a caller-supplied `readAloudSelector` containing a quote,
+backslash, or a literal `</script>` sequence can never break out of the JS string it's assigned to.
+`json_encode()` here always contributes to a purely internal helper-value assignment, e.g. `var
+LABEL_PLAY = {$readAloudPlayJs};` - the JSON *is* the entire right-hand side of a `var ... =` statement,
+never spliced into the middle of an existing string literal, which is what actually makes this safe
+against the closing-tag/quote-escaping class of bug.
+
+**Bilingual labels** (`el`/`en`) are baked into `self::LABELS`, matching this whole ecosystem's
+established two-language convention; a caller passing an unlisted `lang` falls back to `en`, the same
+fallback pattern erweb's own `erweb_axis_label()`-style lookups already use. `render(array $args)`
+accepts `lang`, `position` (`'left'`/`'right'` - which bottom corner the toggle sits in, so an app with
+its own bottom-right chrome, like erweb's back-to-top button, can push this one to the other corner),
+and `readAloudSelector`.
+
+Wired into `core/bootstrap.php` right after `Recaptcha.php`'s own `require_once` line, matching the
+existing load-order convention (no ordering dependency between the two, just grouped as "recently added
+utility classes").
+
+**Verified against erweb**: `php -l` clean on both `Accessibility.php` and `bootstrap.php`; a standalone
+`accessibilityClass::render()` smoke test confirmed zero unresolved `{$...}` placeholders in the output
+(a real bug caught and fixed during development - the emitted `<script>` block originally referenced
+`$stateKeyJs`/`$contrastNormalJs`/etc. as if a removed private helper's return values had been extracted
+into scope, when they hadn't; fixed by assigning each one explicitly, via `json_encode()`, right before
+the heredoc); a Python `html.parser`-based tag-balance check confirmed the emitted markup is
+well-formed; `node --check` confirmed the emitted `<script>` block is syntactically valid JS. Live
+end-to-end on erweb's dev server (`php -S`): the panel opens/closes, every one of the 4 profiles and 4
+page options visibly does what it claims (Playwright screenshots of contrast-invert - confirming the
+widget's own panel is correctly counter-inverted rather than becoming unreadable - dyslexia+epilepsy
+combined, 130% font size, hidden images, and the Blind profile's read-aloud control appearing), state
+survives a full page reload via `localStorage`, Reset clears everything back to defaults, zero
+console/page errors, and desktop (1440px) + mobile (390px) viewports both render the panel within the
+viewport with no overflow. `bin/check_integrity.php` clean (unrelated to this change, but a cheap
+regression check since it exercises the whole erweb DB/route layer). See erweb's own `CLAUDE.md` for the
+one-line `main.zetem` call site.

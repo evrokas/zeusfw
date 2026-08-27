@@ -43,6 +43,7 @@ require_once(__DIR__ . "/lib/Attributes.php");
 require_once(__DIR__ . "/lib/Modules.php");
 require_once(__DIR__ . "/lib/ContentPage.php");
 require_once(__DIR__ . "/lib/Recaptcha.php");
+require_once(__DIR__ . "/lib/Accessibility.php");
 
 require_once(__DIR__ . "/lib/Menutrail.php");
 require_once(__DIR__ . "/lib/Routetrail.php");
