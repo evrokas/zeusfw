@@ -169,6 +169,8 @@ class accessibilityClass {
 
         return <<<HTML
 <div id="zfw-a11y-root" data-zfw-a11y-lang="{$langAttr}">
+<div id="zfw-a11y-fx-contrast" class="zfa-fx zfa-fx-contrast" aria-hidden="true"></div>
+<div id="zfw-a11y-fx-colorblind" class="zfa-fx zfa-fx-colorblind" aria-hidden="true"></div>
 <button type="button" id="zfw-a11y-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="zfw-a11y-panel" aria-label="{$L('toggleLabel')}" title="{$L('toggleLabel')}">
   <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5"></circle><circle cx="12" cy="7.1" r="1.6"></circle><path d="M6.3 9.6c3.8 1.15 7.6 1.15 11.4 0M12 9.6v4.4l-2.3 5.6M12 14l2.3 5.6"></path></svg>
 </button>
@@ -400,18 +402,51 @@ class accessibilityClass {
   }
   .zfa-reset:hover { color: var(--zfa-fg); border-color: rgba(244,244,242,0.3); }
 
-  /* ---- Effects applied to the rest of the page via classes/vars on <html> ---- */
-  html.zfw-a11y-contrast-high :not(#zfw-a11y-root):not(#zfw-a11y-root *) {
-    filter: contrast(1.35) saturate(1.1);
+  /* ---- Contrast / Invert / Color Blindness: mix-blend-mode overlays, not
+     filter. filter (like transform/perspective/backdrop-filter/will-change
+     naming one of those) creates a new containing block for any
+     position:fixed descendant of the filtered element - applying it to
+     <html>/<body>, or to any wrapper built around the host app's own
+     content, would also silently break every OTHER fixed/sticky element
+     that app already has (a sticky header, a floating scroll indicator,
+     a back-to-top button - none of which this framework-level widget can
+     know about or safely relocate). A full-viewport position:fixed overlay
+     blended with mix-blend-mode sits as a sibling of the toggle/panel
+     inside #zfw-a11y-root, entirely outside the host page's own DOM, so it
+     changes nothing about anyone's containing-block chain - it only
+     changes what gets *painted*. pointer-events:none keeps every overlay
+     inert to clicks/taps regardless of state. */
+  .zfa-fx {
+    position: fixed;
+    inset: 0;
+    z-index: 2147482999;
+    pointer-events: none;
+    opacity: 0;
   }
-  html.zfw-a11y-contrast-invert {
-    filter: invert(1) hue-rotate(180deg);
+  /* Difference-blended white == exact per-channel color inversion
+     (result = |backdrop - white|), the same result filter:invert(1)
+     produces - just via compositing instead of a filter. Overlay-blended
+     mid-gray at partial opacity approximates a contrast boost (the same
+     "flatten toward an S-curve" trick used in photo editing), swapped in
+     for the "high" contrast step instead. */
+  .zfa-fx-contrast.is-high {
+    background: #808080;
+    mix-blend-mode: overlay;
+    opacity: 0.3;
   }
-  html.zfw-a11y-contrast-invert #zfw-a11y-root {
-    filter: invert(1) hue-rotate(180deg);
+  .zfa-fx-contrast.is-invert {
+    background: #fff;
+    mix-blend-mode: difference;
+    opacity: 1;
   }
-  html.zfw-a11y-colorblind :not(#zfw-a11y-root):not(#zfw-a11y-root *) {
-    filter: saturate(0.35) contrast(1.15);
+  /* saturation-blended gray takes on the *overlay's* saturation (0%) and
+     the backdrop's own hue/luminosity - a partial-opacity gray overlay in
+     this blend mode desaturates the backdrop proportionally, the same
+     visual result as filter:saturate(), again via compositing only. */
+  .zfa-fx-colorblind.is-active {
+    background: #808080;
+    mix-blend-mode: saturation;
+    opacity: 0.65;
   }
   html {
     font-size: calc(100% * var(--zfa-font-scale, 1));
@@ -492,11 +527,18 @@ class accessibilityClass {
   var fontInc = document.getElementById('zfw-a11y-font-inc');
   var profileButtons = Array.prototype.slice.call(document.querySelectorAll('[data-zfa-profile]'));
   var readAloudWrap = document.getElementById('zfw-a11y-readaloud');
+  var fxContrast = document.getElementById('zfw-a11y-fx-contrast');
+  var fxColorblind = document.getElementById('zfw-a11y-fx-colorblind');
 
   function apply() {
-    setClass('zfw-a11y-contrast-high', state.contrast === 'high');
-    setClass('zfw-a11y-contrast-invert', state.contrast === 'invert');
-    setClass('zfw-a11y-colorblind', state.profiles.colorblind);
+    // Contrast/invert/colorblind are mix-blend-mode overlays living inside
+    // #zfw-a11y-root (see the .zfa-fx rules) - toggled on those elements
+    // directly, never on <html>, so nothing here ever gives the host
+    // page's own content a filtered ancestor (see the CSS comment above
+    // .zfa-fx for why that matters).
+    fxContrast.classList.toggle('is-high', state.contrast === 'high');
+    fxContrast.classList.toggle('is-invert', state.contrast === 'invert');
+    fxColorblind.classList.toggle('is-active', state.profiles.colorblind);
     setClass('zfw-a11y-dyslexia', state.profiles.dyslexia);
     setClass('zfw-a11y-epilepsy', state.profiles.epilepsy);
     setClass('zfw-a11y-blind', state.profiles.blind);

@@ -450,3 +450,64 @@ console/page errors, and desktop (1440px) + mobile (390px) viewports both render
 viewport with no overflow. `bin/check_integrity.php` clean (unrelated to this change, but a cheap
 regression check since it exercises the whole erweb DB/route layer). See erweb's own `CLAUDE.md` for the
 one-line `main.zetem` call site.
+
+**Follow-up, same day: the toggle button itself vanished after changing Contrast (or Color Blindness) -
+a real bug in the `filter`-based approach above, found in real use, not just a naming issue.** The
+original Contrast/Invert/Color Blindness effects worked by putting `filter: contrast()/invert()/
+saturate()` on `<html>` (or on every element except the widget via a `:not()` sweep that, as a side
+effect, also matched `<body>` itself, since `<body>` is an *ancestor* of `#zfw-a11y-root`, not a
+descendant excluded by `:not(#zfw-a11y-root *)`). `filter` on any element - like `transform`/
+`perspective`/`backdrop-filter`/`will-change` naming one of those - establishes a new **containing
+block** for every `position: fixed` descendant of that element. Once `<body>` (or `<html>`) had a
+`filter`, the toggle button's `bottom: 1.25rem` stopped resolving against the viewport and started
+resolving against `<body>`'s own box - which, on a real page, is as tall as the whole document, not
+the viewport. Reproduced and confirmed directly: before the fix, toggling Contrast to "high" moved the
+button's `getBoundingClientRect().top` from `830px` to `7134px` on a 900px-tall viewport, with
+`document.body` itself showing up as the filtered ancestor.
+
+**This wasn't only a self-inflicted bug.** The counter-filter this file originally put on
+`#zfw-a11y-root` for Invert mode fixed the *visual* color inversion of the panel, but did nothing for
+the *positioning* problem, since `#zfw-a11y-root` becoming a filtered element just moved the same
+containing-block issue one level down, now breaking its own fixed children (the toggle/panel) instead
+of the page's. And the underlying mechanism - `filter` on an ancestor of *any* `position: fixed`
+element - would have broken every other fixed/sticky element a host app already has (erweb's own sticky
+header, back-to-top button, and Neural Thread all sit inside `<body>`, all `position: fixed` or
+`sticky`) the moment any of the three states were toggled, regardless of whether the wrapping was
+scoped to the widget correctly. A framework-level widget has no way to know what fixed/sticky elements
+a given host app has, so `filter` on a shared ancestor was never going to be a safe mechanism here,
+independent of the `:not()`-selector mistake.
+
+**Fixed by switching Contrast/Invert/Color Blindness from `filter` to `mix-blend-mode` overlays** - two
+new `position: fixed; inset: 0;` divs (`#zfw-a11y-fx-contrast`, `#zfw-a11y-fx-colorblind`), siblings of
+the toggle/panel inside `#zfw-a11y-root`, each `pointer-events: none` so they're inert to clicks
+regardless of state:
+- **Invert**: a white overlay with `mix-blend-mode: difference` - the standard compositing trick for
+  exact color inversion (`result = |backdrop - white|` per channel, identical to `filter: invert(1)`),
+  achieved without ever touching any element's `filter` property.
+- **High contrast**: a mid-gray overlay with `mix-blend-mode: overlay` at partial opacity - the same
+  "push toward an S-curve" trick used in photo editing, a reasonable visual approximation of a contrast
+  boost (not pixel-identical to `filter: contrast()`, an acceptable, disclosed simplification).
+- **Color Blindness**: a mid-gray overlay with `mix-blend-mode: saturation` at partial opacity -
+  `saturation` blending takes the *source* (overlay)'s saturation and the *backdrop*'s hue/luminosity,
+  so a 0%-saturation gray overlay desaturates the backdrop proportionally to the overlay's own opacity,
+  reproducing the same visual result as `filter: saturate()` through compositing instead.
+
+Because none of these three properties (`background`, `mix-blend-mode`, `opacity`) establishes a new
+containing block, the overlays change what gets *painted*, never anyone's positioning - the host page's
+own fixed/sticky elements are now provably unaffected by construction, not just by coincidence of
+scoping. The now-unnecessary counter-filter on `#zfw-a11y-root` for Invert mode was removed entirely -
+nothing needs counter-inverting anymore, since nothing outside the two new overlay divs is ever
+filtered.
+
+**Verified against erweb**: reproduced the original bug first (`toggle.getBoundingClientRect()` moving
+from viewport-relative to document-relative, confirmed via ancestor-walk that `<body>` was the filtered
+element), then confirmed the fix directly - the toggle button's rect is now byte-identical
+(`{top:830,left:20,bottom:880}`) before any change, after Contrast=high, after Contrast=invert, after
+also enabling Color Blindness on top of Invert, and after scrolling 800px with both active
+simultaneously; `.back-to-top` and `.thread` (erweb's own pre-existing fixed elements) never moved
+either; `.site-header` stayed pinned to `top: 0` on scroll throughout. Screenshots confirm all three
+effects still look visually correct (inverted, higher-contrast, desaturated) and that the widget's own
+panel stays fully legible in every state, same as before - just achieved without depending on the
+panel-level counter-filter this used to require. `php -l`, the standalone `render()` smoke test (zero
+unresolved placeholders), `node --check` on the extracted `<script>`, and the HTML tag-balance check
+all re-run clean. `bin/check_integrity.php` clean. **Files**: `core/lib/Accessibility.php` only.
