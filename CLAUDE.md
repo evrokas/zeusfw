@@ -511,3 +511,117 @@ panel stays fully legible in every state, same as before - just achieved without
 panel-level counter-filter this used to require. `php -l`, the standalone `render()` smoke test (zero
 unresolved placeholders), `node --check` on the extracted `<script>`, and the HTML tag-balance check
 all re-run clean. `bin/check_integrity.php` clean. **Files**: `core/lib/Accessibility.php` only.
+
+### Accessibility widget converted into a real module: `core/modules/accessibility/` (2026-08-27)
+
+At the requester's ask, redesigned - not just relocated - the accessibility widget above around
+ZeusFW's own `moduleClass`/`.info.yaml`/`.zetem` module convention (`core/modules/`, the same shape
+`core/modules/admin/` and zpms's `web/modules/backup/` already use), replacing the standalone
+`core/lib/Accessibility.php`/`accessibilityClass` entirely. Requested explicitly as "keep features the
+same if not extend" - every profile/option/interaction from the entry above is unchanged; one real
+extension was added (see below), and two others considered were deliberately left out.
+
+**Why no smaller pilot module was converted first.** Every existing module in `core/modules/` (9) and
+zpms's `web/modules/` (9) already follows the same convention - none of them build HTML/CSS as inline
+PHP strings the way the old `Accessibility.php` did, so there was no smaller "convert this trivial one
+first" candidate; the only other inline-HTML/CSS code anywhere in this framework is
+`ErrorHandlers.php`'s crash-page builder, deliberately self-contained for crash-resilience (a real crash
+is more likely to have already broken the same render/DB pipeline a `moduleClass` depends on) and
+therefore not a valid pilot either. Converted `Accessibility.php` itself directly.
+
+**Why `attach_library()` isn't the asset-delivery mechanism here.** Read `Kernel::renderPage()`
+(`core/kernel/Kernel.php:482-568`) directly: it calls `renderRegions()` first, then builds `$links`/
+`$foot_links` from `getConfig('css')`/`getConfig('foot_script')`, and only *then* renders `main.zetem`
+with those arrays already finalized. Since this widget is invoked ad hoc from inside `main.zetem`'s own
+body (not a `structure:` region), any `attach_library()` call from its template would run *after*
+`$links`/`$foot_links` were already built - a silent no-op, not just a cascade-order surprise. Instead,
+`accessibilityModule::render()` resolves its own CSS/JS URLs directly via `resolveModuleDir()`+
+`rel_url()` (the same helpers `attach_library_helper()` uses internally) and emits plain `<link>`/
+`<script src>` tags at the template's own position - functionally equivalent, without depending on
+`renderPage()`'s asset-array timing. `accessibility.yaml` still declares a `libraries:` block for shape-
+consistency with every other module (and as a ready path to a future `structure:`-region adoption), it
+just isn't the mechanism actually delivering the assets today.
+
+**Files** (`core/modules/accessibility/`): `accessibility.info.yaml` (`name=accessibility`/
+`template=accessibility.zetem`/`class=accessibilityModule`); `accessibility.yaml` (the `libraries:`
+block above, plus a new `default_options:` block - see below); `css/accessibility.css` and
+`js/accessibility.js` (the old inline `<style>`/`<script>` moved verbatim - the `mix-blend-mode`-not-
+`filter` fix from the entry above is unchanged, still fully documented in the CSS's own comment);
+`accessibility.php` (`class accessibilityModule extends moduleClass` - `self::LABELS` copied verbatim,
+constructor loads `accessibility.yaml` via `resolveModuleDir()`/`addConfig()` matching zpms's
+`backupModule`, captures its own `$adir` in a private property since `moduleClass`'s own `$moduledir` is
+private/not inherited); `core/templates/modules/accessibility/accessibility.zetem` (the markup, `$L()`
+calls replaced with `{{ $labels['x'] | e }}`, matching the template-placement convention both real
+examples use - a module's `.zetem` lives under a separate `templates/modules/` tree, not colocated with
+its own directory).
+
+**The one real extension: config-driven profile/option enablement.** `accessibility.yaml` gains:
+```yaml
+default_options:
+  profiles: [blind, colorblind, dyslexia, epilepsy]
+  options: [contrast, fontsize, letterspacing, hideimages]
+```
+(all 8 enabled, matching prior behavior exactly). `accessibilityModule::render($params)` accepts an
+optional `profiles`/`options` array in `$params`, intersected against the fixed 4+4 valid-key set (a
+caller can only narrow what renders, never invent a nonexistent profile/option) and merged over the YAML
+defaults. A disabled profile/option is omitted from the rendered markup **entirely**, not just hidden
+via CSS - `js/accessibility.js` null-checks every corresponding `getElementById()` lookup before wiring
+its listener, since a control it expects may genuinely not exist in the DOM. This is a real capability
+the old bare `core/lib/*.php` class never had a natural home for (no per-module config file of its own);
+erweb's own call site doesn't use it today (still renders all 8), but a future app - or erweb later -
+can disable e.g. the Blind profile's read-aloud complexity via one YAML edit.
+
+**The dynamic JS label strings** (contrast-level labels, read-aloud play/pause/stop labels, the
+"unsupported" message) moved from `json_encode()`'d PHP-to-JS interpolation in the old inline `<script>`
+to `data-zfw-a11y-*` attributes on `#zfw-a11y-root`, read via `dataset` in the now-external
+`accessibility.js` - the same mechanism zpms's `pdflib.js`/`location.js` already use (a module's own
+template renders values onto an element server-side, external JS reads them via `dataset`), reusing
+`{{ ... | e }}`'s existing HTML-attribute escaping rather than inventing a new data-passing convention
+(grepped: no `<script>window.X = {...}</script>` data-island precedent exists anywhere in this
+ecosystem).
+
+**The external `<script src>` deliberately carries no `defer`** - the original inline `<script>`
+executed synchronously at its DOM position, applying a returning visitor's saved state as early as
+possible; `defer` would delay that until the whole document finishes parsing, a real regression against
+this widget's own purpose.
+
+**Two extensions considered and deliberately left out** (so their absence isn't mistaken for an
+oversight): server-side-persisted preferences tied to a logged-in user (erweb has no user/auth system to
+attach them to); an "Accessibility Statement" link inside the panel (no real statement page exists to
+point at). Cookie/session-based state so the *server* pre-applies saved effects on first paint was also
+considered and rejected - the module's own template only renders a body-scoped fragment, and the effect
+classes it controls live on `<html>`, reachable only from `main.zetem` (an app-level template, not this
+module).
+
+**Registration is app opt-in, not core-wide.** `core/bootstrap.php` had exactly one line removed
+(`require_once(__DIR__ . "/lib/Accessibility.php");`) and nothing added - unlike `admin_crud.php`'s
+unconditional-registration precedent, this module is picked up only when an app adds `accessibility` to
+its own `settings.info.yaml`'s existing `modules:` list (see erweb's own `CLAUDE.md` entry). Chosen
+deliberately to keep this change's blast radius to whichever app opts in, since `core/bootstrap.php` is
+shared by every app vendoring this checkout (zweb/zpms/mweb included, none of which reference this
+widget).
+
+**Verified**: `php -l` on `accessibility.php` and `core/bootstrap.php`; `node --check` directly on the
+now-standalone `js/accessibility.js` (no more heredoc-extraction step needed, an improvement over the
+old workflow); a real end-to-end request against erweb's dev server (not just a standalone render)
+confirmed the widget's markup, all 14 `data-zfw-a11y-*` attributes, and both asset URLs resolve
+correctly, and that `/core/modules/accessibility/{css,js}/accessibility.*` actually load over HTTP
+through erweb's `web/core -> ../fw/core` symlink (the concrete check that would have caught the
+`attach_library()` timing hazard had it been missed); a full Playwright re-run of every prior
+verification - all 4 profiles including Blind's read-aloud, all 4 page options, `localStorage`
+persistence, Reset, **the toggle button's `getBoundingClientRect()` staying viewport-stable across every
+Contrast/Invert/Colorblind state and after scrolling 800px** (re-run specifically since the asset-
+delivery mechanism changed, even though the CSS bytes didn't - this is the exact regression the
+`mix-blend-mode` fix above addressed), zero console/page errors (one pre-existing, unrelated
+`favicon.ico` 404 confirmed present on a bare page load with no widget interaction at all), desktop
+1440px and mobile 390px, both `/el` and `/en`; a standalone-render config-driven-extension check
+confirmed `['profiles' => ['dyslexia'], 'options' => ['contrast']]` renders only those 2 controls (the
+other 6 fully absent from the markup - the `zfw-a11y-fx-colorblind`/`readaloud` elements gated off too,
+not just the buttons) with zero unresolved template tokens and a balanced div count, that an unknown key
+(`'nonexistent'`/`'bogus'`) is silently dropped rather than rendered, and that the no-override call still
+renders all 8 exactly matching `default_options`; `bin/check_integrity.php` clean on erweb;
+`grep -rn accessibilityClass` across zeusfw/erweb returns no live code references (only this file's own
+historical prose and the new module's explanatory comments, both expected). **Files**:
+`core/modules/accessibility/{accessibility.info.yaml,accessibility.yaml,accessibility.php,
+css/accessibility.css,js/accessibility.js}`, `core/templates/modules/accessibility/accessibility.zetem`
+(all new), `core/bootstrap.php` (1 line removed), `core/lib/Accessibility.php` (deleted).

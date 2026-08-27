@@ -1,0 +1,238 @@
+/*
+ * Styles for the accessibility widget (core/modules/accessibility/).
+ * Moved verbatim from the original core/lib/Accessibility.php's inline
+ * <style> block when that class was converted into a real ZeusFW module -
+ * see core/modules/accessibility/accessibility.php and this framework's
+ * own CLAUDE.md for the conversion writeup. Only the toggle/panel side
+ * positioning changed shape: the old PHP interpolated a literal
+ * "left: 1.25rem;"/"right: 1.25rem;" string per render() call; here it's
+ * expressed as two static, data-attribute-scoped rules below, driven by
+ * #zfw-a11y-root's own data-zfw-a11y-position attribute (set by the
+ * .zetem template - see accessibility.zetem).
+ */
+#zfw-a11y-root {
+  --zfa-bg: #16233a;
+  --zfa-bg-raised: #1e304d;
+  --zfa-fg: #f4f4f2;
+  --zfa-fg-soft: rgba(244,244,242,0.68);
+  --zfa-accent: #2f6fed;
+  --zfa-border: rgba(244,244,242,0.14);
+  --zfa-radius: 10px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.4;
+  color-scheme: dark;
+}
+#zfw-a11y-root * { box-sizing: border-box; }
+
+#zfw-a11y-toggle {
+  position: fixed;
+  bottom: 1.25rem;
+  z-index: 2147483000;
+  width: 3.1rem;
+  height: 3.1rem;
+  border-radius: 50%;
+  border: none;
+  background: var(--zfa-accent);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2), 0 10px 24px -8px rgba(0,0,0,0.45);
+}
+#zfw-a11y-root[data-zfw-a11y-position="left"] #zfw-a11y-toggle { left: 1.25rem; }
+#zfw-a11y-root[data-zfw-a11y-position="right"] #zfw-a11y-toggle { right: 1.25rem; }
+#zfw-a11y-toggle svg {
+  width: 1.7rem;
+  height: 1.7rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#zfw-a11y-toggle:focus-visible,
+#zfw-a11y-panel button:focus-visible {
+  outline: 3px solid #ffd166;
+  outline-offset: 2px;
+}
+#zfw-a11y-toggle:hover { filter: brightness(1.08); }
+
+#zfw-a11y-panel {
+  position: fixed;
+  bottom: 5rem;
+  z-index: 2147483000;
+  width: min(21rem, calc(100vw - 2rem));
+  max-height: min(34rem, calc(100vh - 7rem));
+  overflow-y: auto;
+  background: var(--zfa-bg);
+  color: var(--zfa-fg);
+  border-radius: var(--zfa-radius);
+  border: 1px solid var(--zfa-border);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25), 0 20px 48px -16px rgba(0,0,0,0.6);
+}
+#zfw-a11y-root[data-zfw-a11y-position="left"] #zfw-a11y-panel { left: 1.25rem; }
+#zfw-a11y-root[data-zfw-a11y-position="right"] #zfw-a11y-panel { right: 1.25rem; }
+#zfw-a11y-panel[hidden] { display: none; }
+
+.zfa-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.9rem 1rem; border-bottom: 1px solid var(--zfa-border);
+  position: sticky; top: 0; background: var(--zfa-bg);
+}
+.zfa-head h2 { margin: 0; font-size: 1.05rem; font-weight: 600; }
+#zfw-a11y-close {
+  background: transparent; border: none; color: var(--zfa-fg-soft); cursor: pointer;
+  width: 2rem; height: 2rem; display: flex; align-items: center; justify-content: center;
+  border-radius: 6px;
+}
+#zfw-a11y-close:hover { background: rgba(244,244,242,0.08); color: var(--zfa-fg); }
+#zfw-a11y-close svg { width: 1.1rem; height: 1.1rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+
+.zfa-body { padding: 0.9rem 1rem 1.1rem; display: flex; flex-direction: column; gap: 1.1rem; }
+.zfa-body h3 {
+  margin: 0 0 0.6rem; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--zfa-fg-soft); font-weight: 600;
+}
+
+.zfa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem; }
+.zfa-profile {
+  display: flex; flex-direction: column; align-items: center; gap: 0.4rem;
+  background: var(--zfa-bg-raised); border: 1px solid var(--zfa-border); border-radius: 8px;
+  padding: 0.7rem 0.5rem; color: var(--zfa-fg); cursor: pointer; text-align: center;
+}
+.zfa-profile svg { width: 1.4rem; height: 1.4rem; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.zfa-profile__label { font-size: 0.78rem; }
+.zfa-profile:hover { border-color: rgba(244,244,242,0.3); }
+.zfa-profile[aria-pressed="true"] { background: var(--zfa-accent); border-color: var(--zfa-accent); }
+
+.zfa-readaloud {
+  display: flex; gap: 0.5rem; background: var(--zfa-bg-raised); border: 1px solid var(--zfa-border);
+  border-radius: 8px; padding: 0.6rem 0.7rem;
+}
+.zfa-readaloud[hidden] { display: none; }
+#zfw-a11y-read-toggle {
+  flex: 1; display: flex; align-items: center; gap: 0.5rem; background: transparent; border: none;
+  color: var(--zfa-fg); cursor: pointer; font-size: 0.86rem; padding: 0.2rem;
+}
+#zfw-a11y-read-toggle svg { width: 1.1rem; height: 1.1rem; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+#zfw-a11y-read-stop {
+  background: transparent; border: 1px solid var(--zfa-border); border-radius: 6px; color: var(--zfa-fg-soft);
+  cursor: pointer; width: 2rem; height: 2rem; display: flex; align-items: center; justify-content: center;
+}
+#zfw-a11y-read-stop svg { width: 0.9rem; height: 0.9rem; fill: currentColor; stroke: none; }
+#zfw-a11y-read-stop:hover { color: var(--zfa-fg); border-color: rgba(244,244,242,0.3); }
+
+.zfa-options { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.zfa-options li { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.zfa-opt-label { font-size: 0.88rem; color: var(--zfa-fg); }
+
+.zfa-cycle {
+  background: var(--zfa-bg-raised); border: 1px solid var(--zfa-border); color: var(--zfa-fg);
+  border-radius: 6px; padding: 0.35rem 0.75rem; font-size: 0.82rem; cursor: pointer; min-width: 6.5rem;
+}
+.zfa-cycle:hover { border-color: rgba(244,244,242,0.3); }
+.zfa-cycle[data-zfa-value="high"], .zfa-cycle[data-zfa-value="invert"],
+.zfa-cycle[data-zfa-value="wide"], .zfa-cycle[data-zfa-value="wider"] {
+  background: var(--zfa-accent); border-color: var(--zfa-accent);
+}
+
+.zfa-stepper { display: flex; align-items: center; gap: 0.5rem; }
+.zfa-stepper button {
+  width: 1.7rem; height: 1.7rem; border-radius: 6px; border: 1px solid var(--zfa-border);
+  background: var(--zfa-bg-raised); color: var(--zfa-fg); cursor: pointer; font-size: 1rem; line-height: 1;
+}
+.zfa-stepper button:hover { border-color: rgba(244,244,242,0.3); }
+#zfw-a11y-font-value { font-size: 0.82rem; min-width: 2.6rem; text-align: center; font-variant-numeric: tabular-nums; }
+
+.zfa-switch { background: transparent; border: none; cursor: pointer; padding: 0; }
+.zfa-switch__track {
+  display: block; width: 2.4rem; height: 1.3rem; border-radius: 999px; background: var(--zfa-bg-raised);
+  border: 1px solid var(--zfa-border); position: relative; transition: background 0.15s ease;
+}
+.zfa-switch__thumb {
+  position: absolute; top: 1px; left: 1px; width: 1.05rem; height: 1.05rem; border-radius: 50%;
+  background: var(--zfa-fg-soft); transition: transform 0.15s ease, background 0.15s ease;
+}
+.zfa-switch[aria-checked="true"] .zfa-switch__track { background: var(--zfa-accent); border-color: var(--zfa-accent); }
+.zfa-switch[aria-checked="true"] .zfa-switch__thumb { transform: translateX(1.1rem); background: #fff; }
+
+.zfa-reset {
+  background: transparent; border: 1px solid var(--zfa-border); color: var(--zfa-fg-soft);
+  border-radius: 8px; padding: 0.55rem; font-size: 0.85rem; cursor: pointer; text-align: center;
+}
+.zfa-reset:hover { color: var(--zfa-fg); border-color: rgba(244,244,242,0.3); }
+
+/* ---- Contrast / Invert / Color Blindness: mix-blend-mode overlays, not
+   filter. filter (like transform/perspective/backdrop-filter/will-change
+   naming one of those) creates a new containing block for any
+   position:fixed descendant of the filtered element - applying it to
+   <html>/<body>, or to any wrapper built around the host app's own
+   content, would also silently break every OTHER fixed/sticky element
+   that app already has (a sticky header, a floating scroll indicator,
+   a back-to-top button - none of which this framework-level widget can
+   know about or safely relocate). A full-viewport position:fixed overlay
+   blended with mix-blend-mode sits as a sibling of the toggle/panel
+   inside #zfw-a11y-root, entirely outside the host page's own DOM, so it
+   changes nothing about anyone's containing-block chain - it only
+   changes what gets *painted*. pointer-events:none keeps every overlay
+   inert to clicks/taps regardless of state. */
+.zfa-fx {
+  position: fixed;
+  inset: 0;
+  z-index: 2147482999;
+  pointer-events: none;
+  opacity: 0;
+}
+/* Difference-blended white == exact per-channel color inversion
+   (result = |backdrop - white|), the same result filter:invert(1)
+   produces - just via compositing instead of a filter. Overlay-blended
+   mid-gray at partial opacity approximates a contrast boost (the same
+   "flatten toward an S-curve" trick used in photo editing), swapped in
+   for the "high" contrast step instead. */
+.zfa-fx-contrast.is-high {
+  background: #808080;
+  mix-blend-mode: overlay;
+  opacity: 0.3;
+}
+.zfa-fx-contrast.is-invert {
+  background: #fff;
+  mix-blend-mode: difference;
+  opacity: 1;
+}
+/* saturation-blended gray takes on the *overlay's* saturation (0%) and
+   the backdrop's own hue/luminosity - a partial-opacity gray overlay in
+   this blend mode desaturates the backdrop proportionally, the same
+   visual result as filter:saturate(), again via compositing only. */
+.zfa-fx-colorblind.is-active {
+  background: #808080;
+  mix-blend-mode: saturation;
+  opacity: 0.65;
+}
+html {
+  font-size: calc(100% * var(--zfa-font-scale, 1));
+}
+html.zfw-a11y-spacing-wide body { letter-spacing: 0.04em; word-spacing: 0.08em; }
+html.zfw-a11y-spacing-wider body { letter-spacing: 0.09em; word-spacing: 0.16em; }
+html.zfw-a11y-hide-images img { visibility: hidden !important; }
+html.zfw-a11y-dyslexia body {
+  line-height: 1.85 !important;
+  letter-spacing: 0.035em;
+  word-spacing: 0.14em;
+}
+html.zfw-a11y-dyslexia p, html.zfw-a11y-dyslexia li {
+  text-align: left !important;
+  max-width: 68ch;
+}
+html.zfw-a11y-epilepsy *, html.zfw-a11y-epilepsy *::before, html.zfw-a11y-epilepsy *::after {
+  animation-play-state: paused !important;
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+html.zfw-a11y-blind :focus-visible {
+  outline: 3px solid #ffd166 !important;
+  outline-offset: 2px !important;
+}

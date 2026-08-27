@@ -1,0 +1,17 @@
+libraries:
+  accessibility-library:
+    css:
+      - accessibility:
+        src: '@core/css/accessibility.css'
+    foot_script:
+      - accessibility:
+        src: '@core/js/accessibility.js'
+
+# Which of the 4 disability profiles / 4 page options render by default.
+# accessibilityModule::render() can narrow this per call-site via its own
+# 'profiles'/'options' params (see accessibility.php) - never widen it
+# beyond this fixed set. All 8 enabled here matches the widget's original
+# core/lib/Accessibility.php behavior exactly.
+default_options:
+  profiles: [blind, colorblind, dyslexia, epilepsy]
+  options: [contrast, fontsize, letterspacing, hideimages]

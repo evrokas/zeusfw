@@ -1,0 +1,130 @@
+{# Accessibility widget markup - moved from core/lib/Accessibility.php's
+   inline heredoc when that class became a real ZeusFW module. Every
+   profile/option control below is wrapped in an {% if %} against
+   $enabledProfiles/$enabledOptions (accessibility.php's render(), driven
+   by accessibility.yaml's default_options - narrowable per call-site) -
+   a disabled profile/option is omitted from the markup entirely, not just
+   hidden, and js/accessibility.js null-checks every corresponding lookup
+   before wiring a listener. #}
+<link rel="stylesheet" href="{{ $cssUrl | e }}">
+<div id="zfw-a11y-root"
+     data-zfw-a11y-lang="{{ $lang | e }}"
+     data-zfw-a11y-position="{{ $position | e }}"
+     data-zfw-a11y-storage-key="{{ $storageKey | e }}"
+     data-zfw-a11y-read-selector="{{ $readAloudSelector | e }}"
+     data-zfw-a11y-contrast-normal="{{ $labels['contrastNormal'] | e }}"
+     data-zfw-a11y-contrast-high="{{ $labels['contrastHigh'] | e }}"
+     data-zfw-a11y-contrast-invert="{{ $labels['contrastInvert'] | e }}"
+     data-zfw-a11y-spacing-normal="{{ $labels['spacingNormal'] | e }}"
+     data-zfw-a11y-spacing-wide="{{ $labels['spacingWide'] | e }}"
+     data-zfw-a11y-spacing-wider="{{ $labels['spacingWider'] | e }}"
+     data-zfw-a11y-read-play="{{ $labels['readAloudPlay'] | e }}"
+     data-zfw-a11y-read-pause="{{ $labels['readAloudPause'] | e }}"
+     data-zfw-a11y-read-resume="{{ $labels['readAloudResume'] | e }}"
+     data-zfw-a11y-unsupported="{{ $labels['unsupported'] | e }}">
+{% if (in_array('contrast', $enabledOptions)): %}
+<div id="zfw-a11y-fx-contrast" class="zfa-fx zfa-fx-contrast" aria-hidden="true"></div>
+{% endif; %}
+{% if (in_array('colorblind', $enabledProfiles)): %}
+<div id="zfw-a11y-fx-colorblind" class="zfa-fx zfa-fx-colorblind" aria-hidden="true"></div>
+{% endif; %}
+<button type="button" id="zfw-a11y-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="zfw-a11y-panel" aria-label="{{ $labels['toggleLabel'] | e }}" title="{{ $labels['toggleLabel'] | e }}">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5"></circle><circle cx="12" cy="7.1" r="1.6"></circle><path d="M6.3 9.6c3.8 1.15 7.6 1.15 11.4 0M12 9.6v4.4l-2.3 5.6M12 14l2.3 5.6"></path></svg>
+</button>
+
+<div id="zfw-a11y-panel" role="dialog" aria-modal="false" aria-label="{{ $labels['panelTitle'] | e }}" hidden>
+  <div class="zfa-head">
+    <h2>{{ $labels['panelTitle'] | e }}</h2>
+    <button type="button" id="zfw-a11y-close" aria-label="{{ $labels['closeLabel'] | e }}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+    </button>
+  </div>
+
+  <div class="zfa-body">
+    {% if ($enabledProfiles !== []): %}
+    <section>
+      <h3>{{ $labels['profilesHeading'] | e }}</h3>
+      <div class="zfa-grid">
+        {% if (in_array('blind', $enabledProfiles)): %}
+        <button type="button" class="zfa-profile" data-zfa-profile="blind" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle><path d="M3 3l18 18"></path></svg>
+          <span class="zfa-profile__label">{{ $labels['profileBlind'] | e }}</span>
+        </button>
+        {% endif; %}
+        {% if (in_array('colorblind', $enabledProfiles)): %}
+        <button type="button" class="zfa-profile" data-zfa-profile="colorblind" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="9" r="5.5"></circle><circle cx="15" cy="9" r="5.5"></circle><circle cx="12" cy="15" r="5.5"></circle></svg>
+          <span class="zfa-profile__label">{{ $labels['profileColorblind'] | e }}</span>
+        </button>
+        {% endif; %}
+        {% if (in_array('dyslexia', $enabledProfiles)): %}
+        <button type="button" class="zfa-profile" data-zfa-profile="dyslexia" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V5h6a3.5 3.5 0 0 1 0 7H5"></path><path d="M11 12h1a3.5 3.5 0 0 1 0 7H5"></path></svg>
+          <span class="zfa-profile__label">{{ $labels['profileDyslexia'] | e }}</span>
+        </button>
+        {% endif; %}
+        {% if (in_array('epilepsy', $enabledProfiles)): %}
+        <button type="button" class="zfa-profile" data-zfa-profile="epilepsy" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"></path></svg>
+          <span class="zfa-profile__label">{{ $labels['profileEpilepsy'] | e }}</span>
+        </button>
+        {% endif; %}
+      </div>
+    </section>
+    {% endif; %}
+
+    {% if (in_array('blind', $enabledProfiles)): %}
+    <div id="zfw-a11y-readaloud" class="zfa-readaloud" hidden>
+      <button type="button" id="zfw-a11y-read-toggle">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 5V4L8 9H4z"></path><path d="M16.5 8.5a5 5 0 0 1 0 7"></path></svg>
+        <span id="zfw-a11y-read-toggle-label">{{ $labels['readAloudPlay'] | e }}</span>
+      </button>
+      <button type="button" id="zfw-a11y-read-stop" aria-label="{{ $labels['readAloudStop'] | e }}" title="{{ $labels['readAloudStop'] | e }}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5"></rect></svg>
+      </button>
+    </div>
+    {% endif; %}
+
+    {% if ($enabledOptions !== []): %}
+    <section>
+      <h3>{{ $labels['optionsHeading'] | e }}</h3>
+      <ul class="zfa-options">
+        {% if (in_array('contrast', $enabledOptions)): %}
+        <li>
+          <span class="zfa-opt-label">{{ $labels['optionContrast'] | e }}</span>
+          <button type="button" id="zfw-a11y-contrast" class="zfa-cycle" data-zfa-value="normal">{{ $labels['contrastNormal'] | e }}</button>
+        </li>
+        {% endif; %}
+        {% if (in_array('fontsize', $enabledOptions)): %}
+        <li>
+          <span class="zfa-opt-label">{{ $labels['optionFontSize'] | e }}</span>
+          <div class="zfa-stepper">
+            <button type="button" id="zfw-a11y-font-dec" aria-label="-">&minus;</button>
+            <span id="zfw-a11y-font-value">100%</span>
+            <button type="button" id="zfw-a11y-font-inc" aria-label="+">+</button>
+          </div>
+        </li>
+        {% endif; %}
+        {% if (in_array('letterspacing', $enabledOptions)): %}
+        <li>
+          <span class="zfa-opt-label">{{ $labels['optionLetterSpacing'] | e }}</span>
+          <button type="button" id="zfw-a11y-spacing" class="zfa-cycle" data-zfa-value="normal">{{ $labels['spacingNormal'] | e }}</button>
+        </li>
+        {% endif; %}
+        {% if (in_array('hideimages', $enabledOptions)): %}
+        <li>
+          <span class="zfa-opt-label">{{ $labels['optionHideImages'] | e }}</span>
+          <button type="button" id="zfw-a11y-images" class="zfa-switch" role="switch" aria-checked="false">
+            <span class="zfa-switch__track"><span class="zfa-switch__thumb"></span></span>
+          </button>
+        </li>
+        {% endif; %}
+      </ul>
+    </section>
+    {% endif; %}
+
+    <button type="button" id="zfw-a11y-reset" class="zfa-reset">{{ $labels['resetLabel'] | e }}</button>
+  </div>
+</div>
+</div>
+<script src="{{ $jsUrl | e }}"></script>
