@@ -529,8 +529,20 @@ class Kernel {
             foreach($clean_head_script as $script) {
                 $attr = new Attributes();
                 foreach($script as $skey => $sval) {
+                    // Same cache-busting the css: block above already
+                    // applies to every stylesheet (?time() -- deliberately
+                    // matching that existing, already-proven convention
+                    // rather than introducing a different one here) --
+                    // this block previously had none at all, so a script
+                    // tag's src never changed across deploys and a
+                    // browser could keep serving a stale cached copy
+                    // indefinitely. Mobile Safari in particular caches
+                    // static JS far more aggressively/persistently than
+                    // desktop browsers, so this was invisible in most
+                    // desktop testing but could leave an iPhone running
+                    // JS from several deploys ago.
                     if( strtolower($skey) === 'src' ) {
-                            $attr->addAttribute(['src' => rel_url( $sval ) ]);
+                            $attr->addAttribute(['src' => rel_url( $sval . '?' . time() ) ]);
                     } else $attr->addAttribute([$skey => $sval]);
                 }
                 $head_scripts[] = $attr;
@@ -545,8 +557,9 @@ class Kernel {
                 $attr = new Attributes();
                 unset( $script[ array_key_first($script ) ] );
                 foreach($script as $skey => $sval) {
+                    // See the identical comment on head_scripts above.
                     if( strtolower($skey) === 'src' ) {
-                            $attr->addAttribute(['src' => rel_url( $sval ) ]);
+                            $attr->addAttribute(['src' => rel_url( $sval . '?' . time() ) ]);
                     } else $attr->addAttribute([$skey => $sval]);
                 }
                 $foot_links[] = $attr;
