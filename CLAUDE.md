@@ -345,3 +345,39 @@ row, round-tripped it through `updateTranslation()`/`getUntranslated()`/
 confirmed every generated query referenced the real `en`/`gr` columns (`getTranslationStats()`'s
 result keyed by `'en'`/`'gr'`, not `0`/`1`) -- this is exactly the class of bug that
 fix prevents, and the test would have failed loudly without it.
+
+## `core/kernel/Kernel.php` - cache-busting for `<script>` tags, matching the existing `<link>` treatment (2026-08-28)
+
+`renderPage()`'s `css:` block has always appended `?` . `time()` to every stylesheet's
+`src` before `rel_url()`-ing it (`"href" => rel_url($css['src']. "?".time())`) --
+but the two script-rendering blocks right below it (`head_script:`, `foot_script:`)
+never did the same: `rel_url($sval)` with no query string at all. Found while
+debugging zpms's own appointment-file delete button appearing to silently do nothing
+on an iPhone -- the delete handler itself (`web/js/appointment-files.js`) had every
+fix already deployed and working in every other tested environment, but with zero
+cache-busting on script tags, a browser has no reason to ever re-fetch a JS file
+after the first load, and mobile Safari in particular caches static JS far more
+aggressively/persistently than desktop Chrome/Firefox test against typically shows.
+An iPhone that had cached `appointment-files.js` from an earlier point in zpms's own
+appointment-file-upload debugging session could keep running that stale copy
+indefinitely, regardless of how many subsequent fixes were deployed and confirmed
+working everywhere else -- CSS changes were always picked up fresh (forcing a new
+URL every page load already does that), which is what made this JS-only gap
+invisible until specifically tracked down.
+
+Fixed by applying the exact same `?time()` treatment (not a `filemtime()`-based
+scheme, or any other convention) to both `head_scripts` and `foot_links` --
+deliberately mirroring the one cache-busting approach this codebase already has
+precedent for, rather than introducing a second, different convention. Every
+`<script src=...>` this framework renders (including this framework's own
+`js/loader.js`, `core/modules/language_selector/js/language_selector.js`, and every
+app's own `foot_script:`/`head_script:` entries -- zpms's `js/scripts.js`,
+`js/appointment-files.js`, `js/textarea-autoexapand.js` confirmed among them) now
+gets the same always-fresh query string CSS already had.
+
+**Verified against zpms** (not just unit logic): booted a real MariaDB-backed test
+server, confirmed every rendered `<script src=...>` tag on a real page now carries a
+`?<timestamp>` suffix identical in shape to the pre-existing `<link href=...>` ones,
+and ran a full upload-then-delete regression through a real browser session (zero
+404s on any asset, both operations completed correctly) to confirm this doesn't
+change how any of those tags actually resolve or load.
