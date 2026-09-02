@@ -679,11 +679,19 @@ app adopting `ernsauth_sso` hits the identical problem the moment a real
 ErnsAuth username doesn't match a local `uname`. `startChallenge()`'s
 resolution order is now: the column (if set) -> the `zeusfw_app_resolve_
 ernsauth_username()` hook (if defined) -> the bare `uname` guess, only as a
-last resort. Being a real `usersClass` field, it shows up for free in the
-generic `/admin/users` form (`admin_crud.php`/`admin_form.zetem`, both
-metadata-driven off `usersClass::getAllFields()` -- no template change
-needed), so fixing an account like `guest` is now a two-field edit in the
-admin UI, not a code change or a silent, undiagnosable rejection.
+last resort. `core/modules/admin/admin_crud.php`'s `users` entity gained a
+matching `ernsauth_username` entry in its own `fields:` array (a plain
+text input, next to `uname`) -- **corrected after initially assuming this
+would show up for free**: `admin_crud.php`'s field list is a hand-curated
+array per entity (`zeusfw_admin_entity_defs()`), not derived from
+`usersClass::getAllFields()`, so a new column needs one line added here
+explicitly or it silently doesn't appear on the form at all, no error
+either way. Verified against zpms's own test server (not just read the
+code): logged in as a real is_superuser account, confirmed the "ErnsAuth
+Username" field renders on `/admin/users/{id}/edit`, and that submitting
+it actually persists to the row. Fixing an account like `guest` is now a
+two-field edit in the admin UI, not a code change or a silent,
+undiagnosable rejection.
 
 **Existing installs**: `ALTER TABLE users ADD COLUMN ernsauth_username
 VARCHAR(64) DEFAULT NULL AFTER roles;` -- this project has no migration
