@@ -559,3 +559,101 @@ app" pattern as every other switch in this file.
 `access:` and matches successfully; the handler decides on its own. An app
 wanting the redirect there too would need to change those call sites
 individually, not this one switch.
+
+## `access:` on regions and modules -- chrome that requires login, without hardcoding route names (2026-09-02)
+
+Follow-up to the redirect-to-login entry above: zpms wanted its
+header/nav/footer chrome to disappear on `/login` (the one route still
+reachable while logged out) rather than surrounding the login form the way
+every other page's chrome surrounds real content. The first version of this
+(zpms's own `web/templates/page/page.zetem`) hardcoded the `login`/
+`login_post` route names -- worked, but silently failed to cover any future
+pre-auth route (password reset, an invite link, ...) unless someone
+remembered to add it to that list too. Replaced with the same `access:`
+concept routes already have, applied one level down, at the two places
+content actually gets composed: regions and modules. Both resolve through
+the exact same `SecurityClass::userIsPermitted()` a route's own `access:`
+already uses -- no new permission-matching logic anywhere.
+
+**Region-level** (`Kernel::renderRegion($structure, $regionName, $access =
+null)`, new third param): `config/settings.info.yaml`'s `regions:` list
+entries can now be a plain name (unchanged, no restriction) or a
+single-key map carrying that region's config -- same shape `structure:`
+already uses one level down for blocks vs. sections:
+
+```yaml
+regions:
+  - header:
+      access: authenticated
+  - main_navigation:
+      access: authenticated
+  - notification
+  - main_content
+  - footer:
+      access: authenticated
+```
+
+`Kernel::renderRegions()` parses this (`is_array($region)` ->
+`array_key_first()` for the name, `[$name]['access'] ?? null` for the
+requirement) and passes the resolved `$access` into `renderRegion()`,
+which checks it *before* building any module/section inside -- an
+unpermitted region costs one `userIsPermitted()` call, nothing inside it
+ever runs.
+
+**Module-level** (`Kernel::renderModule()`): `modconf: <module>: access:
+<role-string>` -- a new key alongside the existing `hide:`/`display:`
+(which stay route-name-keyed and unchanged). `access:` answers a different
+question than hide/display ("is this viewer even allowed to see this
+module at all" vs. "should it show on this particular route") and is
+checked independently: `$permitted = SecurityClass::userIsPermitted(...)`
+computed alongside the existing `$display` boolean, module renders only if
+`$display && $permitted`.
+
+**Both are opt-in and additive** -- a region/module with no `access:`
+behaves exactly as before this change; every existing `regions:`/`modconf:`
+entry across every app on this framework needed zero changes.
+
+**Empty wrapper divs needed no new code.** `renderRegion()` (and
+`renderBlock()`'s nested-section branch) already only render their own
+`<div class="region ...">`/`<div class="section ...">` wrapper when
+`strlen($output)` -- the concatenated blocks inside -- is non-empty. Once
+every module in a region resolves to `''` (via this same mechanism), the
+region's own wrapper disappears too, recursively through nested sections,
+for free -- this existed before today and just needed the modules to
+actually go empty, which `access:` now does.
+
+**zpms's own follow-up** (`web/templates/page/page.zetem`): the old
+route-name check is gone. The only thing left for that template to derive
+is whether to add the `wrapper-bare` CSS class (so `.login-page` fills the
+viewport instead of leaving a gap sized for chrome that isn't there) --
+now computed by checking whether `$regions['header']`/
+`['main_navigation']`/`['footer']` actually rendered anything, not by
+checking the route name:
+
+```
+{% $__bareLayout = trim(($regions['header'] ?? '') . ($regions['main_navigation'] ?? '') . ($regions['footer'] ?? '')) === ''; %}
+```
+
+Content-driven rather than identity-driven, but derived from the same
+`access:` checks above -- correct for any current or future route that
+ends up with empty chrome, with nothing to remember to add anywhere.
+
+**Verified against zpms**: logged-out `/login` renders with the
+`notification` region (so `login_post()`'s flash messages still show) and
+`main_content` only, `wrapper-bare` present, zero `region-header`/
+`region-main_navigation`/`region-footer` markup in the response. A
+logged-in visit to `/patients` -- and, deliberately, a logged-in visit to
+`/login` itself, which has no reason to hide chrome for someone already
+authenticated -- both render full chrome. `bin/run_tests.sh` (36/36
+static, 35/35 functional) stayed green throughout.
+
+**Pre-existing, still-unrelated oddity found while touching this
+file**: `config/settings.info.yaml`'s `modconf: message: display:
+userprofile:` block has a nested `access: authenticated` key sitting
+alongside `arguments:` -- confirmed via direct code reading that nothing
+before or after this change ever reads a nested `display.<route>.access`
+value (only `display.<route>.arguments`); it's inert config, not a
+different form of the mechanism added here. Left untouched rather than
+guessed-at rewritten -- flagged for zpms's own maintainer to decide
+whether it was an abandoned earlier attempt at this exact feature or dead
+copy-paste.
