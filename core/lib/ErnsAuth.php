@@ -159,16 +159,33 @@ class ernsauthClass {
             $eligible = !$disabled && !$lockedOut;
         }
 
-        // If your app's ErnsAuth usernames differ from its own uname
-        // column, define this to resolve the mapping -- same
-        // function_exists() extension-point convention already used for
-        // zeusfw_app_resolve_user_roles() (core/lib/Rbac.php). Falls back
-        // to a 1:1 assumption (uname === ErnsAuth username) when undefined.
-        $expected = $eligible
-            ? (function_exists('zeusfw_app_resolve_ernsauth_username')
-                ? zeusfw_app_resolve_ernsauth_username($us)
-                : $us->getuname())
-            : null;
+        // ErnsAuth usernames are a completely separate namespace from this
+        // app's own uname -- ErnsAuth has no knowledge this app's
+        // `username` value even exists, let alone that it's supposed to
+        // mean anything on its side. Resolved in order of how explicit the
+        // mapping is: the real users.ernsauth_username column (set once
+        // per account, e.g. via /admin/users) wins if present; failing
+        // that, an app-defined zeusfw_app_resolve_ernsauth_username() hook
+        // (same function_exists() extension-point convention as
+        // zeusfw_app_resolve_user_roles() in core/lib/Rbac.php); only as a
+        // last resort, a same-spelling assumption (uname === ErnsAuth
+        // username). That last fallback is a convenience for local
+        // testing/a first quick setup, not something ErnsAuth ever
+        // promised -- it silently rejects every real login for any
+        // account where it isn't literally true, with nothing in the log
+        // to explain why beyond "mismatched". Confirm it actually holds
+        // for real accounts before relying on it in production, or set
+        // ernsauth_username explicitly instead.
+        $expected = null;
+        if ($eligible) {
+            if (!empty($us->geternsauth_username())) {
+                $expected = $us->geternsauth_username();
+            } elseif (function_exists('zeusfw_app_resolve_ernsauth_username')) {
+                $expected = zeusfw_app_resolve_ernsauth_username($us);
+            } else {
+                $expected = $us->getuname();
+            }
+        }
 
         if ($attempt['action'] === 'reuse') {
             $challengeId = $attempt['challenge_id'];
@@ -180,7 +197,12 @@ class ernsauthClass {
                 return ['error' => 'disabled'];
             }
             try {
-                $challenge = $client->createChallenge($clientIp, $userAgent);
+                // The submitted username, not $expected -- shown verbatim
+                // on the approver's Pending Logins card as a courtesy
+                // ("Claiming to be ...") so they can sanity-check it, never
+                // used by ErnsAuth (or trusted by this app) as anything
+                // more than a label. See CLIENT-INTEGRATION.md.
+                $challenge = $client->createChallenge($clientIp, $userAgent, $username);
             } catch (RuntimeException $e) {
                 error_log('ernsauth createChallenge failed: ' . $e->getMessage());
                 return ['error' => 'upstream_unavailable'];

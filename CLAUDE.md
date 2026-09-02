@@ -657,3 +657,45 @@ different form of the mechanism added here. Left untouched rather than
 guessed-at rewritten -- flagged for zpms's own maintainer to decide
 whether it was an abandoned earlier attempt at this exact feature or dead
 copy-paste.
+
+## `users.ernsauth_username` -- explicit ErnsAuth identity mapping, not a same-spelling guess (2026-09-02)
+
+Real production incident on zpms (`pms.erns.eu`): a login attempt via the
+ernsauth_sso module logged `ernsauth sso mismatched for guest` even though
+the person approving was a genuine ErnsAuth user. Root cause: `ernsauthClass::
+startChallenge()` (`core/lib/ErnsAuth.php`) had exactly one fallback for
+resolving "which ErnsAuth identity is this ZPMS account allowed to sign in
+as" when no app-defined `zeusfw_app_resolve_ernsauth_username()` hook
+existed -- assume the ZPMS `uname` and the ErnsAuth username are spelled
+identically. zpms's `guest` account and the approver's real ErnsAuth
+username are two different strings, so step ⑥'s identity check (see
+ernsauth's own `CLIENT-INTEGRATION.md`) correctly rejected it every time --
+working as designed, but the *design* had no way to express "these two are
+the same person, just spelled differently" short of writing a PHP function.
+
+Added `ernsauth_username` (nullable `varchar(64)`) directly to `core/
+classes/yaml/users.yaml` -- framework-level, not zpms-specific, since any
+app adopting `ernsauth_sso` hits the identical problem the moment a real
+ErnsAuth username doesn't match a local `uname`. `startChallenge()`'s
+resolution order is now: the column (if set) -> the `zeusfw_app_resolve_
+ernsauth_username()` hook (if defined) -> the bare `uname` guess, only as a
+last resort. Being a real `usersClass` field, it shows up for free in the
+generic `/admin/users` form (`admin_crud.php`/`admin_form.zetem`, both
+metadata-driven off `usersClass::getAllFields()` -- no template change
+needed), so fixing an account like `guest` is now a two-field edit in the
+admin UI, not a code change or a silent, undiagnosable rejection.
+
+**Existing installs**: `ALTER TABLE users ADD COLUMN ernsauth_username
+VARCHAR(64) DEFAULT NULL AFTER roles;` -- this project has no migration
+runner (`docs/CLAUDE.md`'s "no migration framework" -- `core/classes/sql/*`
+is gitignored/regenerated, not a change log), so a live database needs this
+run by hand once.
+
+**Also threaded the submitted username through to `createChallenge()`'s
+new `requested_identity` parameter** (ernsauth repo, same date) -- shown on
+the approver's Pending Logins card as "Claiming to be X" purely so a human
+can catch an impersonation attempt before approving. Deliberately the *raw
+submitted* username, not the resolved `$expected` identity -- the point is
+showing what was typed, not leaking (or asserting) what this app believes
+the correct mapping to be. Display-only; the actual security decision is
+still entirely step ⑥'s post-exchange comparison, unaffected by this.
