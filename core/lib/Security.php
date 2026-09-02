@@ -5,6 +5,21 @@
 class SecurityClass {
     static private $roles = array();
     static private $permissions = array();
+
+    // Opt-in -- same shape as csrfClass::$enforceLogin/LoginSecurityClass's
+    // switches (all default off/null so every app already on this
+    // framework keeps its exact current behavior unless it explicitly
+    // opts in). When set, Router.php's own 401 handling (an
+    // unauthenticated/unpermitted request to a route with `access:`)
+    // redirects here instead of rendering the bare error_401() page. Null
+    // is "unchanged, render error_401() as before" -- not "redirect to an
+    // empty string".
+    static $loginRedirectUrl = null;
+
+    static function enableLoginRedirect(string $url = '/login'): void {
+        self::$loginRedirectUrl = $url;
+    }
+
     static function init($aroles) {
         self::$roles = $aroles;
         // echo "<pre>Roles<br>"; echo print_r( self::$roles); echo "</pre>";

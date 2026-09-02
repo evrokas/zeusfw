@@ -529,3 +529,33 @@ rather than creating (and paying the rate-limit cost of) a new one. zpms's
 own `bin/run_tests.sh` (36/36 static, 35/35 functional) stayed fully green
 throughout, both before and after the `UNIQUE`-constraint fix above was
 found and corrected.
+
+## `SecurityClass::enableLoginRedirect()` -- opt-in redirect-to-login instead of a bare 401 page (2026-09-02)
+
+`Router.php`'s route-level `access:` gate (`SecurityClass::userIsPermitted()`,
+checked before dispatch -- separate from `rbacClass::require()`/
+`SecurityClass::require()`, which handlers call *internally* and which
+render `error_401()` directly, untouched by this change) has always shown
+a bare inline `error_401()` page on failure, whether the cause was "not
+logged in at all" or "logged in but lacks the role". First requested by
+zpms, which wanted an anonymous visitor sent straight to `/login` instead.
+
+New `SecurityClass::$loginRedirectUrl` (default `null`) / `enableLoginRedirect(string
+$url = '/login')`, same opt-in shape as `csrfClass::$enforceLogin`/
+`LoginSecurityClass`'s switches -- an app that never calls this keeps the
+exact same bare `error_401()` behavior as before. `Router.php`'s `case
+401:` now checks it first: if set, redirects (`header('Location: ' .
+rel_url($url)); exit();`) instead of rendering the page. Deliberately
+framework-level rather than zpms-specific, since "send an anonymous user to
+the login page instead of a 401" is generic behavior any app on this
+framework might want, following the same "define once in core, opt in per
+app" pattern as every other switch in this file.
+
+**Only covers routes with a route-level `access:`.** A handler that calls
+`rbacClass::require()`/`SecurityClass::require()` itself (e.g. every
+`admin_crud.php` handler, zpms's own `clinics_edit()`) still renders
+`error_401()` inline regardless of this setting -- those never reach
+`Router.php`'s error-handling branch at all, since the route itself has no
+`access:` and matches successfully; the handler decides on its own. An app
+wanting the redirect there too would need to change those call sites
+individually, not this one switch.
