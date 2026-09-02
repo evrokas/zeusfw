@@ -159,28 +159,29 @@ class ernsauthClass {
             $eligible = !$disabled && !$lockedOut;
         }
 
-        // ErnsAuth usernames are a completely separate namespace from this
-        // app's own uname -- ErnsAuth has no knowledge this app's
-        // `username` value even exists, let alone that it's supposed to
-        // mean anything on its side. Resolved in order of how explicit the
-        // mapping is: the real users.ernsauth_username column (set once
-        // per account, e.g. via /admin/users) wins if present; failing
-        // that, an app-defined zeusfw_app_resolve_ernsauth_username() hook
-        // (same function_exists() extension-point convention as
-        // zeusfw_app_resolve_user_roles() in core/lib/Rbac.php); only as a
-        // last resort, a same-spelling assumption (uname === ErnsAuth
-        // username). That last fallback is a convenience for local
-        // testing/a first quick setup, not something ErnsAuth ever
-        // promised -- it silently rejects every real login for any
-        // account where it isn't literally true, with nothing in the log
-        // to explain why beyond "mismatched". Confirm it actually holds
-        // for real accounts before relying on it in production, or set
-        // ernsauth_username explicitly instead.
+        // ErnsAuth usernames and this app's own uname are two separate
+        // namespaces, but there is deliberately no per-account mapping
+        // table anywhere in this system -- not a column here, not a table
+        // on ErnsAuth's side either. The only rule that's actually
+        // enforceable without one is the direct one: an SSO-enabled
+        // account's uname must be spelled identically to its real ErnsAuth
+        // username. This is no longer just a client-side assumption --
+        // ErnsAuth itself enforces it server-side at approval time (see
+        // requestedIdentity below): a logged-in ErnsAuth user simply
+        // cannot approve a challenge whose requested identity doesn't
+        // match their own account. An app that needs a different mapping
+        // rule for some reason can still define
+        // zeusfw_app_resolve_ernsauth_username() (function_exists()
+        // extension point, same convention as
+        // zeusfw_app_resolve_user_roles() in core/lib/Rbac.php) -- but
+        // note ErnsAuth's own approval-time check only ever compares
+        // against the *submitted* uname (below), so a hook that resolves
+        // to something else here will never actually be approvable there;
+        // this exists for apps that want a stricter/local-only check on
+        // top, not a way to route around ErnsAuth's own enforcement.
         $expected = null;
         if ($eligible) {
-            if (!empty($us->geternsauth_username())) {
-                $expected = $us->geternsauth_username();
-            } elseif (function_exists('zeusfw_app_resolve_ernsauth_username')) {
+            if (function_exists('zeusfw_app_resolve_ernsauth_username')) {
                 $expected = zeusfw_app_resolve_ernsauth_username($us);
             } else {
                 $expected = $us->getuname();

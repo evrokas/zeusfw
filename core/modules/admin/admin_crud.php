@@ -62,15 +62,12 @@ function zeusfw_admin_entity_defs(): array {
                 ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => true],
                 ['name' => 'email', 'label' => 'Email', 'type' => 'text', 'required' => true],
                 ['name' => 'uname', 'label' => 'Username', 'type' => 'text', 'required' => true],
-                // Optional mapping for the ernsauth_sso module's
-                // mandatory-username Flow A variant (core/lib/ErnsAuth.php)
-                // -- ErnsAuth's own username namespace is independent of
-                // this app's `uname`, so an account whose real ErnsAuth
-                // username differs has to have it set explicitly here or
-                // every SSO login attempt for it silently rejects. Blank
-                // is fine for an app not using ernsauth_sso, or an account
-                // that hasn't been linked yet.
-                ['name' => 'ernsauth_username', 'label' => 'ErnsAuth Username', 'type' => 'text'],
+                // Note for anyone using the ernsauth_sso module
+                // (core/lib/ErnsAuth.php): this Username must be spelled
+                // identically to the account's real ErnsAuth username --
+                // there is no separate mapping field, on this form or
+                // anywhere else, on purpose (see ErnsAuth.php's own
+                // docblock for why).
                 // Virtual field -- see zeusfw_admin_apply_field()'s
                 // special case. Not a real users.password column; maps to
                 // upass via password_hash(), same PASSWORD_DEFAULT

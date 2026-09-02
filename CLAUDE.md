@@ -658,7 +658,7 @@ guessed-at rewritten -- flagged for zpms's own maintainer to decide
 whether it was an abandoned earlier attempt at this exact feature or dead
 copy-paste.
 
-## `users.ernsauth_username` -- explicit ErnsAuth identity mapping, not a same-spelling guess (2026-09-02)
+## ErnsAuth identity resolution: same-username convention, enforced on ErnsAuth's own side (2026-09-02, revised same day)
 
 Real production incident on zpms (`pms.erns.eu`): a login attempt via the
 ernsauth_sso module logged `ernsauth sso mismatched for guest` even though
@@ -673,37 +673,50 @@ ernsauth's own `CLIENT-INTEGRATION.md`) correctly rejected it every time --
 working as designed, but the *design* had no way to express "these two are
 the same person, just spelled differently" short of writing a PHP function.
 
-Added `ernsauth_username` (nullable `varchar(64)`) directly to `core/
-classes/yaml/users.yaml` -- framework-level, not zpms-specific, since any
-app adopting `ernsauth_sso` hits the identical problem the moment a real
-ErnsAuth username doesn't match a local `uname`. `startChallenge()`'s
-resolution order is now: the column (if set) -> the `zeusfw_app_resolve_
-ernsauth_username()` hook (if defined) -> the bare `uname` guess, only as a
-last resort. `core/modules/admin/admin_crud.php`'s `users` entity gained a
-matching `ernsauth_username` entry in its own `fields:` array (a plain
-text input, next to `uname`) -- **corrected after initially assuming this
-would show up for free**: `admin_crud.php`'s field list is a hand-curated
-array per entity (`zeusfw_admin_entity_defs()`), not derived from
-`usersClass::getAllFields()`, so a new column needs one line added here
-explicitly or it silently doesn't appear on the form at all, no error
-either way. Verified against zpms's own test server (not just read the
-code): logged in as a real is_superuser account, confirmed the "ErnsAuth
-Username" field renders on `/admin/users/{id}/edit`, and that submitting
-it actually persists to the row. Fixing an account like `guest` is now a
-two-field edit in the admin UI, not a code change or a silent,
-undiagnosable rejection.
+**First fix, shipped then reverted the same day**: a `users.ernsauth_username`
+column (nullable `varchar(64)`) storing an explicit per-account mapping,
+editable via `/admin/users`. Reverted after the app's maintainer objected --
+correctly -- that storing this linkage in ZPMS's own database at all is a
+needless reconnaissance/targeting surface on a DB that's otherwise
+patient-data-only, and separately pointed out that ErnsAuth accounts have no
+concept of being "mapped" to a client app's users in the first place, so
+inventing a parallel mapping table on ErnsAuth's side to replace it wouldn't
+be right either. The column, its `core/modules/admin/admin_crud.php` field,
+and `startChallenge()`'s column-reading tier were all removed the same day
+they were added; if a live database ever ran the earlier entry's
+`ALTER TABLE ... ADD COLUMN ernsauth_username`, the column is simply unused
+now and can be dropped at your convenience -- nothing in either app reads or
+writes it any more.
 
-**Existing installs**: `ALTER TABLE users ADD COLUMN ernsauth_username
-VARCHAR(64) DEFAULT NULL AFTER roles;` -- this project has no migration
-runner (`docs/CLAUDE.md`'s "no migration framework" -- `core/classes/sql/*`
-is gitignored/regenerated, not a change log), so a live database needs this
-run by hand once.
+**Actual fix: enforce the same-username convention where a human is already
+standing, instead of resolving a stored mapping where nobody is.** ErnsAuth
+(`src/SSO.php::approveChallenge()`, ernsauth repo) now checks, server-side,
+at the moment someone tries to approve a challenge: does the challenge's
+`requested_identity` (the raw username the client app submitted --
+unchanged, still threaded through from `startChallenge()`'s `$username`,
+see below) match *that approver's own ErnsAuth account username*? A
+mismatch is rejected outright, and ErnsAuth's dashboard now greys out /
+disables the number buttons on any pending card that isn't the logged-in
+viewer's own request, so a mismatch is caught before a click even reaches
+the network, not after. There is still no mapping table anywhere in this
+system, on either side -- the enforced rule is exactly "your ErnsAuth
+username must be spelled identically to the client app's username",
+nothing more elaborate, and it's ErnsAuth itself that now guarantees it
+rather than leaving it to a client app's own post-hoc string compare.
 
-**Also threaded the submitted username through to `createChallenge()`'s
-new `requested_identity` parameter** (ernsauth repo, same date) -- shown on
-the approver's Pending Logins card as "Claiming to be X" purely so a human
-can catch an impersonation attempt before approving. Deliberately the *raw
-submitted* username, not the resolved `$expected` identity -- the point is
-showing what was typed, not leaking (or asserting) what this app believes
-the correct mapping to be. Display-only; the actual security decision is
-still entirely step ⑥'s post-exchange comparison, unaffected by this.
+`startChallenge()`'s resolution for zeusfw's own client-side `$expected`
+(used by `finish()`'s step ⑥ comparison, which stays in place as a second,
+independent layer -- see CLIENT-INTEGRATION.md's updated security table)
+is back down to two tiers: an app-defined `zeusfw_app_resolve_ernsauth_username()`
+hook (unchanged extension point, `function_exists()`-gated, same convention
+as `zeusfw_app_resolve_user_roles()`) if one exists, else the bare `uname`.
+No column tier. `core/modules/admin/admin_crud.php`'s "ErnsAuth Username"
+field is gone; the `users` entity's Username field comment now just states
+the same-spelling requirement directly.
+
+See ernsauth's own `CLIENT-INTEGRATION.md` ("Requiring a username before
+Flow A") for the full updated design, and zpms's `README.md` for the
+app-level note this pairs with. `guest`-style accounts are fixed by making
+the ErnsAuth account's own username literally `guest` (or renaming the ZPMS
+account to match whatever the real ErnsAuth account is actually called) --
+not by editing either app's database.

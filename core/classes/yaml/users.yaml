@@ -36,21 +36,4 @@ table:
 
   - name: roles
     type: '@guid'
-
-  # Explicit mapping to this account's real ErnsAuth username, for the
-  # ernsauth_sso module's mandatory-username Flow A variant (see
-  # core/lib/ErnsAuth.php's ernsauthClass). Nullable/blank on purpose: an
-  # app not using ernsauth_sso, or an account that hasn't been linked yet,
-  # simply has none. `ernsauthClass::startChallenge()` reads this FIRST,
-  # before falling back to zeusfw_app_resolve_ernsauth_username() (if an
-  # app defines it) and finally to a same-spelling assumption
-  # (uname === ErnsAuth username) as a last resort -- that last fallback
-  # is a convenience for local testing, not something ErnsAuth ever
-  # promised, and silently fails every real login for an account where
-  # it isn't literally true. Set this column explicitly for any account
-  # whose ErnsAuth username differs from its uname (editable via the
-  # generic /admin/users form -- no new UI needed, it's just another
-  # usersClass field).
-  - name: ernsauth_username
-    type: varchar(64)
 ...
