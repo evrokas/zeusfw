@@ -1,0 +1,95 @@
+---
+table:
+  name: ernsauth_sso_attempts
+  class: ernsauthSsoAttemptsClass
+  extention: __FWDIR__ . '/ernsauthSsoAttemptsClassEx.php'
+
+  fields:
+  # UNIQUE baked directly into `type:` (a plain string, passed through
+  # verbatim into the generated column definition -- see maker/functions.php's
+  # createFieldDefinition(), which has no separate `unique:` field option)
+  # rather than a hand-added ALTER TABLE in the generated .sql file --
+  # anything only in the .sql survives exactly until the next spill:sql/
+  # spill:sql:all regenerates it from this yaml, which is precisely what
+  # happened the first time this was tried (confirmed: the test suite's
+  # own schema rebuild wiped a hand-added ALTER TABLE within the same
+  # session this table was created in). checkAndRecordAttempt()'s atomic
+  # upsert (ernsauthSsoAttemptsClassEx.php) depends on this index existing.
+  - name: username
+    type: varchar(64) UNIQUE
+    required: true
+
+  - name: client_ip
+    type: varchar(45)
+
+  - name: challenge_id
+    type: varchar(64)
+
+  - name: challenge_number
+    type: smallint
+
+  - name: challenge_expires_at
+    type: int
+
+  - name: attempt_count
+    type: smallint
+    default: 0
+
+  - name: window_started_at
+    type: int
+
+  - name: last_outcome
+    type: varchar(32)
+
+  - name: updated_at
+    type: int
+
+...
+
+# Local, per-username state backing the ErnsAuth SSO "mandatory username"
+# variant of Flow A (core/lib/ErnsAuth.php's ernsauthClass) -- see
+# CLIENT-INTEGRATION.md in the ernsauth repo, "Requiring a username before
+# Flow A". One row per submitted username, upserted in place -- this is
+# live state, not an append-only audit log. It backs two independent
+# security requirements that neither ErnsAuth itself nor plain PHP sessions
+# can provide on their own:
+#
+#   - the app's own rate limit on challenge creation, keyed on the real end
+#     user's IP *and* the submitted username (attempt_count/
+#     window_started_at) -- ErnsAuth's own create_challenge limiter is keyed
+#     on whoever calls its API, which for a server-to-server integration is
+#     this app's own server IP shared across every user, so it cannot see
+#     one username being targeted while every other user keeps working;
+#   - a hard cap of one pending challenge per username (challenge_id/
+#     challenge_number/challenge_expires_at) -- a second request for a
+#     username that already has one live reuses it instead of creating a
+#     second one, closing the "flood the approver's Pending Logins list"
+#     push/prompt-fatigue vector, which a browser session alone can't
+#     enforce since an attacker gets a fresh session on every attempt.
+#
+# last_outcome is a free-text label (e.g. matched / mismatched / expired /
+# rejected / unknown_username) for the most recent terminal result --
+# troubleshooting/visibility only, not a full audit-log subsystem this
+# framework doesn't otherwise have; real failures are also error_log()'d,
+# matching core/lib/UserLogin.php's own login_post() convention.
+#
+# - username               the submitted username, whether or not it
+#                          resolves to a real local account
+# - client_ip               real end-user IP from the request that created
+#                          the current/last challenge (never this server's
+#                          own IP)
+# - challenge_id             ErnsAuth's challenge_id while a challenge for
+#                          this username is still live; NULL once
+#                          consumed or expired
+# - challenge_number         the number shown to the user, alongside
+#                          challenge_id
+# - challenge_expires_at      unix timestamp mirroring ErnsAuth's own
+#                          expires_at, so a stale row is recognizable
+#                          locally without re-polling ErnsAuth
+# - attempt_count             challenge-creation attempts within the
+#                          current rate-limit window
+# - window_started_at         unix timestamp the current rate-limit
+#                          window opened
+# - last_outcome              free-text label for the most recent
+#                          terminal outcome
+# - updated_at                unix timestamp of the last write to this row

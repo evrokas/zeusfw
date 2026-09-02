@@ -50,6 +50,37 @@ routes:
     handler: admin_delete
     method: post
 
+  # ernsauth_sso package -- the mandatory-username variant of ErnsAuth's
+  # Flow A number-matching SSO login (handlers in
+  # core/modules/ernsauth_sso/ernsauth_sso.php, required unconditionally
+  # from core/bootstrap.php via core/lib/ErnsAuth.php's ernsauthClass).
+  # Unlike admin_user_crud above, this package is OPT-IN, not opt-out: an
+  # app must list `ernsauth_sso` under its own config/settings.info.yaml
+  # `modules:` block (which calls ernsauthClass::enable() -- see
+  # core/modules/ernsauth_sso/ernsauth_sso.php) AND provide a valid
+  # config/ernsauth.php before ernsauthClass::isEnabled() ever returns
+  # true; every handler here checks that first and behaves exactly like a
+  # route that was never registered otherwise. Separate URLs from this
+  # framework's own /login and /login (POST) routes (an app's own
+  # settings.info.yaml, not this file, since login/login_post are generic
+  # core handlers every app already gets) -- these only ever handle the
+  # number-matching challenge lifecycle, never the password form itself.
+  ernsauth_sso_start:
+    title: "ErnsAuth SSO: start"
+    url: "/login/ernsauth/start"
+    handler: ernsauth_sso_start
+    method: post
+  ernsauth_sso_poll:
+    title: "ErnsAuth SSO: poll"
+    url: "/login/ernsauth/poll"
+    handler: ernsauth_sso_poll
+    method: get
+  ernsauth_sso_exchange:
+    title: "ErnsAuth SSO: exchange"
+    url: "/login/ernsauth/exchange"
+    handler: ernsauth_sso_exchange
+    method: post
+
 # Accumulating disable-list for optional framework packages/modules (see
 # core/lib/Packages.php's packagesClass::isEnabled()). Every config layer
 # -- this file, an app's config/site.info.yaml, an app's own

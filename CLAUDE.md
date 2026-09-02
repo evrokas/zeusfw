@@ -381,3 +381,151 @@ server, confirmed every rendered `<script src=...>` tag on a real page now carri
 and ran a full upload-then-delete regression through a real browser session (zero
 404s on any asset, both operations completed correctly) to confirm this doesn't
 change how any of those tags actually resolve or load.
+
+## ErnsAuth SSO integration (`core/lib/ErnsAuth.php`, `core/modules/ernsauth_sso/`) (2026-09-02)
+
+Client-side integration with [ErnsAuth](https://github.com/evrokas/ernsauth)'s
+number-matching SSO flow ("Flow A"), specifically the **mandatory-username**
+variant documented in that repo's `CLIENT-INTEGRATION.md` under "Requiring a
+username before Flow A" -- for an app with several accounts that needs to
+know *which one* is signing in, rather than accepting whichever ErnsAuth
+account happens to approve the shown number. First adopter: zpms (see its
+own `CLAUDE.md`/`README.md` "ErnsAuth SSO login" section for the app-level
+half -- config, vendored client library, login-page UI). Built as a
+reusable core module, not app-specific code, since the whole engine (config
+loading, the challenge lifecycle, rate limiting, identity verification,
+session establishment) has nothing zpms-specific in it beyond the local
+`uname` lookup, which itself goes through the same `usersClassEx`
+convention `login_post()` already depends on.
+
+**`core/lib/ErnsAuth.php` / `ernsauthClass`** -- config-driven, no
+app-specific values baked in (same convention as `Recaptcha.php`): an app
+supplies its own `config/ernsauth.php` (`sso_api_url`/`api_key`, gitignored,
+outside the web root) and vendors ErnsAuth's client library itself at
+`lib/ernsauth/` (`git clone -b stable`, also gitignored). Every failure mode
+fails closed -- disabled/misconfigured/network error all behave like "not
+signed in", never a fatal error or a silently-accepted login.
+
+Three public methods carry the whole flow, one per step of the mandatory-
+username variant:
+- `startChallenge(string $username, string $clientIp, string $userAgent): array`
+  -- validates the username against the app's own `usersClassEx::
+  getUserAccount()` (respecting `LoginSecurityClass::$enforceLockout`/
+  `$enforceAccountStatus`, exactly like password login), pins the *expected*
+  ErnsAuth identity to session, and creates (or reuses) the challenge.
+  **Returns the identical `{challenge_id, challenge_number, expires_at}`
+  shape whether or not `$username` resolved to a real, eligible account** --
+  the single most load-bearing line in this file, since a different
+  response per case would be a free username-enumeration oracle. The
+  expected-identity mapping itself is a `function_exists()` extension point
+  (`zeusfw_app_resolve_ernsauth_username(usersClass $user): string`, same
+  pattern as `zeusfw_app_resolve_user_roles()` in `Rbac.php`), falling back
+  to a 1:1 `uname === ErnsAuth username` assumption when an app hasn't
+  defined it.
+- `poll(): array` -- thin pass-through to `pollChallenge()`, but also clears
+  the locally tracked pending challenge on any terminal non-success status
+  (`rejected`/`expired`/`not_found`) so a "new request" click isn't stuck
+  reusing a challenge ErnsAuth will never approve again.
+- `finish(string $authCode): array` -- exchanges the auth code, then
+  **rejects unless the identity that actually approved matches the one
+  pinned in `startChallenge()`** (`hash_equals()`), which is the entire
+  security property of this variant -- see CLIENT-INTEGRATION.md's own
+  "🔒 Security requirements" table, since this single comparison is what
+  that whole section is about. A mismatch (or an unresolved username)
+  increments the matched local account's `wrongpasscount` the same way a
+  wrong password does, via the exact same counter `login_post()` already
+  uses -- so SSO can't become a second, unthrottled guessing surface around
+  an account password login already locks out. An upstream/network error
+  during exchange does *not* touch that counter (not a failed attempt by
+  the user). On a real match: resets `wrongpasscount` to 0, returns the
+  local `usersClass` row -- **never logs the session in itself**; the
+  caller (the module below) does that via `$kernel->loginUser()`, reusing
+  `login_post()`'s exact RBAC role-resolution pattern.
+
+**Local rate limiting + one-pending-challenge-per-username**
+(`core/classes/yaml/ernsauth_sso_attempts.yaml` -> generated
+`ernsauthSsoAttemptsClass`, hand-written `core/ernsauthSsoAttemptsClassEx.php`)
+-- a new, small DB table, because neither ErnsAuth itself nor a PHP session
+can provide either guarantee on their own. ErnsAuth's own `create_challenge`
+rate limit is keyed on **whoever calls its API** -- for this server-to-
+server integration, that's this app's own server IP, shared across every
+one of its real users, so it can't see one username being targeted while
+every other user keeps working. And a session-only "one pending challenge"
+cap is trivially bypassed by an attacker who gets a fresh session on every
+attempt. `ernsauthSsoAttemptsClassEx::checkAndRecordAttempt()` is the single
+entry point covering both checks together (so a caller can't apply one
+without the other), keyed on the *submitted* username (resolved or not, for
+the same enumeration-safety reason as above) and the real end-user IP.
+
+Its rate-limit counter uses the exact same atomic `INSERT ... ON DUPLICATE
+KEY UPDATE ... IF(...)` technique as ernsauth's own `RateLimit::attempt()`
+(`src/RateLimit.php` in that repo) -- ported deliberately, not
+reinvented, since concurrent requests for the same key need to serialize on
+a real row lock rather than race on a read-then-write gap, and that file
+already solved this exact problem once. **The `UNIQUE` constraint this
+depends on is baked directly into the yaml's `type: varchar(64) UNIQUE`
+field definition, not a hand-added `ALTER TABLE` in the generated `.sql`
+file** -- confirmed the hard way, within the same session this table was
+built in: a hand-added `ALTER TABLE` survived exactly until the next
+`spill:sql` regenerated the file from the yaml (zpms's own test suite does
+this as part of its schema rebuild), silently dropping the index and
+breaking the upsert's atomicity. `maker/functions.php`'s
+`createFieldDefinition()` has no separate `unique:` field option, but
+happily passes an arbitrary `type:` string straight through into the column
+definition, which is what makes baking it into `type:` durable across
+regeneration where the `.sql` file itself never is.
+
+**`core/modules/ernsauth_sso/ernsauth_sso.php`** -- the browser-facing
+route handlers (`ernsauth_sso_start`/`ernsauth_sso_poll`/
+`ernsauth_sso_exchange`), registered unconditionally in
+`core/config/zeusfw.info.yaml` under `/login/ernsauth/{start,poll,exchange}`
+(same "always registered, framework-wide" precedent as `admin_user_crud`'s
+routes) but only ever *functional* once `ernsauthClass::isEnabled()` says
+so. Unlike `admin_user_crud`'s `packagesClass`/`disabled_packages` gate
+(opt-OUT: enabled by default, and a later config layer can only ever add to
+the disabled list, never re-enable something a less specific layer already
+turned off -- see `Packages.php`'s own docblock), this package needs real
+per-app setup (a vendored client library, a live ErnsAuth server, an API
+key) to function at all, so it's opt-IN instead: `register_ernsauth_sso_
+module()` (called by the classic `core/lib/Modules.php` `registerModules()`
+mechanism, when an app lists `ernsauth_sso` under its own `config/
+settings.info.yaml` `modules:` block) is the only thing that ever calls
+`ernsauthClass::enable()` -- and `isEnabled()` additionally requires a valid
+`config/ernsauth.php` on top of that, so listing the module alone still
+isn't enough. This is the first use of the `modules:` opt-in list for
+something that isn't a renderable page-region `moduleClass` block (nav/
+footer/etc.) -- `register_ernsauth_sso_module()` calls `ernsauthClass::
+enable()` instead of `$kernel->registerModule(...)`, which is fine: nothing
+about `registerModules()` requires the callback to actually register a
+module instance, and repurposing an existing, already-familiar app-facing
+toggle beat inventing a second, parallel enablement mechanism next to
+`disabled_packages` for a feature that structurally can't be modeled as
+opt-out.
+
+Also required unconditionally from `core/bootstrap.php` (`ErnsAuth.php`,
+right after `UserLogin.php`, since it depends on `LoginSecurityClass`) --
+same "handler functions always exist, the package check inside them is what
+actually gates behavior" reasoning as `admin_crud.php`'s own require line.
+
+**Verified end-to-end against zpms** (not just unit logic, though this
+sandbox has no reachable live ErnsAuth server to complete a real approval
+against): booted a real MariaDB-backed zpms test server and confirmed, over
+real HTTP -- the login page renders the "Sign in with ErnsAuth" section only
+once both the `modules:` entry and a valid `config/ernsauth.php` are
+present; a nonexistent username and a real-but-uninvolved one (`zpms_test_user`)
+produce byte-identical `{"error":"upstream_unavailable"}` responses once the
+(unreachable, by design in this sandbox) ErnsAuth call fails, confirming the
+enumeration-safety property actually holds at the HTTP layer, not just in
+theory; the local rate limit blocks the 6th `create_challenge` attempt for
+one username (429) while a different username is unaffected; a missing/
+wrong CSRF token is rejected (403). Separately, with `ErnsAuthClient` stubbed
+out (no network dependency) to isolate `ernsauthClass`'s own logic: a
+matching identity logs the account in and clears session state; a mismatched
+identity is rejected and increments `wrongpasscount` by exactly 1; a
+username that never resolves to a local account is rejected without
+touching any account's counter; a second `startChallenge()` call while one
+is still pending reuses the exact same `challenge_id`/`challenge_number`
+rather than creating (and paying the rate-limit cost of) a new one. zpms's
+own `bin/run_tests.sh` (36/36 static, 35/35 functional) stayed fully green
+throughout, both before and after the `UNIQUE`-constraint fix above was
+found and corrected.
