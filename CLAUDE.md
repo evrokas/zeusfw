@@ -714,9 +714,35 @@ No column tier. `core/modules/admin/admin_crud.php`'s "ErnsAuth Username"
 field is gone; the `users` entity's Username field comment now just states
 the same-spelling requirement directly.
 
+**Server-side enforcement reverted the same day, back to display-only.**
+The app's maintainer asked for ErnsAuth to "approve any username" again --
+`requested_identity` should let the human approver visually confirm what's
+being claimed, not have ErnsAuth block the click itself. Reverted via
+`git revert` of the enforcement commit (ernsauth repo): `approveChallenge()`
+no longer takes an approver-username parameter or compares it against
+anything, and the dashboard no longer greys out/disables numbers for a
+"mismatched" card -- every pending challenge is equally clickable by any
+logged-in ErnsAuth user again, exactly as when `requested_identity` first
+shipped. This also un-breaks the `zeusfw_app_resolve_ernsauth_username()`
+hook for any app using a real custom mapping: while ErnsAuth enforced literal
+same-spelling, an app whose hook resolved to something else would have had
+every one of its logins blocked at approval time regardless of what its own
+step ⑥ check would have said.
+
+**Net effect: the entire security property is, once again, squarely
+zpms's/zeusfw's own `finish()` step ⑥ comparison** (`hash_equals($expected,
+$user['username'])`) -- ErnsAuth's Pending Logins card is a courtesy for a
+human to catch "that's not me" before tapping a number, nothing more. This
+was always true before today's brief detour into server-side enforcement,
+and CLIENT-INTEGRATION.md's own security table (ernsauth repo) has been
+reverted to say so explicitly again -- never treat `requested_identity`, or
+the fact that an approver picked the right number, as proof of identity on
+its own.
+
 See ernsauth's own `CLIENT-INTEGRATION.md` ("Requiring a username before
-Flow A") for the full updated design, and zpms's `README.md` for the
-app-level note this pairs with. `guest`-style accounts are fixed by making
-the ErnsAuth account's own username literally `guest` (or renaming the ZPMS
-account to match whatever the real ErnsAuth account is actually called) --
-not by editing either app's database.
+Flow A") for the full current design, and zpms's `README.md` for the
+app-level note this pairs with. `guest`-style accounts are still best fixed
+by making the ErnsAuth account's own username literally `guest` (or
+renaming the ZPMS account to match) -- the same-spelling convention is
+still the simplest thing that works with the default fallback, it's just no
+longer enforced by ErnsAuth itself, only checked by your own app's step ⑥.
