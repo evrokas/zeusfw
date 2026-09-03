@@ -746,3 +746,78 @@ by making the ErnsAuth account's own username literally `guest` (or
 renaming the ZPMS account to match) -- the same-spelling convention is
 still the simplest thing that works with the default fallback, it's just no
 longer enforced by ErnsAuth itself, only checked by your own app's step ⑥.
+
+## No post-approval identity check -- `finish()`'s step ⑥ removed entirely (2026-09-03)
+
+Same-day follow-up to the entry above: even with the same-spelling
+convention as the only remaining rule, real accounts (`guest` among them)
+kept failing SSO login because their ErnsAuth username genuinely wasn't
+spelled the same as their ZPMS `uname`, with no config mismatch or bug
+involved -- just two separately-administered systems whose usernames were
+never coordinated. Walked through the actual threat model with the app's
+maintainer before touching anything (this repo's established practice for
+security-model changes): concretely, what does step ⑥ protect against that
+decoys/throttling/IP-logging don't?
+
+**The answer, and why it doesn't apply to this deployment**: step ⑥ stops
+an ErnsAuth identity that *isn't* entitled to a given ZPMS account from
+successfully claiming it -- e.g. account B's holder typing `admin` at
+ZPMS's login form and approving their own request with their own (non-admin)
+ErnsAuth login. Without step ⑥, that succeeds; a compromised or merely
+curious ErnsAuth account becomes a skeleton key to every ZPMS username via
+plain "username scanning" (type any name, approve it yourself), since Flow
+A's decoys/throttling only defend against someone *guessing* a challenge
+number they weren't shown -- not against someone approving a request they
+generated themselves, which needs no guessing at all. This is a real,
+general risk for any multi-account app using Flow A's username variant, and
+CLIENT-INTEGRATION.md's guidance to make step ⑥ mandatory stands unchanged
+for the general case.
+
+zpms's actual deployment is materially narrower: ErnsAuth dashboard access
+is held by a single trusted operator, not a wider staff population. In that
+shape, the "wrong identity approves" scenario step ⑥ guards against can't
+occur the way it does for a multi-approver deployment -- there is no
+second, differently-privileged ErnsAuth account that could approve instead.
+What step ⑥ *would* still do is limit the blast radius if that one
+ErnsAuth account is ever compromised (an attacker inheriting it could only
+reach the one ZPMS account whose uname matches it, instead of every
+username they can type) -- a real, understood, and explicitly *accepted*
+tradeoff, not an overlooked one. It also does nothing at all against a full
+ErnsAuth **server** compromise (DB/RCE access), since an attacker at that
+level can just make `exchangeCode()` return whatever identity the check
+wants to see -- no client-side comparison survives that regardless.
+
+**Removed, not just relaxed**: `ernsauthClass::startChallenge()` no longer
+resolves or pins an "expected" ErnsAuth identity at all (no column, no
+`zeusfw_app_resolve_ernsauth_username()` hook call, no bare-uname
+fallback -- that whole block is deleted, along with the
+`ea_expected_ernsauth_username` session key, replaced by `ea_pending_eligible`,
+a plain boolean carrying forward only the pre-existing account-status/
+lockout eligibility check, which is unrelated to identity and stays for
+password-login parity). `finish()` now signs a login in the moment
+`exchangeCode()` returns successfully for an eligible pending username --
+full stop, no comparison against whichever ErnsAuth identity actually
+clicked approve. `requested_identity` is still sent and still shown on
+ErnsAuth's Pending Logins card ("Claiming to be `guest`") -- now purely a
+courtesy for the human operator to eyeball, exactly like plain Flow A's
+decoy numbers are a courtesy against guessing, not an enforced identity
+check on either side of this integration. The former `identity_mismatch`
+error code `finish()` returned is renamed `account_not_found` (`core/
+modules/ernsauth_sso/ernsauth_sso.php` itself is untouched -- it just
+forwards `finish()`'s result verbatim as JSON; `web/js/ernsauth-sso.js`'s
+error map in zpms is the one place that needed updating to match) since
+there's no identity comparison left to name it after -- the only remaining
+failure this path can report is the submitted username not resolving to an
+eligible local account at all. A successful approval still
+logs which ErnsAuth identity clicked it (`error_log('ernsauth sso approved
+for ' . $username . ' by ernsauth identity ' . ...)`) purely for an audit
+trail -- not checked against anything, but worth having on record.
+
+**If you're adopting `ernsauth_sso` for a *different* app**: do not copy
+this file's current `finish()` as the template. This is zpms's own,
+explicitly-made-with-full-context decision for its specific deployment
+shape (single trusted operator) -- re-derive whether it's appropriate for
+yours rather than assuming zeusfw's shipped default. See ernsauth's own
+`CLIENT-INTEGRATION.md` ("Requiring a username before Flow A") for the
+general, still-current guidance that step ⑥ is mandatory for a multi-
+approver deployment, and its note flagging this specific departure.

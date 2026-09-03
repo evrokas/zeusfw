@@ -2,15 +2,14 @@
 
 /*
  * Client-side integration with ErnsAuth's number-matching SSO flow ("Flow
- * A"), specifically the mandatory-username variant documented in
- * CLIENT-INTEGRATION.md (ernsauth repo) under "Requiring a username before
- * Flow A" -- for apps with several accounts that need to know *which one*
- * is signing in, rather than accepting whichever ErnsAuth account happens
- * to approve the number. Config-driven, no app-specific values baked in
- * here (same convention as Recaptcha.php): an app supplies its own
- * `config/ernsauth.php` (sso_api_url/api_key) and vendors the client
- * library itself at `lib/ernsauth/` -- see that file's own docblock below
- * for the exact expected shape. Every failure mode here fails closed
+ * A"), the username-prompt variant documented in CLIENT-INTEGRATION.md
+ * (ernsauth repo) under "Requiring a username before Flow A" -- for apps
+ * with several accounts that need to know *which one* is signing in.
+ * Config-driven, no app-specific values baked in here (same convention as
+ * Recaptcha.php): an app supplies its own `config/ernsauth.php`
+ * (sso_api_url/api_key) and vendors the client library itself at
+ * `lib/ernsauth/` -- see that file's own docblock below for the exact
+ * expected shape. Every failure mode here fails closed
  * (disabled/misconfigured/network error all behave like "not signed in",
  * never a fatal error or a silently-accepted login), matching this
  * framework's existing Recaptcha.php/rbacClass conventions.
@@ -30,15 +29,27 @@
  *     leaves every route here returning "disabled", never a fatal error
  *     from a missing config file.
  *
+ * *** NO POST-APPROVAL IDENTITY CHECK (deliberate, 2026-09-03) ***
+ * CLIENT-INTEGRATION.md's step ⑥ -- comparing the ErnsAuth identity that
+ * actually approved a challenge against an "expected" identity pinned
+ * before it was created -- is intentionally NOT implemented here. finish()
+ * trusts any successful exchangeCode() for the pending username, from
+ * whichever ErnsAuth account approved it. This was a deliberate choice by
+ * this app's maintainer after a full walkthrough of the tradeoff, not an
+ * oversight -- see the "No post-approval identity check" entry in this
+ * file's CLAUDE.md for the reasoning and its explicit limits (in short:
+ * fine when the ErnsAuth dashboard's approver population is trusted and
+ * small; does not survive a compromise of the ErnsAuth server itself,
+ * which no client-side check could anyway). Do not silently reintroduce
+ * step ⑥ here without the same conversation happening again -- ask first.
+ *
  * Session keys used across a single browser session's challenge lifecycle
  * (mirroring CLIENT-INTEGRATION.md's own $_SESSION['ea_...'] examples):
- *   ea_pending_username             the username the browser submitted
- *   ea_expected_ernsauth_username   the ErnsAuth identity that must
- *                                   approve for this to succeed -- null
- *                                   when the submitted username didn't
- *                                   resolve to an eligible local account
- *                                   (kept indistinguishable from a real
- *                                   pending request; see startChallenge())
+ *   ea_pending_username    the username the browser submitted
+ *   ea_pending_eligible    whether that username resolved to an active,
+ *                          not-locked-out local account -- unrelated to
+ *                          who approves; this is account-status parity
+ *                          with password login, not an identity check
  *   ea_challenge_id / _number / _expires_at   the live challenge
  *
  * Local per-username rate limiting and the one-pending-challenge cap are
@@ -115,15 +126,16 @@ class ernsauthClass {
     }
 
     /*
-     * Step ①-③ of the mandatory-username variant: validate locally, pin
-     * the expected identity, create (or reuse) the challenge. Returns the
+     * Step ①-③ of the username-prompt variant: validate the submitted
+     * username locally, create (or reuse) the challenge. Returns the
      * *same* {challenge_id, challenge_number, expires_at} shape whether or
      * not $username resolved to a real, eligible account -- see the
      * "Identical response whether the username resolves or not" row in
      * CLIENT-INTEGRATION.md's security table. Only ever returns an
      * {error: ...} shape for conditions that have nothing to do with
      * whether the username exists (disabled feature, rate limit,
-     * ErnsAuth unreachable).
+     * ErnsAuth unreachable). No identity is "pinned" here to check later
+     * -- see this file's top docblock, "NO POST-APPROVAL IDENTITY CHECK".
      */
     static function startChallenge(string $username, string $clientIp, string $userAgent): array {
         if (!self::isEnabled()) {
@@ -159,35 +171,6 @@ class ernsauthClass {
             $eligible = !$disabled && !$lockedOut;
         }
 
-        // ErnsAuth usernames and this app's own uname are two separate
-        // namespaces, but there is deliberately no per-account mapping
-        // table anywhere in this system -- not a column here, not a table
-        // on ErnsAuth's side either. The only rule that's actually
-        // enforceable without one is the direct one: an SSO-enabled
-        // account's uname must be spelled identically to its real ErnsAuth
-        // username. This is no longer just a client-side assumption --
-        // ErnsAuth itself enforces it server-side at approval time (see
-        // requestedIdentity below): a logged-in ErnsAuth user simply
-        // cannot approve a challenge whose requested identity doesn't
-        // match their own account. An app that needs a different mapping
-        // rule for some reason can still define
-        // zeusfw_app_resolve_ernsauth_username() (function_exists()
-        // extension point, same convention as
-        // zeusfw_app_resolve_user_roles() in core/lib/Rbac.php) -- but
-        // note ErnsAuth's own approval-time check only ever compares
-        // against the *submitted* uname (below), so a hook that resolves
-        // to something else here will never actually be approvable there;
-        // this exists for apps that want a stricter/local-only check on
-        // top, not a way to route around ErnsAuth's own enforcement.
-        $expected = null;
-        if ($eligible) {
-            if (function_exists('zeusfw_app_resolve_ernsauth_username')) {
-                $expected = zeusfw_app_resolve_ernsauth_username($us);
-            } else {
-                $expected = $us->getuname();
-            }
-        }
-
         if ($attempt['action'] === 'reuse') {
             $challengeId = $attempt['challenge_id'];
             $challengeNumber = $attempt['challenge_number'];
@@ -198,11 +181,11 @@ class ernsauthClass {
                 return ['error' => 'disabled'];
             }
             try {
-                // The submitted username, not $expected -- shown verbatim
-                // on the approver's Pending Logins card as a courtesy
-                // ("Claiming to be ...") so they can sanity-check it, never
-                // used by ErnsAuth (or trusted by this app) as anything
-                // more than a label. See CLIENT-INTEGRATION.md.
+                // Shown verbatim on the approver's Pending Logins card as
+                // a courtesy ("Claiming to be ...") so they can
+                // sanity-check it -- this app doesn't check it against
+                // anything either (see this file's top docblock). Purely
+                // for the human approving it to catch "that's not me".
                 $challenge = $client->createChallenge($clientIp, $userAgent, $username);
             } catch (RuntimeException $e) {
                 error_log('ernsauth createChallenge failed: ' . $e->getMessage());
@@ -216,7 +199,7 @@ class ernsauthClass {
         }
 
         $_SESSION['ea_pending_username'] = $username;
-        $_SESSION['ea_expected_ernsauth_username'] = $expected;
+        $_SESSION['ea_pending_eligible'] = $eligible;
         $_SESSION['ea_challenge_id'] = $challengeId;
         $_SESSION['ea_challenge_number'] = $challengeNumber;
         $_SESSION['ea_challenge_expires_at'] = $expiresAt;
@@ -263,14 +246,14 @@ class ernsauthClass {
     }
 
     /*
-     * Step ⑥: the entire security property of this variant. Exchanges the
-     * auth code, then rejects unless the identity that actually approved
-     * matches the one pinned in startChallenge() -- see
-     * CLIENT-INTEGRATION.md's "🔒 Security requirements" table; this
-     * single comparison is what that whole section is about. Returns
-     * ['user' => usersClass] on success (the LOCAL account, not the
-     * ErnsAuth identity -- the caller logs this in), or ['error' => ...]
-     * on any failure. Never creates a session on its own; the caller
+     * Step ⑥ -- exchanges the auth code and signs in the LOCAL account for
+     * the pending username, once ErnsAuth confirms a real approval exists
+     * for this challenge. Deliberately does NOT check *which* ErnsAuth
+     * identity approved it -- see this file's top docblock, "NO
+     * POST-APPROVAL IDENTITY CHECK". Returns ['user' => usersClass] on
+     * success (the LOCAL account, not the ErnsAuth identity -- the caller
+     * logs this in), or ['error' => ...] on any failure. Never creates a
+     * session on its own; the caller
      * (core/modules/ernsauth_sso/ernsauth_sso.php) does that via
      * $kernel->loginUser(), same as login_post().
      */
@@ -280,7 +263,7 @@ class ernsauthClass {
         }
 
         $username = $_SESSION['ea_pending_username'] ?? null;
-        $expected = $_SESSION['ea_expected_ernsauth_username'] ?? null;
+        $eligible = $_SESSION['ea_pending_eligible'] ?? false;
         if (!$username || $authCode === '') {
             return ['error' => 'invalid_request'];
         }
@@ -301,28 +284,29 @@ class ernsauthClass {
             return ['error' => 'upstream_unavailable'];
         }
 
-        $approvedUsername = (string)($result['username'] ?? '');
-        if ($expected === null || !hash_equals($expected, $approvedUsername)) {
-            // Either the submitted username never resolved to an eligible
-            // account, or a *different* ErnsAuth account approved it than
-            // the one that account maps to. Either way: reject, and this
-            // DOES count as a failed login attempt against the local
-            // account (if one exists) -- same lockout counter password
-            // login already uses, so SSO can't become a second,
-            // unthrottled guessing surface.
-            self::rejectAttempt($username, $expected === null ? 'unknown_username' : 'mismatched');
-            return ['error' => 'identity_mismatch'];
+        // exchangeCode() succeeding is proof ErnsAuth actually recorded a
+        // real approval for this specific challenge -- that's all that's
+        // checked here now. $eligible was computed in startChallenge(),
+        // before the challenge existed, and is about local account
+        // status/lockout only (password-login parity), not identity.
+        if (!$eligible) {
+            self::rejectAttempt($username, 'ineligible_account');
+            return ['error' => 'account_not_found'];
         }
 
         $us = usersClassEx::getUserAccount($username);
         if (!$us) {
-            // Defensive only -- $expected is never non-null unless
+            // Defensive only -- $eligible is never true unless
             // getUserAccount() just resolved this same username in
-            // startChallenge(). A account deleted mid-flow is the only
+            // startChallenge(). An account deleted mid-flow is the only
             // realistic way to reach this.
             self::rejectAttempt($username, 'account_missing');
-            return ['error' => 'identity_mismatch'];
+            return ['error' => 'account_not_found'];
         }
+
+        // Not enforced against anything, but worth a paper trail: which
+        // ErnsAuth account actually clicked approve for this ZPMS login.
+        error_log('ernsauth sso approved for ' . $username . ' by ernsauth identity ' . (string)($result['username'] ?? '?'));
 
         ernsauthSsoAttemptsClassEx::clearChallenge($username, 'matched');
         $us->setwrongpasscount(0);
@@ -348,7 +332,7 @@ class ernsauthClass {
     private static function clearSession(): void {
         unset(
             $_SESSION['ea_pending_username'],
-            $_SESSION['ea_expected_ernsauth_username'],
+            $_SESSION['ea_pending_eligible'],
             $_SESSION['ea_challenge_id'],
             $_SESSION['ea_challenge_number'],
             $_SESSION['ea_challenge_expires_at']
