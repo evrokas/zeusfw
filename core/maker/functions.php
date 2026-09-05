@@ -524,13 +524,13 @@ function syncTableWithYAML($yamlData, $pdo) {
                 $sql[] = "/* old definition $existingDefinition" . ($hasUnique ? ' UNIQUE' : '') . " */";
                 $sql[] = "/* new definition $columnDefinition */";
 
-                $sql[] = "ALTER TABLE `$tableName` MODIFY `$name` $columnDefinition";
+                $sql[] = "ALTER TABLE `$tableName` MODIFY `$name` $columnDefinition;";
             }
         } else {
             // Add new column in correct position using AFTER
             $afterClause = $index > 0 ? "AFTER `" . $fields[$index - 1]['name'] . "`" : "FIRST";
 
-            $sql[] = "ALTER TABLE `$tableName` ADD `$name` $columnDefinition $afterClause";
+            $sql[] = "ALTER TABLE `$tableName` ADD `$name` $columnDefinition $afterClause;";
         }
     }
 
