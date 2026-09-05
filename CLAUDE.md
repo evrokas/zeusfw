@@ -821,3 +821,36 @@ yours rather than assuming zeusfw's shipped default. See ernsauth's own
 `CLIENT-INTEGRATION.md` ("Requiring a username before Flow A") for the
 general, still-current guidance that step ⑥ is mandatory for a multi-
 approver deployment, and its note flagging this specific departure.
+
+## `diff:sql`/`diff:sql:all` falsely flagging `UNIQUE` columns forever (2026-09-05)
+
+`syncTableWithYAML()` (`core/maker/functions.php`) compares each yaml
+field's `createFieldDefinition()`-built type string against a `DESCRIBE
+$table`-introspected definition to detect schema drift. MySQL's
+`DESCRIBE` never echoes `UNIQUE` back into a column's `Type`/`Extra` --
+it's a separate index, surfaced only via the `Key` column (`'UNI'`). But
+this codebase's own established convention (`ernsauth_sso_attempts.yaml`'s
+`username` field, see its own docblock) deliberately bakes `UNIQUE`
+straight into the yaml `type:` string, since `createFieldDefinition()` has
+no separate `unique:` option and a hand-added `ALTER TABLE` in the
+generated `.sql` doesn't survive the next `spill:sql`. Comparing that
+yaml-side string verbatim against the DB-introspected one (which can
+*never* contain the word) produced a permanent, unfixable diff --
+`ernsauth_sso_attempts`'s `username` column showed up on every
+`diff:sql`/`diff:sql:all` run, even immediately after applying the exact
+`ALTER TABLE ... MODIFY ... UNIQUE` statement the tool itself recommended.
+
+Fixed by splitting the comparison in two: strip `UNIQUE` out of the
+type-string comparison entirely, and separately compare whether the yaml
+expects it (`preg_match('/\bUNIQUE\b/i', ...)`) against whether the real
+column already has it (`$existing['Key']` is `'UNI'` or `'PRI'`). Only a
+genuine mismatch between those two now triggers the diff.
+
+Verified against a real MariaDB test DB in both directions: the
+`ernsauth_sso_attempts.username` false positive (already has the index
+applied) is gone, while a throwaway copy of that table with the `UNIQUE`
+index dropped still correctly reports the missing-constraint diff --
+confirming the fix distinguishes "already unique" from "not yet unique"
+rather than just silencing the check outright. zpms's own
+`bin/run_tests.sh` (30/30 static, 35/35 functional) stayed green
+throughout.
