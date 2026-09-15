@@ -256,13 +256,24 @@ class Kernel {
         }
     }
 
-    function renderRegion($structure, $regionName) {
-        if (!isset($structure[$regionName])) {  
+    // $access is an optional space-separated role string, same shape and
+    // same SecurityClass::userIsPermitted() check as a route's own
+    // `access:` -- resolved by renderRegions() from that region's entry in
+    // the `regions:` config list (a plain name has none; `- header: {access:
+    // authenticated}` does). Checked before anything inside the region is
+    // touched at all, so an unpermitted region costs nothing beyond this
+    // one check -- no module inside it is even called.
+    function renderRegion($structure, $regionName, $access = null) {
+        if (!isset($structure[$regionName])) {
             // echopre("Region '$regionName' not found,");
             $output = "Region '$regionName' not found.";
             return $output;
         }
-    
+
+        if ($access !== null && !SecurityClass::userIsPermitted($access)) {
+            return '';
+        }
+
         $output = '';
 
         // echopre("Rendering region: $regionName\n");
@@ -346,16 +357,26 @@ class Kernel {
                 if(array_search($routename, array_keys($modconfig['hide'])) !== false) {
                     $display = false;
                 }
-            } else $display = true;              
+            } else $display = true;
         } else $display = true;
 
-        if($display) {
+        // Independent of hide/display above -- that's "should this show on
+        // THIS route", this is "is this viewer even allowed to see it at
+        // all", same modconf: <module>: access: <role-string> shape and
+        // SecurityClass::userIsPermitted() check a route's own `access:`
+        // already uses. A module renders only if it clears both.
+        $permitted = true;
+        if($modconfig && isset($modconfig['access'])) {
+            $permitted = SecurityClass::userIsPermitted($modconfig['access']) > 0;
+        }
+
+        if($display && $permitted) {
             return (
             // $this->modulename . ": renderTemplate(): " . $this->template . ": " .
             $module->render( $aparams ) );
             // Renderer::render($this->template, $aparams));
         }
-        else { 
+        else {
             // echopre("module " . $module->getName() . " does not return output");
             return '';
         }
@@ -471,9 +492,25 @@ class Kernel {
 
         $region_output = [];
         foreach($regions as $region) {
-            // echopre("## rendering region `$region`" );//. print_r($regionBlocks, 1));
-            $region_output[ $region ] = $kernel->renderRegion($structure, $region);
-            // echopre("regions output[ $region ]: " . print_r($region_output, 1));
+            // Each `regions:` entry is either a plain name (no access
+            // restriction, exactly today's behavior) or a single-key map
+            // carrying that region's own config -- same shape `structure:`
+            // already uses one level down for blocks vs. sections, e.g.:
+            //   regions:
+            //     - header:
+            //         access: authenticated
+            //     - main_content
+            if(is_array($region)) {
+                $regionName = array_key_first($region);
+                $access = $region[ $regionName ]['access'] ?? null;
+            } else {
+                $regionName = $region;
+                $access = null;
+            }
+
+            // echopre("## rendering region `$regionName`" );//. print_r($regionBlocks, 1));
+            $region_output[ $regionName ] = $kernel->renderRegion($structure, $regionName, $access);
+            // echopre("regions output[ $regionName ]: " . print_r($region_output, 1));
         }
 
         return $region_output;

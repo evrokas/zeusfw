@@ -499,11 +499,29 @@ function syncTableWithYAML($yamlData, $pdo) {
                 (isset($existing['Extra']) ? " " . trim($existing['Extra']) : '');
 */
 
-            if (strtolower(trim($existingDefinition)) !== strtolower(trim($columnDefinition))) {
+            // MySQL's DESCRIBE never reports UNIQUE as part of a column's
+            // Type/Extra -- a unique constraint is a separate index,
+            // surfaced only via the Key column ('UNI'), never echoed back
+            // into the column definition itself. But this codebase's own
+            // yaml convention (see ernsauth_sso_attempts.yaml's docblock)
+            // deliberately writes e.g. `type: varchar(64) UNIQUE` and
+            // createFieldDefinition() passes that straight through into
+            // $columnDefinition -- so comparing it verbatim against
+            // $existingDefinition (which can *never* contain the word)
+            // reported a permanent, unfixable diff, even immediately after
+            // running the very ALTER TABLE this function suggested. Strip
+            // UNIQUE out of the base-type comparison and check it
+            // separately, keyed off the real Key column instead.
+            $expectsUnique = (bool)preg_match('/\bUNIQUE\b/i', $columnDefinition);
+            $hasUnique = in_array($existing['Key'] ?? '', ['UNI', 'PRI'], true);
+            $columnDefinitionForCompare = trim(preg_replace('/\s*\bUNIQUE\b\s*/i', ' ', $columnDefinition));
+
+            if (($expectsUnique !== $hasUnique)
+                || (strtolower(trim($existingDefinition)) !== strtolower(trim($columnDefinitionForCompare)))) {
                 // Alter column
                 // echo("existing `$name`: " . print_r($existing, 1));
 
-                $sql[] = "/* old definition $existingDefinition */";
+                $sql[] = "/* old definition $existingDefinition" . ($hasUnique ? ' UNIQUE' : '') . " */";
                 $sql[] = "/* new definition $columnDefinition */";
 
                 $sql[] = "ALTER TABLE `$tableName` MODIFY `$name` $columnDefinition;";

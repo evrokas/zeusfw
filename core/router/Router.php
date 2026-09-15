@@ -231,7 +231,16 @@ class RouterClass {
                 http_response_code(self::getError());
 
                 switch(self::getError()) {
-                    case 401: return (error_401());
+                    case 401:
+                        // Opt-in (see SecurityClass::$loginRedirectUrl's
+                        // own docblock) -- an app that never calls
+                        // enableLoginRedirect() gets the exact same bare
+                        // error_401() page as before this existed.
+                        if(SecurityClass::$loginRedirectUrl !== null) {
+                            header('Location: ' . rel_url(SecurityClass::$loginRedirectUrl));
+                            exit();
+                        }
+                        return (error_401());
                 }
 
                 self::clearError();

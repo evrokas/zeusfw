@@ -661,3 +661,476 @@ server, confirmed every rendered `<script src=...>` tag on a real page now carri
 and ran a full upload-then-delete regression through a real browser session (zero
 404s on any asset, both operations completed correctly) to confirm this doesn't
 change how any of those tags actually resolve or load.
+
+## ErnsAuth SSO integration (`core/lib/ErnsAuth.php`, `core/modules/ernsauth_sso/`) (2026-09-02)
+
+Client-side integration with [ErnsAuth](https://github.com/evrokas/ernsauth)'s
+number-matching SSO flow ("Flow A"), specifically the **mandatory-username**
+variant documented in that repo's `CLIENT-INTEGRATION.md` under "Requiring a
+username before Flow A" -- for an app with several accounts that needs to
+know *which one* is signing in, rather than accepting whichever ErnsAuth
+account happens to approve the shown number. First adopter: zpms (see its
+own `CLAUDE.md`/`README.md` "ErnsAuth SSO login" section for the app-level
+half -- config, vendored client library, login-page UI). Built as a
+reusable core module, not app-specific code, since the whole engine (config
+loading, the challenge lifecycle, rate limiting, identity verification,
+session establishment) has nothing zpms-specific in it beyond the local
+`uname` lookup, which itself goes through the same `usersClassEx`
+convention `login_post()` already depends on.
+
+**`core/lib/ErnsAuth.php` / `ernsauthClass`** -- config-driven, no
+app-specific values baked in (same convention as `Recaptcha.php`): an app
+supplies its own `config/ernsauth.php` (`sso_api_url`/`api_key`, gitignored,
+outside the web root) and vendors ErnsAuth's client library itself at
+`lib/ernsauth/` (`git clone -b stable`, also gitignored). Every failure mode
+fails closed -- disabled/misconfigured/network error all behave like "not
+signed in", never a fatal error or a silently-accepted login.
+
+Three public methods carry the whole flow, one per step of the mandatory-
+username variant:
+- `startChallenge(string $username, string $clientIp, string $userAgent): array`
+  -- validates the username against the app's own `usersClassEx::
+  getUserAccount()` (respecting `LoginSecurityClass::$enforceLockout`/
+  `$enforceAccountStatus`, exactly like password login), pins the *expected*
+  ErnsAuth identity to session, and creates (or reuses) the challenge.
+  **Returns the identical `{challenge_id, challenge_number, expires_at}`
+  shape whether or not `$username` resolved to a real, eligible account** --
+  the single most load-bearing line in this file, since a different
+  response per case would be a free username-enumeration oracle. The
+  expected-identity mapping itself is a `function_exists()` extension point
+  (`zeusfw_app_resolve_ernsauth_username(usersClass $user): string`, same
+  pattern as `zeusfw_app_resolve_user_roles()` in `Rbac.php`), falling back
+  to a 1:1 `uname === ErnsAuth username` assumption when an app hasn't
+  defined it.
+- `poll(): array` -- thin pass-through to `pollChallenge()`, but also clears
+  the locally tracked pending challenge on any terminal non-success status
+  (`rejected`/`expired`/`not_found`) so a "new request" click isn't stuck
+  reusing a challenge ErnsAuth will never approve again.
+- `finish(string $authCode): array` -- exchanges the auth code, then
+  **rejects unless the identity that actually approved matches the one
+  pinned in `startChallenge()`** (`hash_equals()`), which is the entire
+  security property of this variant -- see CLIENT-INTEGRATION.md's own
+  "🔒 Security requirements" table, since this single comparison is what
+  that whole section is about. A mismatch (or an unresolved username)
+  increments the matched local account's `wrongpasscount` the same way a
+  wrong password does, via the exact same counter `login_post()` already
+  uses -- so SSO can't become a second, unthrottled guessing surface around
+  an account password login already locks out. An upstream/network error
+  during exchange does *not* touch that counter (not a failed attempt by
+  the user). On a real match: resets `wrongpasscount` to 0, returns the
+  local `usersClass` row -- **never logs the session in itself**; the
+  caller (the module below) does that via `$kernel->loginUser()`, reusing
+  `login_post()`'s exact RBAC role-resolution pattern.
+
+**Local rate limiting + one-pending-challenge-per-username**
+(`core/classes/yaml/ernsauth_sso_attempts.yaml` -> generated
+`ernsauthSsoAttemptsClass`, hand-written `core/ernsauthSsoAttemptsClassEx.php`)
+-- a new, small DB table, because neither ErnsAuth itself nor a PHP session
+can provide either guarantee on their own. ErnsAuth's own `create_challenge`
+rate limit is keyed on **whoever calls its API** -- for this server-to-
+server integration, that's this app's own server IP, shared across every
+one of its real users, so it can't see one username being targeted while
+every other user keeps working. And a session-only "one pending challenge"
+cap is trivially bypassed by an attacker who gets a fresh session on every
+attempt. `ernsauthSsoAttemptsClassEx::checkAndRecordAttempt()` is the single
+entry point covering both checks together (so a caller can't apply one
+without the other), keyed on the *submitted* username (resolved or not, for
+the same enumeration-safety reason as above) and the real end-user IP.
+
+Its rate-limit counter uses the exact same atomic `INSERT ... ON DUPLICATE
+KEY UPDATE ... IF(...)` technique as ernsauth's own `RateLimit::attempt()`
+(`src/RateLimit.php` in that repo) -- ported deliberately, not
+reinvented, since concurrent requests for the same key need to serialize on
+a real row lock rather than race on a read-then-write gap, and that file
+already solved this exact problem once. **The `UNIQUE` constraint this
+depends on is baked directly into the yaml's `type: varchar(64) UNIQUE`
+field definition, not a hand-added `ALTER TABLE` in the generated `.sql`
+file** -- confirmed the hard way, within the same session this table was
+built in: a hand-added `ALTER TABLE` survived exactly until the next
+`spill:sql` regenerated the file from the yaml (zpms's own test suite does
+this as part of its schema rebuild), silently dropping the index and
+breaking the upsert's atomicity. `maker/functions.php`'s
+`createFieldDefinition()` has no separate `unique:` field option, but
+happily passes an arbitrary `type:` string straight through into the column
+definition, which is what makes baking it into `type:` durable across
+regeneration where the `.sql` file itself never is.
+
+**`core/modules/ernsauth_sso/ernsauth_sso.php`** -- the browser-facing
+route handlers (`ernsauth_sso_start`/`ernsauth_sso_poll`/
+`ernsauth_sso_exchange`), registered unconditionally in
+`core/config/zeusfw.info.yaml` under `/login/ernsauth/{start,poll,exchange}`
+(same "always registered, framework-wide" precedent as `admin_user_crud`'s
+routes) but only ever *functional* once `ernsauthClass::isEnabled()` says
+so. Unlike `admin_user_crud`'s `packagesClass`/`disabled_packages` gate
+(opt-OUT: enabled by default, and a later config layer can only ever add to
+the disabled list, never re-enable something a less specific layer already
+turned off -- see `Packages.php`'s own docblock), this package needs real
+per-app setup (a vendored client library, a live ErnsAuth server, an API
+key) to function at all, so it's opt-IN instead: `register_ernsauth_sso_
+module()` (called by the classic `core/lib/Modules.php` `registerModules()`
+mechanism, when an app lists `ernsauth_sso` under its own `config/
+settings.info.yaml` `modules:` block) is the only thing that ever calls
+`ernsauthClass::enable()` -- and `isEnabled()` additionally requires a valid
+`config/ernsauth.php` on top of that, so listing the module alone still
+isn't enough. This is the first use of the `modules:` opt-in list for
+something that isn't a renderable page-region `moduleClass` block (nav/
+footer/etc.) -- `register_ernsauth_sso_module()` calls `ernsauthClass::
+enable()` instead of `$kernel->registerModule(...)`, which is fine: nothing
+about `registerModules()` requires the callback to actually register a
+module instance, and repurposing an existing, already-familiar app-facing
+toggle beat inventing a second, parallel enablement mechanism next to
+`disabled_packages` for a feature that structurally can't be modeled as
+opt-out.
+
+Also required unconditionally from `core/bootstrap.php` (`ErnsAuth.php`,
+right after `UserLogin.php`, since it depends on `LoginSecurityClass`) --
+same "handler functions always exist, the package check inside them is what
+actually gates behavior" reasoning as `admin_crud.php`'s own require line.
+
+**Verified end-to-end against zpms** (not just unit logic, though this
+sandbox has no reachable live ErnsAuth server to complete a real approval
+against): booted a real MariaDB-backed zpms test server and confirmed, over
+real HTTP -- the login page renders the "Sign in with ErnsAuth" section only
+once both the `modules:` entry and a valid `config/ernsauth.php` are
+present; a nonexistent username and a real-but-uninvolved one (`zpms_test_user`)
+produce byte-identical `{"error":"upstream_unavailable"}` responses once the
+(unreachable, by design in this sandbox) ErnsAuth call fails, confirming the
+enumeration-safety property actually holds at the HTTP layer, not just in
+theory; the local rate limit blocks the 6th `create_challenge` attempt for
+one username (429) while a different username is unaffected; a missing/
+wrong CSRF token is rejected (403). Separately, with `ErnsAuthClient` stubbed
+out (no network dependency) to isolate `ernsauthClass`'s own logic: a
+matching identity logs the account in and clears session state; a mismatched
+identity is rejected and increments `wrongpasscount` by exactly 1; a
+username that never resolves to a local account is rejected without
+touching any account's counter; a second `startChallenge()` call while one
+is still pending reuses the exact same `challenge_id`/`challenge_number`
+rather than creating (and paying the rate-limit cost of) a new one. zpms's
+own `bin/run_tests.sh` (36/36 static, 35/35 functional) stayed fully green
+throughout, both before and after the `UNIQUE`-constraint fix above was
+found and corrected.
+
+## `SecurityClass::enableLoginRedirect()` -- opt-in redirect-to-login instead of a bare 401 page (2026-09-02)
+
+`Router.php`'s route-level `access:` gate (`SecurityClass::userIsPermitted()`,
+checked before dispatch -- separate from `rbacClass::require()`/
+`SecurityClass::require()`, which handlers call *internally* and which
+render `error_401()` directly, untouched by this change) has always shown
+a bare inline `error_401()` page on failure, whether the cause was "not
+logged in at all" or "logged in but lacks the role". First requested by
+zpms, which wanted an anonymous visitor sent straight to `/login` instead.
+
+New `SecurityClass::$loginRedirectUrl` (default `null`) / `enableLoginRedirect(string
+$url = '/login')`, same opt-in shape as `csrfClass::$enforceLogin`/
+`LoginSecurityClass`'s switches -- an app that never calls this keeps the
+exact same bare `error_401()` behavior as before. `Router.php`'s `case
+401:` now checks it first: if set, redirects (`header('Location: ' .
+rel_url($url)); exit();`) instead of rendering the page. Deliberately
+framework-level rather than zpms-specific, since "send an anonymous user to
+the login page instead of a 401" is generic behavior any app on this
+framework might want, following the same "define once in core, opt in per
+app" pattern as every other switch in this file.
+
+**Only covers routes with a route-level `access:`.** A handler that calls
+`rbacClass::require()`/`SecurityClass::require()` itself (e.g. every
+`admin_crud.php` handler, zpms's own `clinics_edit()`) still renders
+`error_401()` inline regardless of this setting -- those never reach
+`Router.php`'s error-handling branch at all, since the route itself has no
+`access:` and matches successfully; the handler decides on its own. An app
+wanting the redirect there too would need to change those call sites
+individually, not this one switch.
+
+## `access:` on regions and modules -- chrome that requires login, without hardcoding route names (2026-09-02)
+
+Follow-up to the redirect-to-login entry above: zpms wanted its
+header/nav/footer chrome to disappear on `/login` (the one route still
+reachable while logged out) rather than surrounding the login form the way
+every other page's chrome surrounds real content. The first version of this
+(zpms's own `web/templates/page/page.zetem`) hardcoded the `login`/
+`login_post` route names -- worked, but silently failed to cover any future
+pre-auth route (password reset, an invite link, ...) unless someone
+remembered to add it to that list too. Replaced with the same `access:`
+concept routes already have, applied one level down, at the two places
+content actually gets composed: regions and modules. Both resolve through
+the exact same `SecurityClass::userIsPermitted()` a route's own `access:`
+already uses -- no new permission-matching logic anywhere.
+
+**Region-level** (`Kernel::renderRegion($structure, $regionName, $access =
+null)`, new third param): `config/settings.info.yaml`'s `regions:` list
+entries can now be a plain name (unchanged, no restriction) or a
+single-key map carrying that region's config -- same shape `structure:`
+already uses one level down for blocks vs. sections:
+
+```yaml
+regions:
+  - header:
+      access: authenticated
+  - main_navigation:
+      access: authenticated
+  - notification
+  - main_content
+  - footer:
+      access: authenticated
+```
+
+`Kernel::renderRegions()` parses this (`is_array($region)` ->
+`array_key_first()` for the name, `[$name]['access'] ?? null` for the
+requirement) and passes the resolved `$access` into `renderRegion()`,
+which checks it *before* building any module/section inside -- an
+unpermitted region costs one `userIsPermitted()` call, nothing inside it
+ever runs.
+
+**Module-level** (`Kernel::renderModule()`): `modconf: <module>: access:
+<role-string>` -- a new key alongside the existing `hide:`/`display:`
+(which stay route-name-keyed and unchanged). `access:` answers a different
+question than hide/display ("is this viewer even allowed to see this
+module at all" vs. "should it show on this particular route") and is
+checked independently: `$permitted = SecurityClass::userIsPermitted(...)`
+computed alongside the existing `$display` boolean, module renders only if
+`$display && $permitted`.
+
+**Both are opt-in and additive** -- a region/module with no `access:`
+behaves exactly as before this change; every existing `regions:`/`modconf:`
+entry across every app on this framework needed zero changes.
+
+**Empty wrapper divs needed no new code.** `renderRegion()` (and
+`renderBlock()`'s nested-section branch) already only render their own
+`<div class="region ...">`/`<div class="section ...">` wrapper when
+`strlen($output)` -- the concatenated blocks inside -- is non-empty. Once
+every module in a region resolves to `''` (via this same mechanism), the
+region's own wrapper disappears too, recursively through nested sections,
+for free -- this existed before today and just needed the modules to
+actually go empty, which `access:` now does.
+
+**zpms's own follow-up** (`web/templates/page/page.zetem`): the old
+route-name check is gone. The only thing left for that template to derive
+is whether to add the `wrapper-bare` CSS class (so `.login-page` fills the
+viewport instead of leaving a gap sized for chrome that isn't there) --
+now computed by checking whether `$regions['header']`/
+`['main_navigation']`/`['footer']` actually rendered anything, not by
+checking the route name:
+
+```
+{% $__bareLayout = trim(($regions['header'] ?? '') . ($regions['main_navigation'] ?? '') . ($regions['footer'] ?? '')) === ''; %}
+```
+
+Content-driven rather than identity-driven, but derived from the same
+`access:` checks above -- correct for any current or future route that
+ends up with empty chrome, with nothing to remember to add anywhere.
+
+**Verified against zpms**: logged-out `/login` renders with the
+`notification` region (so `login_post()`'s flash messages still show) and
+`main_content` only, `wrapper-bare` present, zero `region-header`/
+`region-main_navigation`/`region-footer` markup in the response. A
+logged-in visit to `/patients` -- and, deliberately, a logged-in visit to
+`/login` itself, which has no reason to hide chrome for someone already
+authenticated -- both render full chrome. `bin/run_tests.sh` (36/36
+static, 35/35 functional) stayed green throughout.
+
+**Pre-existing, still-unrelated oddity found while touching this
+file**: `config/settings.info.yaml`'s `modconf: message: display:
+userprofile:` block has a nested `access: authenticated` key sitting
+alongside `arguments:` -- confirmed via direct code reading that nothing
+before or after this change ever reads a nested `display.<route>.access`
+value (only `display.<route>.arguments`); it's inert config, not a
+different form of the mechanism added here. Left untouched rather than
+guessed-at rewritten -- flagged for zpms's own maintainer to decide
+whether it was an abandoned earlier attempt at this exact feature or dead
+copy-paste.
+
+## ErnsAuth identity resolution: same-username convention, enforced on ErnsAuth's own side (2026-09-02, revised same day)
+
+Real production incident on zpms (`pms.erns.eu`): a login attempt via the
+ernsauth_sso module logged `ernsauth sso mismatched for guest` even though
+the person approving was a genuine ErnsAuth user. Root cause: `ernsauthClass::
+startChallenge()` (`core/lib/ErnsAuth.php`) had exactly one fallback for
+resolving "which ErnsAuth identity is this ZPMS account allowed to sign in
+as" when no app-defined `zeusfw_app_resolve_ernsauth_username()` hook
+existed -- assume the ZPMS `uname` and the ErnsAuth username are spelled
+identically. zpms's `guest` account and the approver's real ErnsAuth
+username are two different strings, so step ⑥'s identity check (see
+ernsauth's own `CLIENT-INTEGRATION.md`) correctly rejected it every time --
+working as designed, but the *design* had no way to express "these two are
+the same person, just spelled differently" short of writing a PHP function.
+
+**First fix, shipped then reverted the same day**: a `users.ernsauth_username`
+column (nullable `varchar(64)`) storing an explicit per-account mapping,
+editable via `/admin/users`. Reverted after the app's maintainer objected --
+correctly -- that storing this linkage in ZPMS's own database at all is a
+needless reconnaissance/targeting surface on a DB that's otherwise
+patient-data-only, and separately pointed out that ErnsAuth accounts have no
+concept of being "mapped" to a client app's users in the first place, so
+inventing a parallel mapping table on ErnsAuth's side to replace it wouldn't
+be right either. The column, its `core/modules/admin/admin_crud.php` field,
+and `startChallenge()`'s column-reading tier were all removed the same day
+they were added; if a live database ever ran the earlier entry's
+`ALTER TABLE ... ADD COLUMN ernsauth_username`, the column is simply unused
+now and can be dropped at your convenience -- nothing in either app reads or
+writes it any more.
+
+**Actual fix: enforce the same-username convention where a human is already
+standing, instead of resolving a stored mapping where nobody is.** ErnsAuth
+(`src/SSO.php::approveChallenge()`, ernsauth repo) now checks, server-side,
+at the moment someone tries to approve a challenge: does the challenge's
+`requested_identity` (the raw username the client app submitted --
+unchanged, still threaded through from `startChallenge()`'s `$username`,
+see below) match *that approver's own ErnsAuth account username*? A
+mismatch is rejected outright, and ErnsAuth's dashboard now greys out /
+disables the number buttons on any pending card that isn't the logged-in
+viewer's own request, so a mismatch is caught before a click even reaches
+the network, not after. There is still no mapping table anywhere in this
+system, on either side -- the enforced rule is exactly "your ErnsAuth
+username must be spelled identically to the client app's username",
+nothing more elaborate, and it's ErnsAuth itself that now guarantees it
+rather than leaving it to a client app's own post-hoc string compare.
+
+`startChallenge()`'s resolution for zeusfw's own client-side `$expected`
+(used by `finish()`'s step ⑥ comparison, which stays in place as a second,
+independent layer -- see CLIENT-INTEGRATION.md's updated security table)
+is back down to two tiers: an app-defined `zeusfw_app_resolve_ernsauth_username()`
+hook (unchanged extension point, `function_exists()`-gated, same convention
+as `zeusfw_app_resolve_user_roles()`) if one exists, else the bare `uname`.
+No column tier. `core/modules/admin/admin_crud.php`'s "ErnsAuth Username"
+field is gone; the `users` entity's Username field comment now just states
+the same-spelling requirement directly.
+
+**Server-side enforcement reverted the same day, back to display-only.**
+The app's maintainer asked for ErnsAuth to "approve any username" again --
+`requested_identity` should let the human approver visually confirm what's
+being claimed, not have ErnsAuth block the click itself. Reverted via
+`git revert` of the enforcement commit (ernsauth repo): `approveChallenge()`
+no longer takes an approver-username parameter or compares it against
+anything, and the dashboard no longer greys out/disables numbers for a
+"mismatched" card -- every pending challenge is equally clickable by any
+logged-in ErnsAuth user again, exactly as when `requested_identity` first
+shipped. This also un-breaks the `zeusfw_app_resolve_ernsauth_username()`
+hook for any app using a real custom mapping: while ErnsAuth enforced literal
+same-spelling, an app whose hook resolved to something else would have had
+every one of its logins blocked at approval time regardless of what its own
+step ⑥ check would have said.
+
+**Net effect: the entire security property is, once again, squarely
+zpms's/zeusfw's own `finish()` step ⑥ comparison** (`hash_equals($expected,
+$user['username'])`) -- ErnsAuth's Pending Logins card is a courtesy for a
+human to catch "that's not me" before tapping a number, nothing more. This
+was always true before today's brief detour into server-side enforcement,
+and CLIENT-INTEGRATION.md's own security table (ernsauth repo) has been
+reverted to say so explicitly again -- never treat `requested_identity`, or
+the fact that an approver picked the right number, as proof of identity on
+its own.
+
+See ernsauth's own `CLIENT-INTEGRATION.md` ("Requiring a username before
+Flow A") for the full current design, and zpms's `README.md` for the
+app-level note this pairs with. `guest`-style accounts are still best fixed
+by making the ErnsAuth account's own username literally `guest` (or
+renaming the ZPMS account to match) -- the same-spelling convention is
+still the simplest thing that works with the default fallback, it's just no
+longer enforced by ErnsAuth itself, only checked by your own app's step ⑥.
+
+## No post-approval identity check -- `finish()`'s step ⑥ removed entirely (2026-09-03)
+
+Same-day follow-up to the entry above: even with the same-spelling
+convention as the only remaining rule, real accounts (`guest` among them)
+kept failing SSO login because their ErnsAuth username genuinely wasn't
+spelled the same as their ZPMS `uname`, with no config mismatch or bug
+involved -- just two separately-administered systems whose usernames were
+never coordinated. Walked through the actual threat model with the app's
+maintainer before touching anything (this repo's established practice for
+security-model changes): concretely, what does step ⑥ protect against that
+decoys/throttling/IP-logging don't?
+
+**The answer, and why it doesn't apply to this deployment**: step ⑥ stops
+an ErnsAuth identity that *isn't* entitled to a given ZPMS account from
+successfully claiming it -- e.g. account B's holder typing `admin` at
+ZPMS's login form and approving their own request with their own (non-admin)
+ErnsAuth login. Without step ⑥, that succeeds; a compromised or merely
+curious ErnsAuth account becomes a skeleton key to every ZPMS username via
+plain "username scanning" (type any name, approve it yourself), since Flow
+A's decoys/throttling only defend against someone *guessing* a challenge
+number they weren't shown -- not against someone approving a request they
+generated themselves, which needs no guessing at all. This is a real,
+general risk for any multi-account app using Flow A's username variant, and
+CLIENT-INTEGRATION.md's guidance to make step ⑥ mandatory stands unchanged
+for the general case.
+
+zpms's actual deployment is materially narrower: ErnsAuth dashboard access
+is held by a single trusted operator, not a wider staff population. In that
+shape, the "wrong identity approves" scenario step ⑥ guards against can't
+occur the way it does for a multi-approver deployment -- there is no
+second, differently-privileged ErnsAuth account that could approve instead.
+What step ⑥ *would* still do is limit the blast radius if that one
+ErnsAuth account is ever compromised (an attacker inheriting it could only
+reach the one ZPMS account whose uname matches it, instead of every
+username they can type) -- a real, understood, and explicitly *accepted*
+tradeoff, not an overlooked one. It also does nothing at all against a full
+ErnsAuth **server** compromise (DB/RCE access), since an attacker at that
+level can just make `exchangeCode()` return whatever identity the check
+wants to see -- no client-side comparison survives that regardless.
+
+**Removed, not just relaxed**: `ernsauthClass::startChallenge()` no longer
+resolves or pins an "expected" ErnsAuth identity at all (no column, no
+`zeusfw_app_resolve_ernsauth_username()` hook call, no bare-uname
+fallback -- that whole block is deleted, along with the
+`ea_expected_ernsauth_username` session key, replaced by `ea_pending_eligible`,
+a plain boolean carrying forward only the pre-existing account-status/
+lockout eligibility check, which is unrelated to identity and stays for
+password-login parity). `finish()` now signs a login in the moment
+`exchangeCode()` returns successfully for an eligible pending username --
+full stop, no comparison against whichever ErnsAuth identity actually
+clicked approve. `requested_identity` is still sent and still shown on
+ErnsAuth's Pending Logins card ("Claiming to be `guest`") -- now purely a
+courtesy for the human operator to eyeball, exactly like plain Flow A's
+decoy numbers are a courtesy against guessing, not an enforced identity
+check on either side of this integration. The former `identity_mismatch`
+error code `finish()` returned is renamed `account_not_found` (`core/
+modules/ernsauth_sso/ernsauth_sso.php` itself is untouched -- it just
+forwards `finish()`'s result verbatim as JSON; `web/js/ernsauth-sso.js`'s
+error map in zpms is the one place that needed updating to match) since
+there's no identity comparison left to name it after -- the only remaining
+failure this path can report is the submitted username not resolving to an
+eligible local account at all. A successful approval still
+logs which ErnsAuth identity clicked it (`error_log('ernsauth sso approved
+for ' . $username . ' by ernsauth identity ' . ...)`) purely for an audit
+trail -- not checked against anything, but worth having on record.
+
+**If you're adopting `ernsauth_sso` for a *different* app**: do not copy
+this file's current `finish()` as the template. This is zpms's own,
+explicitly-made-with-full-context decision for its specific deployment
+shape (single trusted operator) -- re-derive whether it's appropriate for
+yours rather than assuming zeusfw's shipped default. See ernsauth's own
+`CLIENT-INTEGRATION.md` ("Requiring a username before Flow A") for the
+general, still-current guidance that step ⑥ is mandatory for a multi-
+approver deployment, and its note flagging this specific departure.
+
+## `diff:sql`/`diff:sql:all` falsely flagging `UNIQUE` columns forever (2026-09-05)
+
+`syncTableWithYAML()` (`core/maker/functions.php`) compares each yaml
+field's `createFieldDefinition()`-built type string against a `DESCRIBE
+$table`-introspected definition to detect schema drift. MySQL's
+`DESCRIBE` never echoes `UNIQUE` back into a column's `Type`/`Extra` --
+it's a separate index, surfaced only via the `Key` column (`'UNI'`). But
+this codebase's own established convention (`ernsauth_sso_attempts.yaml`'s
+`username` field, see its own docblock) deliberately bakes `UNIQUE`
+straight into the yaml `type:` string, since `createFieldDefinition()` has
+no separate `unique:` option and a hand-added `ALTER TABLE` in the
+generated `.sql` doesn't survive the next `spill:sql`. Comparing that
+yaml-side string verbatim against the DB-introspected one (which can
+*never* contain the word) produced a permanent, unfixable diff --
+`ernsauth_sso_attempts`'s `username` column showed up on every
+`diff:sql`/`diff:sql:all` run, even immediately after applying the exact
+`ALTER TABLE ... MODIFY ... UNIQUE` statement the tool itself recommended.
+
+Fixed by splitting the comparison in two: strip `UNIQUE` out of the
+type-string comparison entirely, and separately compare whether the yaml
+expects it (`preg_match('/\bUNIQUE\b/i', ...)`) against whether the real
+column already has it (`$existing['Key']` is `'UNI'` or `'PRI'`). Only a
+genuine mismatch between those two now triggers the diff.
+
+Verified against a real MariaDB test DB in both directions: the
+`ernsauth_sso_attempts.username` false positive (already has the index
+applied) is gone, while a throwaway copy of that table with the `UNIQUE`
+index dropped still correctly reports the missing-constraint diff --
+confirming the fix distinguishes "already unique" from "not yet unique"
+rather than just silencing the check outright. zpms's own
+`bin/run_tests.sh` (30/30 static, 35/35 functional) stayed green
+throughout.

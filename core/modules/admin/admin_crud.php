@@ -62,6 +62,12 @@ function zeusfw_admin_entity_defs(): array {
                 ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => true],
                 ['name' => 'email', 'label' => 'Email', 'type' => 'text', 'required' => true],
                 ['name' => 'uname', 'label' => 'Username', 'type' => 'text', 'required' => true],
+                // Note for anyone using the ernsauth_sso module
+                // (core/lib/ErnsAuth.php): this Username must be spelled
+                // identically to the account's real ErnsAuth username --
+                // there is no separate mapping field, on this form or
+                // anywhere else, on purpose (see ErnsAuth.php's own
+                // docblock for why).
                 // Virtual field -- see zeusfw_admin_apply_field()'s
                 // special case. Not a real users.password column; maps to
                 // upass via password_hash(), same PASSWORD_DEFAULT
