@@ -1305,3 +1305,80 @@ dynamically the moment an app lists it under its own `modules:` config, so nothi
 change for a new opt-in module to become available framework-wide. See erweb's own `CLAUDE.md` for the
 app-level wiring (the `modules:` list addition, the `main.zetem` call site, and the removal of the
 now-superseded `consent.js`/`consent.css`/`erweb-consent-banner.zetem`).
+
+## Breadcrumbs: `nolangtext` on any grouping-only menu segment, and a way to include non-menu routes (2026-09-17)
+
+Two real, independent bugs in the breadcrumb trail (`core/lib/Menutrail.php`,
+`core/modules/breadcrumbs/breadcrumbs.php`), found while adding a compact
+read-only appointment view for zpms's `secretary` role and separately fixing
+its "Google Calendar appointments" (`pending_appointments`) breadcrumb path.
+
+**Bug 1 -- `nolangtext` on any breadcrumb segment for a menu item that's a
+pure grouping label with no route of its own** (e.g. zpms's "Ραντεβού"/
+"Ασθενείς" top-level menu entries, which exist only to hold a `submenu:`
+and have no `handler:`/`url:` matching them in `routes:`).
+`Menutrail::search_menu_trail_for_key()` builds each trail segment as
+`['key' => ..., 'title' => ..., 'url' => ..., 'route_title' => ...]` --
+note the field is named `title`, not `text`. But
+`breadcrumbsModule::render()`'s final text-resolution step read
+`$pathitem['route_title'] ?? $pathitem['text'] ?? null` -- `text` was never
+actually a key on a Menutrail-produced item (only `Routetrail::getTrail()`'s
+single-segment fallback array uses that key), so for any segment that isn't
+itself a real, named route (`route_title` unset) the whole chain fell
+through to `null`, and `getLangText(null)` returns the literal string
+`'nolangtext'` by design (its documented "couldn't resolve anything" case).
+A route that *is* itself in `routes:` (e.g. zpms's `pending_appointments_list`)
+never hit this, since `route_title` was already set and short-circuited the
+chain first -- which is exactly why this went unnoticed for a long time:
+every leaf/route segment was already fine, only the surrounding grouping
+labels were silently broken.
+
+Fixed by extending the fallback chain to `route_title ?? title ?? text ??
+null`, covering all three real shapes a segment can have: a real route
+(`route_title`), a pure menu-grouping label with no route behind it
+(`title`), and `Routetrail`'s own fallback shape (`text`).
+
+**Bug 2 -- no way for a route that's deliberately never a menu item itself
+to get a real breadcrumb path.** zpms has three routes reached only via a
+row-action link on `pending_appointments_list`'s own page (edit/convert a
+specific pending appointment), never the nav -- correctly so, since a
+generic "New appointment" quick-link needs an id and isn't a sensible
+top-level destination. But `search_menu_trail_for_key()` only ever matched
+a route name that's *literally* a menu item's own key, so these routes
+found nothing anywhere in the menu tree and fell all the way back to
+`Routetrail`'s single, parent-less segment -- correct in isolation, but
+with no "Ραντεβού / Εκκρεμή Ραντεβού /" leading up to it, unlike every
+other route in the app that does appear in the menu somewhere.
+
+Added an optional, additive per-menu-item YAML key,
+`breadcrumb_aliases: [route1, route2, ...]` -- when the route being
+searched for isn't this menu item's own key but *is* listed in its
+`breadcrumb_aliases`, `search_menu_trail_for_key()` now returns this
+item's own trail (built exactly as if it had matched directly, including
+recursing up through any parent submenus the normal way) with one extra
+trailing segment appended for the actual route's own `routes:` title. No
+existing menu item declares this key, so the change is a pure no-op for
+every current app/route that doesn't opt in.
+
+**Not fixed, left alone -- decorative-only breadcrumb links.**
+`breadcrumbsModule::render()` hardcodes every generated segment's `url` to
+`'#'` (a commented-out block shows an earlier attempt to resolve the real
+URL was abandoned), so clicking any breadcrumb segment except possibly the
+current page's own does nothing. This is a separate, framework-wide,
+long-standing characteristic unrelated to either bug above -- confirmed via
+direct code reading, not touched here, since it affects every app on this
+framework identically and wasn't what either fix above needed.
+
+**Verified against zpms**: `/patients` now reads "Ασθενείς / Λίστα ασθενών"
+(was "nolangtext / Λίστα ασθενών"); `/consultation/pending/{id}/edit` and
+`/consultation/pending/{id}/convert` (added `breadcrumb_aliases` on zpms's
+`pending_appointments_list` menu entry) now read "Ραντεβού / Εκκρεμή
+Ραντεβού / Επεξεργασία Εκκρεμούς Ραντεβού" and ".../ Δημιουργία Φακέλου
+Ασθενή" respectively (were bare single segments, no parent path at all,
+and zpms's own `pending_appointment_edit`/`_post` routes also had an
+English-only `title:` fixed in the same pass for consistency with its
+sibling `pending_appointment_convert`, which already had both languages).
+Every already-correct breadcrumb (`/consultation/pending`,
+`/consultation/new`, `/settings`) confirmed unchanged. `php -l` clean;
+zpms's own `bin/run_tests.sh` (34/34 static, 35/35 functional) stayed
+green throughout.
