@@ -1,0 +1,85 @@
+/*
+ * Google Analytics consent banner - default look, overridable via the
+ * --zga-* custom properties below from the calling app's own stylesheet
+ * rather than forking this file (same convention as accessibility.css's
+ * own --zfa-* namespace), e.g.:
+ *   :root { --zga-accent-bg: var(--color-oxblood); }
+ * Deliberately neutral (grays plus a plain blue accept button) so it
+ * looks reasonable, unstyled, on any app that hasn't set any --zga-*
+ * overrides of its own.
+ */
+.zfw-ga-banner {
+  --zga-z: 9990;
+  --zga-bg: #ffffff;
+  --zga-border: #d8dbe0;
+  --zga-text: #3a3f47;
+  --zga-shadow: rgba(20, 26, 33, 0.12);
+  --zga-accent-bg: #1a56db;
+  --zga-accent-text: #ffffff;
+  --zga-btn-bg: #ffffff;
+  --zga-btn-text: #1f2329;
+  --zga-btn-border: #d8dbe0;
+
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--zga-z);
+  background: var(--zga-bg);
+  border-top: 1px solid var(--zga-border);
+  box-shadow: 0 -8px 24px var(--zga-shadow);
+  padding: 1rem clamp(1rem, 4vw, 2rem);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.5rem;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.zfw-ga-banner[hidden] {
+  display: none;
+}
+.zfw-ga-banner p {
+  margin: 0;
+  flex: 1 1 20rem;
+  color: var(--zga-text);
+}
+.zfw-ga-banner__actions {
+  display: flex;
+  gap: 0.6rem;
+  flex: 0 0 auto;
+}
+.zfw-ga-banner button {
+  font: inherit;
+  font-weight: 600;
+  padding: 0.55rem 1.1rem;
+  border: 1px solid var(--zga-btn-border);
+  background: var(--zga-btn-bg);
+  color: var(--zga-btn-text);
+  cursor: pointer;
+  border-radius: 0.25rem;
+}
+.zfw-ga-banner__accept {
+  background: var(--zga-accent-bg);
+  border-color: var(--zga-accent-bg);
+  color: var(--zga-accent-text);
+}
+.zfw-ga-banner__accept:hover {
+  filter: brightness(1.08);
+}
+.zfw-ga-banner__accept:focus-visible,
+.zfw-ga-banner button:focus-visible {
+  outline: 2px solid var(--zga-accent-bg);
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .zfw-ga-banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .zfw-ga-banner__actions {
+    justify-content: flex-end;
+  }
+}

@@ -1,0 +1,21 @@
+{# Google Analytics (GA4) consent banner + gated loader - see
+   core/modules/google_analytics/google_analytics.php's own docblock for
+   the full fail-closed design. $measurementId/$storageKey are embedded
+   as data attributes on the banner root (never inlined into the
+   <script> body as a raw PHP-to-JS string) - the same mechanism
+   accessibility.zetem's own data-zfw-a11y-* attributes use, via the
+   existing `| e` filter's plain HTML-attribute escaping, since these
+   values only ever need to reach an HTML attribute, never a JS string
+   literal. #}
+<link rel="stylesheet" href="{{ $cssUrl | e }}">
+<div class="zfw-ga-banner" data-zfw-ga-banner hidden role="region"
+     aria-label="{{ $labels['ariaLabel'] | e }}"
+     data-zfw-ga-measurement-id="{{ $measurementId | e }}"
+     data-zfw-ga-storage-key="{{ $storageKey | e }}">
+  <p>{{ $labels['bannerText'] | e }}</p>
+  <div class="zfw-ga-banner__actions">
+    <button type="button" data-zfw-ga-reject>{{ $labels['reject'] | e }}</button>
+    <button type="button" class="zfw-ga-banner__accept" data-zfw-ga-accept>{{ $labels['accept'] | e }}</button>
+  </div>
+</div>
+<script src="{{ $jsUrl | e }}"></script>

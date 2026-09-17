@@ -1134,3 +1134,96 @@ confirming the fix distinguishes "already unique" from "not yet unique"
 rather than just silencing the check outright. zpms's own
 `bin/run_tests.sh` (30/30 static, 35/35 functional) stayed green
 throughout.
+
+### `core/modules/google_analytics/` -- Google Analytics (GA4) module, consent-gated (2026-09-17)
+
+At direct request: a reusable framework-level module wrapping GA4's `gtag.js` behind a real
+cookie-consent banner, so any app on this framework gets working, GDPR-appropriate analytics via a
+one-line `modules:` list addition instead of hand-rolling the same consent/gtag dance per app. First
+adopter: erweb, which already had exactly this need reserved in its own config
+(`erweb_ga4_measurement_id`, a still-TODO placeholder) and a hand-rolled, single-app version of the
+same idea (`web/js/consent.js`/`web/css/consent.css`/`templates/partials/erweb-consent-banner.zetem`)
+sitting **completely unhooked** since it was first built -- see erweb's own `CLAUDE.md` for the
+migration off those files onto this module.
+
+**Shape: identical to `core/modules/accessibility/`, not a coincidence.** Same
+`moduleClass`/`render($params)`/opt-in-via-an-app's-own-`modules:`-list convention, same reason a
+`moduleClass` delivers its own CSS/JS directly via `resolveModuleDir()`/`rel_url()` rather than
+`attach_library()` (this module is meant to be invoked ad hoc from inside a template's own body -- e.g.
+right next to the accessibility widget's own call site near `</body>` -- not via a `structure:` region,
+so `attach_library()` would run after `Kernel::renderPage()`'s `$links`/`$foot_links` arrays are already
+built, the identical timing hazard accessibility's own docblock documents). Bilingual `LABELS` const with
+an `en` fallback, mirroring `accessibilityModule::LABELS` exactly -- except every string here is also
+overridable per call via `render()`'s own `labels` param (`array_merge`'d over the built-in set), since a
+consent banner's exact wording is more likely to need a site-specific tweak than an accessibility panel's
+fixed UI chrome.
+
+**No app-specific config baked in anywhere** -- unlike `accessibility.yaml`'s `default_options` (which
+narrows a fixed, framework-owned set of profiles/options), this module has nothing of its own to
+default: the one thing every app must supply, its GA4 `measurementId`, is passed as a `render()` param
+every single time, resolved however that app already resolves its own config (erweb's
+`erweb_ga4_measurement_id()`; a different app might read a different `site.info.yaml` key entirely). This
+mirrors `Recaptcha.php`'s own "no app-specific config baked into the class -- the caller always supplies
+its own site/secret keys" convention, not `accessibility.yaml`'s config-file pattern, since a
+measurement ID is a per-deploy secret-shaped value, not a feature toggle.
+
+**Fails closed on consent, matching `Recaptcha.php`'s own fail-closed-on-verification convention**:
+`gtag.js` is never even requested until an explicit "Accept" click is stored in `localStorage` --
+per-visitor, never sent to the server, same convention `accessibilityClass`'s own widget state already
+established. A missing/empty/TODO-containing `measurementId` also short-circuits before any network call
+fires (`js/google-analytics.js`'s own `loadGtag()` guard), regardless of what a visitor clicks -- so a
+fresh app that hasn't configured a real ID yet, or one deliberately keeping analytics off pending
+consent-banner review, never leaks a request to Google no matter what happens client-side.
+
+**A real bug in exactly that guard, caught only by driving it with a real browser, not by reading the
+code.** The first cut copied erweb's own original (never-actually-run) `consent.js` guard verbatim --
+`measurementId.indexOf('TODO') === 0` -- which only catches a placeholder where `TODO` is the literal
+*prefix* of the string. erweb's real placeholder is `G-TODOTODOTO` (`G-` first, `TODO` starting at index
+2), so the guard silently never fired: a Playwright run against the live erweb dev server, clicking
+Accept with that exact placeholder still in `config/site.info.yaml`, showed a real outbound request
+queued to `googletagmanager.com` -- the precise failure this module exists to prevent. This bug was
+**already present** in erweb's own original `consent.js`, just never caught, because that file's banner
+was fully unhooked from the page shell and had never been exercised end to end before this module wired
+it up for the first time. Fixed by widening the check to `indexOf('TODO') !== -1` (contains `TODO`
+anywhere, not just as a literal prefix) -- re-run against the same live erweb page afterward: 0 requests
+to `googletagmanager.com` after clicking Accept with the placeholder ID, confirmed via a Playwright
+network-request listener, not just by reading the fixed code. A second run with a fabricated
+real-shaped id (`G-REAL12345`, `gtag.js`'s own network calls stubbed via `page.route()` so nothing
+actually left the sandbox) confirmed the *happy* path -- `gtag.js` genuinely requested,
+`window.gtag`/`window.dataLayer` genuinely defined -- so the fix didn't just make the guard stricter, it
+left the working case working.
+
+**CSS is self-contained with its own `--zga-*` custom-property namespace** (deliberately neutral gray +
+plain-blue-accept-button default, not this specific practice's oxblood), matching `accessibility.css`'s
+own `--zfa-*` convention for exactly the same reason: a framework-level asset with no idea what design
+tokens the calling app has, or whether it has any at all. An app that wants its own brand colors on the
+Accept button overrides `--zga-accent-bg`/etc. from its own stylesheet rather than forking this file --
+documented directly in the CSS's own header comment, with the concrete override line spelled out.
+
+**Data passed to the client via `data-zfw-ga-*` attributes on the banner root**, read via `dataset` in
+`js/google-analytics.js` -- the same mechanism `accessibility.zetem`'s own `data-zfw-a11y-*` attributes
+use (HTML-attribute escaping via the existing `| e` filter, never a raw PHP-to-JS string interpolated
+into a `<script>` body), since `measurementId`/`storageKey` only ever need to reach an HTML attribute,
+not a JS string literal.
+
+**Verified against erweb** (not just unit logic): `php -l`/`node --check` clean on the new module files;
+booted a real dev server (MariaDB-backed) and confirmed the banner renders correctly in both languages
+with the real bilingual copy, the module's own CSS/JS URLs resolve over HTTP (200) through the
+`web/core -> ../fw/core` symlink, and `bin/check_integrity.php`/`bin/list_routes.php` stay clean/
+unchanged (172 routes, same as before this change -- this is chrome, not content) as a regression check.
+Full Playwright pass covering every state transition: banner visible on first load with no prior
+consent, hidden immediately after Accept, hidden on a subsequent reload (consent already stored),
+visible again once `localStorage` is cleared, hidden after Reject, `localStorage` correctly holding
+`accepted`/`rejected` at each step, zero console errors across all of the above, and the accessibility
+widget (bottom-left) and this banner (bottom, full-width) confirmed **not** to collide -- both remain
+independently clickable/visible with the accessibility panel open at the same time the consent banner is
+showing. Screenshotted at desktop (1280px) and mobile (390px), both languages.
+
+**Files**: `core/modules/google_analytics/{google_analytics.info.yaml,google_analytics.yaml,
+google_analytics.php,css/google-analytics.css,js/google-analytics.js}` (all new),
+`core/templates/modules/google_analytics/google_analytics.zetem` (new). No `core/bootstrap.php` change
+-- same as `accessibility`, `registerModules()` already `require()`s a module's own `.php` file
+dynamically the moment an app lists it under its own `modules:` config, so nothing in core needs to
+change for a new opt-in module to become available framework-wide. See erweb's own `CLAUDE.md` for the
+app-level wiring (the `modules:` list addition, the `main.zetem` call site, and the removal of the
+now-superseded `consent.js`/`consent.css`/`erweb-consent-banner.zetem`).
