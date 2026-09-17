@@ -854,3 +854,81 @@ confirming the fix distinguishes "already unique" from "not yet unique"
 rather than just silencing the check outright. zpms's own
 `bin/run_tests.sh` (30/30 static, 35/35 functional) stayed green
 throughout.
+
+## `core/modules/mainnavigation/mainnavigation.php` -- nav-menu `access:` used the wrong, bug-prone check (2026-09-17)
+
+Found while building a front-desk `secretary` role for zpms's own
+consultation-scheduling feature (see zpms's `README.md`, "Front-desk role:
+secretary"): a test account with only a narrow, front-desk-scoped set of
+RBAC permissions could still *see* zpms's "Ασθενείς" (patient records) nav
+menu item, even though that menu entry is `access: power-user` in
+`config/settings.info.yaml`.
+
+Root cause: `menuModule::setupMenuAttributes()` (this file) gated a menu
+item's `access:` string via `SecurityClass::require()`
+(`core/lib/Security.php`) -- but `require()`'s inner loop treats the
+`"authenticated"` role as an automatic pass on *any* `$aperm`, regardless
+of what the menu item actually asked for:
+
+```php
+switch( $urole ) {
+    case "authenticated":
+        $pass++;
+        break;
+    ...
+```
+
+`Kernel::loginUser()` appends `"authenticated"` to every logged-in
+session's role list unconditionally, so in practice this made every
+`access:`-restricted nav menu item visible to every logged-in user no
+matter their role -- the menu-level check was silently inert, not just for
+the new `secretary` role but for any role/menu combination on any app
+vendoring this framework. Confirmed via direct code reading, not just this
+one symptom: nothing about this bug is specific to the `secretary` role or
+to zpms.
+
+**This exact bug (`"authenticated"` auto-passing `SecurityClass::require()`)
+is already documented and fixed once in this codebase** -- see
+`core/lib/Rbac.php`'s own docblock, which describes it as one of "two
+now-fixed bugs in this same file's *previous* incarnation" and explicitly
+states "`SecurityClass::userIsPermitted()` (route-level `access:` checks,
+nav-menu gating) is untouched -- it does a plain role-identity check, not a
+permission-array lookup, so neither bug applies to it." zpms's own
+`config/settings.info.yaml` repeats the same claim in its `roles:` block
+comment. Both were **descriptions of the intended design, not of what this
+file's code actually did** -- `mainnavigation.php` had never been updated
+to match, and kept calling the older, bug-prone `require()` all along.
+
+Fixed by switching the one call site to the function both of those
+docblocks already say it should be using:
+
+```php
+$permitted = SecurityClass::userIsPermitted( $mdata['access'] );
+if(!$permitted)$show = 0;
+```
+
+`userIsPermitted()` does a plain role-identity check (`in_array($urole,
+$permlist)` per role) with no `"authenticated"` special case, so it isn't
+affected by this bug -- exactly the reasoning that made it the safe
+`require()` replacement inside zpms's own handlers when the same bug class
+was first found there (see `web/rbac.php`'s docblock, referenced above).
+
+**Blast radius**: this affects every app vendoring this framework
+(mweb/ZPMS/zweb/erweb) that uses `access:` on a `menu:`/`structure:` nav
+entry -- any such entry was previously visible to every logged-in user
+regardless of role, and after this fix now correctly hides for a user
+without that role. This is a pure bugfix restoring already-documented
+intended behavior, not a design change, so no app should need any config
+changes to keep working -- but an app relying (even accidentally) on the
+old permissive behavior to keep a menu item visible would see it disappear
+now that the check actually works. Nothing in mweb/zweb/erweb was
+available to test against in this session; only zpms's own regression
+suite was run.
+
+**Verified against zpms**: a real `secretary`-role test account (only
+`patients-view-list`/`pending-appointments-manage`) no longer sees the
+"Ασθενείς" menu item (`access: power-user`), while a `power-user` test
+account still sees every menu item it always did. `php -l` clean;
+zpms's own `bin/run_tests.sh` (34/34 static, 35/35 functional) stayed
+green throughout -- confirming this framework-level change didn't disturb
+any other role/menu/route combination the existing suite already covers.
