@@ -549,7 +549,7 @@ function syncTableWithYAML($yamlData, $pdo) {
         }
     }
 
-    return implode(";\n", $sql);
+    return implode("\n", $sql);
 }
 
 

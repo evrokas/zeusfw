@@ -1,0 +1,15 @@
+# Same shape-consistency note as accessibility.yaml's own libraries: block:
+# this is NOT the actual asset-delivery mechanism (see google_analytics.php's
+# docblock for the verified attach_library()/Kernel::renderPage() asset-array
+# timing hazard, identical to accessibility's own) - render() resolves and
+# emits <link>/<script src> tags directly instead. Kept for shape parity
+# with every other module's own .yaml and as a ready path to a future
+# structure:-region adoption.
+libraries:
+  google-analytics-library:
+    css:
+      - google-analytics:
+        src: '@core/css/google-analytics.css'
+    foot_script:
+      - google-analytics:
+        src: '@core/js/google-analytics.js'

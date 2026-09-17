@@ -346,6 +346,286 @@ confirmed every generated query referenced the real `en`/`gr` columns (`getTrans
 result keyed by `'en'`/`'gr'`, not `0`/`1`) -- this is exactly the class of bug that
 fix prevents, and the test would have failed loudly without it.
 
+### `Accessibility.php` / `accessibilityClass` (2026-08-27)
+
+At direct request: a framework-level accessibility widget - a floating toggle button + panel offering
+4 disability **profiles** (Blind, Color Blindness, Dyslexia, Epilepsy Safe) and 4 individual **page
+options** (Contrast, Font Size, Letter Spacing, Hide Images). Added for erweb (user chose erweb over
+zweb/zpms when asked which app should get the visible widget - the module itself is framework-wide and
+any app can adopt it the same way).
+
+**Why this is one big self-contained `render()` call, not a `moduleClass` or a shared asset file.**
+Confirmed by exhaustive search before writing this: ZeusFW core has **never** shipped a shared CSS/JS
+asset directory - every app's `web/css`/`web/js` has always been entirely local to that app, with core
+only ever providing PHP (`core/lib/`, `core/templates/`). `moduleClass` (`core/lib/Modules.php`) is also
+the wrong shape - it renders page-*region* UI blocks wired via `settings.info.yaml`'s `structure:` map
+(nav/footer-style), not a floating overlay with no region of its own. The one real precedent for
+"drop-in UI surface with zero app-side asset dependency" is `ErrorHandlers.php`'s crash pages, which
+hand-assemble their own `<style>` rather than linking an external file - `accessibilityClass::render()`
+does the same thing at larger scale: one call returns a single self-contained HTML string (inline
+`<style>`, inline `<script>`, its own CSS custom-property namespace `--zfa-*` so it never depends on or
+collides with the calling app's own design tokens) that a caller echoes once into its page, typically
+near the end of `<body>` (see erweb's own `CLAUDE.md` entry for the exact call site next to its
+back-to-top button).
+
+**How it actually changes the page.** Every effect is a class or CSS custom property toggled on
+`<html>`, read back by generic selectors - the widget has no knowledge of the calling app's markup:
+- `zfw-a11y-contrast-high` / `zfw-a11y-contrast-invert` - a 3-state cycle (normal/high/inverted) on the
+  **Contrast** option. Inverted mode counter-inverts the widget's own root (`#zfw-a11y-root`) so the
+  panel itself doesn't turn into an unreadable inverted mess along with the rest of the page.
+- `--zfa-font-scale` (CSS custom property, 5 steps 100/115/130/145/160%) drives `html { font-size:
+  calc(100% * var(--zfa-font-scale, 1)); }` - scales every rem-based size site-wide for the **Font
+  Size** option, since every app in this ecosystem already uses rem-based type scales.
+- `zfw-a11y-spacing-wide` / `zfw-a11y-spacing-wider` - letter-spacing/word-spacing on `body` for the
+  **Letter Spacing** option.
+- `zfw-a11y-hide-images` - `img { visibility: hidden !important; }` for **Hide Images**. Scoped to
+  `<img>` only (not background-images/`<picture>`/`<video>` posters) - a real, documented scope limit,
+  not an oversight.
+- **Blind** profile (`zfw-a11y-blind`) - stronger focus-visible outlines, plus a page-level read-aloud
+  control (Web Speech API `SpeechSynthesisUtterance`) that appears in the panel only while this profile
+  is active. Reads `document.querySelector('main, [role="main"]')` (overridable via
+  `render()`'s `readAloudSelector` arg), falling back to `<body>` if nothing matches; `lang` is taken
+  from `<html lang>` so the correct voice/pronunciation is selected. Gracefully disables itself
+  (button disabled, "not available in this browser" label) when `window.speechSynthesis` doesn't exist,
+  rather than silently doing nothing.
+- **Dyslexia** profile (`zfw-a11y-dyslexia`) - increased `line-height`/letter-spacing/word-spacing,
+  forces left-aligned text (`text-align: left !important` on `p`/`li`, overriding any `justify`), and a
+  `max-width: 68ch` cap - all pure CSS, no new font asset added (see the color-blindness note below for
+  why this class stays conservative rather than reaching for an unverified "ideal" fix).
+- **Epilepsy Safe** profile (`zfw-a11y-epilepsy`) - `* { animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior:
+  auto !important; }`. This is a *forced* override (works regardless of the visitor's OS-level
+  `prefers-reduced-motion` setting), not a re-read of that media query - deliberately, since this
+  profile exists specifically for a visitor who wants motion killed on this one site regardless of what
+  their OS is currently set to.
+- **Color Blindness** profile (`zfw-a11y-colorblind`) - `filter: saturate(0.35) contrast(1.15)` on the
+  whole page (again excluding the widget's own root). **Deliberately not three separate per-deficiency
+  "correction" filters** (protanopia/deuteranopia/tritanopia) - true daltonization correction is a
+  composed multi-step color transform, and no verified, authoritative single-matrix correction values
+  were available while building this (a websearch during development surfaced only *simulation*
+  matrices - Viénot/Brettel/Mollon-style, meant to show a sighted person what a colorblind person sees -
+  which is the opposite of what a colorblind visitor needs applied to their own screen; shipping an
+  unverified "correction" matrix risked doing active harm rather than helping). Desaturation + a
+  contrast boost is a simpler, safe, well-understood mitigation that helps regardless of deficiency
+  type, at the cost of not being type-specific - documented here so a future revision with genuinely
+  verified matrices knows why this started simpler rather than assuming the simplicity was an oversight.
+
+**State** persists client-side only, in the visitor's own browser via `localStorage`
+(`zfw_a11y_state`) - never sent to the server, never shared across visitors, the same
+browser-storage-is-per-viewer-only convention DocArc's own docs describe elsewhere in this ecosystem.
+A **Reset all** button clears every profile/option back to defaults in one action.
+
+**Every string dropped into the emitted `<script>` block goes through `json_encode()`**, never raw
+PHP-to-JS interpolation - a label or a caller-supplied `readAloudSelector` containing a quote,
+backslash, or a literal `</script>` sequence can never break out of the JS string it's assigned to.
+`json_encode()` here always contributes to a purely internal helper-value assignment, e.g. `var
+LABEL_PLAY = {$readAloudPlayJs};` - the JSON *is* the entire right-hand side of a `var ... =` statement,
+never spliced into the middle of an existing string literal, which is what actually makes this safe
+against the closing-tag/quote-escaping class of bug.
+
+**Bilingual labels** (`el`/`en`) are baked into `self::LABELS`, matching this whole ecosystem's
+established two-language convention; a caller passing an unlisted `lang` falls back to `en`, the same
+fallback pattern erweb's own `erweb_axis_label()`-style lookups already use. `render(array $args)`
+accepts `lang`, `position` (`'left'`/`'right'` - which bottom corner the toggle sits in, so an app with
+its own bottom-right chrome, like erweb's back-to-top button, can push this one to the other corner),
+and `readAloudSelector`.
+
+Wired into `core/bootstrap.php` right after `Recaptcha.php`'s own `require_once` line, matching the
+existing load-order convention (no ordering dependency between the two, just grouped as "recently added
+utility classes").
+
+**Verified against erweb**: `php -l` clean on both `Accessibility.php` and `bootstrap.php`; a standalone
+`accessibilityClass::render()` smoke test confirmed zero unresolved `{$...}` placeholders in the output
+(a real bug caught and fixed during development - the emitted `<script>` block originally referenced
+`$stateKeyJs`/`$contrastNormalJs`/etc. as if a removed private helper's return values had been extracted
+into scope, when they hadn't; fixed by assigning each one explicitly, via `json_encode()`, right before
+the heredoc); a Python `html.parser`-based tag-balance check confirmed the emitted markup is
+well-formed; `node --check` confirmed the emitted `<script>` block is syntactically valid JS. Live
+end-to-end on erweb's dev server (`php -S`): the panel opens/closes, every one of the 4 profiles and 4
+page options visibly does what it claims (Playwright screenshots of contrast-invert - confirming the
+widget's own panel is correctly counter-inverted rather than becoming unreadable - dyslexia+epilepsy
+combined, 130% font size, hidden images, and the Blind profile's read-aloud control appearing), state
+survives a full page reload via `localStorage`, Reset clears everything back to defaults, zero
+console/page errors, and desktop (1440px) + mobile (390px) viewports both render the panel within the
+viewport with no overflow. `bin/check_integrity.php` clean (unrelated to this change, but a cheap
+regression check since it exercises the whole erweb DB/route layer). See erweb's own `CLAUDE.md` for the
+one-line `main.zetem` call site.
+
+**Follow-up, same day: the toggle button itself vanished after changing Contrast (or Color Blindness) -
+a real bug in the `filter`-based approach above, found in real use, not just a naming issue.** The
+original Contrast/Invert/Color Blindness effects worked by putting `filter: contrast()/invert()/
+saturate()` on `<html>` (or on every element except the widget via a `:not()` sweep that, as a side
+effect, also matched `<body>` itself, since `<body>` is an *ancestor* of `#zfw-a11y-root`, not a
+descendant excluded by `:not(#zfw-a11y-root *)`). `filter` on any element - like `transform`/
+`perspective`/`backdrop-filter`/`will-change` naming one of those - establishes a new **containing
+block** for every `position: fixed` descendant of that element. Once `<body>` (or `<html>`) had a
+`filter`, the toggle button's `bottom: 1.25rem` stopped resolving against the viewport and started
+resolving against `<body>`'s own box - which, on a real page, is as tall as the whole document, not
+the viewport. Reproduced and confirmed directly: before the fix, toggling Contrast to "high" moved the
+button's `getBoundingClientRect().top` from `830px` to `7134px` on a 900px-tall viewport, with
+`document.body` itself showing up as the filtered ancestor.
+
+**This wasn't only a self-inflicted bug.** The counter-filter this file originally put on
+`#zfw-a11y-root` for Invert mode fixed the *visual* color inversion of the panel, but did nothing for
+the *positioning* problem, since `#zfw-a11y-root` becoming a filtered element just moved the same
+containing-block issue one level down, now breaking its own fixed children (the toggle/panel) instead
+of the page's. And the underlying mechanism - `filter` on an ancestor of *any* `position: fixed`
+element - would have broken every other fixed/sticky element a host app already has (erweb's own sticky
+header, back-to-top button, and Neural Thread all sit inside `<body>`, all `position: fixed` or
+`sticky`) the moment any of the three states were toggled, regardless of whether the wrapping was
+scoped to the widget correctly. A framework-level widget has no way to know what fixed/sticky elements
+a given host app has, so `filter` on a shared ancestor was never going to be a safe mechanism here,
+independent of the `:not()`-selector mistake.
+
+**Fixed by switching Contrast/Invert/Color Blindness from `filter` to `mix-blend-mode` overlays** - two
+new `position: fixed; inset: 0;` divs (`#zfw-a11y-fx-contrast`, `#zfw-a11y-fx-colorblind`), siblings of
+the toggle/panel inside `#zfw-a11y-root`, each `pointer-events: none` so they're inert to clicks
+regardless of state:
+- **Invert**: a white overlay with `mix-blend-mode: difference` - the standard compositing trick for
+  exact color inversion (`result = |backdrop - white|` per channel, identical to `filter: invert(1)`),
+  achieved without ever touching any element's `filter` property.
+- **High contrast**: a mid-gray overlay with `mix-blend-mode: overlay` at partial opacity - the same
+  "push toward an S-curve" trick used in photo editing, a reasonable visual approximation of a contrast
+  boost (not pixel-identical to `filter: contrast()`, an acceptable, disclosed simplification).
+- **Color Blindness**: a mid-gray overlay with `mix-blend-mode: saturation` at partial opacity -
+  `saturation` blending takes the *source* (overlay)'s saturation and the *backdrop*'s hue/luminosity,
+  so a 0%-saturation gray overlay desaturates the backdrop proportionally to the overlay's own opacity,
+  reproducing the same visual result as `filter: saturate()` through compositing instead.
+
+Because none of these three properties (`background`, `mix-blend-mode`, `opacity`) establishes a new
+containing block, the overlays change what gets *painted*, never anyone's positioning - the host page's
+own fixed/sticky elements are now provably unaffected by construction, not just by coincidence of
+scoping. The now-unnecessary counter-filter on `#zfw-a11y-root` for Invert mode was removed entirely -
+nothing needs counter-inverting anymore, since nothing outside the two new overlay divs is ever
+filtered.
+
+**Verified against erweb**: reproduced the original bug first (`toggle.getBoundingClientRect()` moving
+from viewport-relative to document-relative, confirmed via ancestor-walk that `<body>` was the filtered
+element), then confirmed the fix directly - the toggle button's rect is now byte-identical
+(`{top:830,left:20,bottom:880}`) before any change, after Contrast=high, after Contrast=invert, after
+also enabling Color Blindness on top of Invert, and after scrolling 800px with both active
+simultaneously; `.back-to-top` and `.thread` (erweb's own pre-existing fixed elements) never moved
+either; `.site-header` stayed pinned to `top: 0` on scroll throughout. Screenshots confirm all three
+effects still look visually correct (inverted, higher-contrast, desaturated) and that the widget's own
+panel stays fully legible in every state, same as before - just achieved without depending on the
+panel-level counter-filter this used to require. `php -l`, the standalone `render()` smoke test (zero
+unresolved placeholders), `node --check` on the extracted `<script>`, and the HTML tag-balance check
+all re-run clean. `bin/check_integrity.php` clean. **Files**: `core/lib/Accessibility.php` only.
+
+### Accessibility widget converted into a real module: `core/modules/accessibility/` (2026-08-27)
+
+At the requester's ask, redesigned - not just relocated - the accessibility widget above around
+ZeusFW's own `moduleClass`/`.info.yaml`/`.zetem` module convention (`core/modules/`, the same shape
+`core/modules/admin/` and zpms's `web/modules/backup/` already use), replacing the standalone
+`core/lib/Accessibility.php`/`accessibilityClass` entirely. Requested explicitly as "keep features the
+same if not extend" - every profile/option/interaction from the entry above is unchanged; one real
+extension was added (see below), and two others considered were deliberately left out.
+
+**Why no smaller pilot module was converted first.** Every existing module in `core/modules/` (9) and
+zpms's `web/modules/` (9) already follows the same convention - none of them build HTML/CSS as inline
+PHP strings the way the old `Accessibility.php` did, so there was no smaller "convert this trivial one
+first" candidate; the only other inline-HTML/CSS code anywhere in this framework is
+`ErrorHandlers.php`'s crash-page builder, deliberately self-contained for crash-resilience (a real crash
+is more likely to have already broken the same render/DB pipeline a `moduleClass` depends on) and
+therefore not a valid pilot either. Converted `Accessibility.php` itself directly.
+
+**Why `attach_library()` isn't the asset-delivery mechanism here.** Read `Kernel::renderPage()`
+(`core/kernel/Kernel.php:482-568`) directly: it calls `renderRegions()` first, then builds `$links`/
+`$foot_links` from `getConfig('css')`/`getConfig('foot_script')`, and only *then* renders `main.zetem`
+with those arrays already finalized. Since this widget is invoked ad hoc from inside `main.zetem`'s own
+body (not a `structure:` region), any `attach_library()` call from its template would run *after*
+`$links`/`$foot_links` were already built - a silent no-op, not just a cascade-order surprise. Instead,
+`accessibilityModule::render()` resolves its own CSS/JS URLs directly via `resolveModuleDir()`+
+`rel_url()` (the same helpers `attach_library_helper()` uses internally) and emits plain `<link>`/
+`<script src>` tags at the template's own position - functionally equivalent, without depending on
+`renderPage()`'s asset-array timing. `accessibility.yaml` still declares a `libraries:` block for shape-
+consistency with every other module (and as a ready path to a future `structure:`-region adoption), it
+just isn't the mechanism actually delivering the assets today.
+
+**Files** (`core/modules/accessibility/`): `accessibility.info.yaml` (`name=accessibility`/
+`template=accessibility.zetem`/`class=accessibilityModule`); `accessibility.yaml` (the `libraries:`
+block above, plus a new `default_options:` block - see below); `css/accessibility.css` and
+`js/accessibility.js` (the old inline `<style>`/`<script>` moved verbatim - the `mix-blend-mode`-not-
+`filter` fix from the entry above is unchanged, still fully documented in the CSS's own comment);
+`accessibility.php` (`class accessibilityModule extends moduleClass` - `self::LABELS` copied verbatim,
+constructor loads `accessibility.yaml` via `resolveModuleDir()`/`addConfig()` matching zpms's
+`backupModule`, captures its own `$adir` in a private property since `moduleClass`'s own `$moduledir` is
+private/not inherited); `core/templates/modules/accessibility/accessibility.zetem` (the markup, `$L()`
+calls replaced with `{{ $labels['x'] | e }}`, matching the template-placement convention both real
+examples use - a module's `.zetem` lives under a separate `templates/modules/` tree, not colocated with
+its own directory).
+
+**The one real extension: config-driven profile/option enablement.** `accessibility.yaml` gains:
+```yaml
+default_options:
+  profiles: [blind, colorblind, dyslexia, epilepsy]
+  options: [contrast, fontsize, letterspacing, hideimages]
+```
+(all 8 enabled, matching prior behavior exactly). `accessibilityModule::render($params)` accepts an
+optional `profiles`/`options` array in `$params`, intersected against the fixed 4+4 valid-key set (a
+caller can only narrow what renders, never invent a nonexistent profile/option) and merged over the YAML
+defaults. A disabled profile/option is omitted from the rendered markup **entirely**, not just hidden
+via CSS - `js/accessibility.js` null-checks every corresponding `getElementById()` lookup before wiring
+its listener, since a control it expects may genuinely not exist in the DOM. This is a real capability
+the old bare `core/lib/*.php` class never had a natural home for (no per-module config file of its own);
+erweb's own call site doesn't use it today (still renders all 8), but a future app - or erweb later -
+can disable e.g. the Blind profile's read-aloud complexity via one YAML edit.
+
+**The dynamic JS label strings** (contrast-level labels, read-aloud play/pause/stop labels, the
+"unsupported" message) moved from `json_encode()`'d PHP-to-JS interpolation in the old inline `<script>`
+to `data-zfw-a11y-*` attributes on `#zfw-a11y-root`, read via `dataset` in the now-external
+`accessibility.js` - the same mechanism zpms's `pdflib.js`/`location.js` already use (a module's own
+template renders values onto an element server-side, external JS reads them via `dataset`), reusing
+`{{ ... | e }}`'s existing HTML-attribute escaping rather than inventing a new data-passing convention
+(grepped: no `<script>window.X = {...}</script>` data-island precedent exists anywhere in this
+ecosystem).
+
+**The external `<script src>` deliberately carries no `defer`** - the original inline `<script>`
+executed synchronously at its DOM position, applying a returning visitor's saved state as early as
+possible; `defer` would delay that until the whole document finishes parsing, a real regression against
+this widget's own purpose.
+
+**Two extensions considered and deliberately left out** (so their absence isn't mistaken for an
+oversight): server-side-persisted preferences tied to a logged-in user (erweb has no user/auth system to
+attach them to); an "Accessibility Statement" link inside the panel (no real statement page exists to
+point at). Cookie/session-based state so the *server* pre-applies saved effects on first paint was also
+considered and rejected - the module's own template only renders a body-scoped fragment, and the effect
+classes it controls live on `<html>`, reachable only from `main.zetem` (an app-level template, not this
+module).
+
+**Registration is app opt-in, not core-wide.** `core/bootstrap.php` had exactly one line removed
+(`require_once(__DIR__ . "/lib/Accessibility.php");`) and nothing added - unlike `admin_crud.php`'s
+unconditional-registration precedent, this module is picked up only when an app adds `accessibility` to
+its own `settings.info.yaml`'s existing `modules:` list (see erweb's own `CLAUDE.md` entry). Chosen
+deliberately to keep this change's blast radius to whichever app opts in, since `core/bootstrap.php` is
+shared by every app vendoring this checkout (zweb/zpms/mweb included, none of which reference this
+widget).
+
+**Verified**: `php -l` on `accessibility.php` and `core/bootstrap.php`; `node --check` directly on the
+now-standalone `js/accessibility.js` (no more heredoc-extraction step needed, an improvement over the
+old workflow); a real end-to-end request against erweb's dev server (not just a standalone render)
+confirmed the widget's markup, all 14 `data-zfw-a11y-*` attributes, and both asset URLs resolve
+correctly, and that `/core/modules/accessibility/{css,js}/accessibility.*` actually load over HTTP
+through erweb's `web/core -> ../fw/core` symlink (the concrete check that would have caught the
+`attach_library()` timing hazard had it been missed); a full Playwright re-run of every prior
+verification - all 4 profiles including Blind's read-aloud, all 4 page options, `localStorage`
+persistence, Reset, **the toggle button's `getBoundingClientRect()` staying viewport-stable across every
+Contrast/Invert/Colorblind state and after scrolling 800px** (re-run specifically since the asset-
+delivery mechanism changed, even though the CSS bytes didn't - this is the exact regression the
+`mix-blend-mode` fix above addressed), zero console/page errors (one pre-existing, unrelated
+`favicon.ico` 404 confirmed present on a bare page load with no widget interaction at all), desktop
+1440px and mobile 390px, both `/el` and `/en`; a standalone-render config-driven-extension check
+confirmed `['profiles' => ['dyslexia'], 'options' => ['contrast']]` renders only those 2 controls (the
+other 6 fully absent from the markup - the `zfw-a11y-fx-colorblind`/`readaloud` elements gated off too,
+not just the buttons) with zero unresolved template tokens and a balanced div count, that an unknown key
+(`'nonexistent'`/`'bogus'`) is silently dropped rather than rendered, and that the no-override call still
+renders all 8 exactly matching `default_options`; `bin/check_integrity.php` clean on erweb;
+`grep -rn accessibilityClass` across zeusfw/erweb returns no live code references (only this file's own
+historical prose and the new module's explanatory comments, both expected). **Files**:
+`core/modules/accessibility/{accessibility.info.yaml,accessibility.yaml,accessibility.php,
+css/accessibility.css,js/accessibility.js}`, `core/templates/modules/accessibility/accessibility.zetem`
+(all new), `core/bootstrap.php` (1 line removed), `core/lib/Accessibility.php` (deleted).
+
 ## `core/kernel/Kernel.php` - cache-busting for `<script>` tags, matching the existing `<link>` treatment (2026-08-28)
 
 `renderPage()`'s `css:` block has always appended `?` . `time()` to every stylesheet's
@@ -932,3 +1212,96 @@ account still sees every menu item it always did. `php -l` clean;
 zpms's own `bin/run_tests.sh` (34/34 static, 35/35 functional) stayed
 green throughout -- confirming this framework-level change didn't disturb
 any other role/menu/route combination the existing suite already covers.
+
+### `core/modules/google_analytics/` -- Google Analytics (GA4) module, consent-gated (2026-09-17)
+
+At direct request: a reusable framework-level module wrapping GA4's `gtag.js` behind a real
+cookie-consent banner, so any app on this framework gets working, GDPR-appropriate analytics via a
+one-line `modules:` list addition instead of hand-rolling the same consent/gtag dance per app. First
+adopter: erweb, which already had exactly this need reserved in its own config
+(`erweb_ga4_measurement_id`, a still-TODO placeholder) and a hand-rolled, single-app version of the
+same idea (`web/js/consent.js`/`web/css/consent.css`/`templates/partials/erweb-consent-banner.zetem`)
+sitting **completely unhooked** since it was first built -- see erweb's own `CLAUDE.md` for the
+migration off those files onto this module.
+
+**Shape: identical to `core/modules/accessibility/`, not a coincidence.** Same
+`moduleClass`/`render($params)`/opt-in-via-an-app's-own-`modules:`-list convention, same reason a
+`moduleClass` delivers its own CSS/JS directly via `resolveModuleDir()`/`rel_url()` rather than
+`attach_library()` (this module is meant to be invoked ad hoc from inside a template's own body -- e.g.
+right next to the accessibility widget's own call site near `</body>` -- not via a `structure:` region,
+so `attach_library()` would run after `Kernel::renderPage()`'s `$links`/`$foot_links` arrays are already
+built, the identical timing hazard accessibility's own docblock documents). Bilingual `LABELS` const with
+an `en` fallback, mirroring `accessibilityModule::LABELS` exactly -- except every string here is also
+overridable per call via `render()`'s own `labels` param (`array_merge`'d over the built-in set), since a
+consent banner's exact wording is more likely to need a site-specific tweak than an accessibility panel's
+fixed UI chrome.
+
+**No app-specific config baked in anywhere** -- unlike `accessibility.yaml`'s `default_options` (which
+narrows a fixed, framework-owned set of profiles/options), this module has nothing of its own to
+default: the one thing every app must supply, its GA4 `measurementId`, is passed as a `render()` param
+every single time, resolved however that app already resolves its own config (erweb's
+`erweb_ga4_measurement_id()`; a different app might read a different `site.info.yaml` key entirely). This
+mirrors `Recaptcha.php`'s own "no app-specific config baked into the class -- the caller always supplies
+its own site/secret keys" convention, not `accessibility.yaml`'s config-file pattern, since a
+measurement ID is a per-deploy secret-shaped value, not a feature toggle.
+
+**Fails closed on consent, matching `Recaptcha.php`'s own fail-closed-on-verification convention**:
+`gtag.js` is never even requested until an explicit "Accept" click is stored in `localStorage` --
+per-visitor, never sent to the server, same convention `accessibilityClass`'s own widget state already
+established. A missing/empty/TODO-containing `measurementId` also short-circuits before any network call
+fires (`js/google-analytics.js`'s own `loadGtag()` guard), regardless of what a visitor clicks -- so a
+fresh app that hasn't configured a real ID yet, or one deliberately keeping analytics off pending
+consent-banner review, never leaks a request to Google no matter what happens client-side.
+
+**A real bug in exactly that guard, caught only by driving it with a real browser, not by reading the
+code.** The first cut copied erweb's own original (never-actually-run) `consent.js` guard verbatim --
+`measurementId.indexOf('TODO') === 0` -- which only catches a placeholder where `TODO` is the literal
+*prefix* of the string. erweb's real placeholder is `G-TODOTODOTO` (`G-` first, `TODO` starting at index
+2), so the guard silently never fired: a Playwright run against the live erweb dev server, clicking
+Accept with that exact placeholder still in `config/site.info.yaml`, showed a real outbound request
+queued to `googletagmanager.com` -- the precise failure this module exists to prevent. This bug was
+**already present** in erweb's own original `consent.js`, just never caught, because that file's banner
+was fully unhooked from the page shell and had never been exercised end to end before this module wired
+it up for the first time. Fixed by widening the check to `indexOf('TODO') !== -1` (contains `TODO`
+anywhere, not just as a literal prefix) -- re-run against the same live erweb page afterward: 0 requests
+to `googletagmanager.com` after clicking Accept with the placeholder ID, confirmed via a Playwright
+network-request listener, not just by reading the fixed code. A second run with a fabricated
+real-shaped id (`G-REAL12345`, `gtag.js`'s own network calls stubbed via `page.route()` so nothing
+actually left the sandbox) confirmed the *happy* path -- `gtag.js` genuinely requested,
+`window.gtag`/`window.dataLayer` genuinely defined -- so the fix didn't just make the guard stricter, it
+left the working case working.
+
+**CSS is self-contained with its own `--zga-*` custom-property namespace** (deliberately neutral gray +
+plain-blue-accept-button default, not this specific practice's oxblood), matching `accessibility.css`'s
+own `--zfa-*` convention for exactly the same reason: a framework-level asset with no idea what design
+tokens the calling app has, or whether it has any at all. An app that wants its own brand colors on the
+Accept button overrides `--zga-accent-bg`/etc. from its own stylesheet rather than forking this file --
+documented directly in the CSS's own header comment, with the concrete override line spelled out.
+
+**Data passed to the client via `data-zfw-ga-*` attributes on the banner root**, read via `dataset` in
+`js/google-analytics.js` -- the same mechanism `accessibility.zetem`'s own `data-zfw-a11y-*` attributes
+use (HTML-attribute escaping via the existing `| e` filter, never a raw PHP-to-JS string interpolated
+into a `<script>` body), since `measurementId`/`storageKey` only ever need to reach an HTML attribute,
+not a JS string literal.
+
+**Verified against erweb** (not just unit logic): `php -l`/`node --check` clean on the new module files;
+booted a real dev server (MariaDB-backed) and confirmed the banner renders correctly in both languages
+with the real bilingual copy, the module's own CSS/JS URLs resolve over HTTP (200) through the
+`web/core -> ../fw/core` symlink, and `bin/check_integrity.php`/`bin/list_routes.php` stay clean/
+unchanged (172 routes, same as before this change -- this is chrome, not content) as a regression check.
+Full Playwright pass covering every state transition: banner visible on first load with no prior
+consent, hidden immediately after Accept, hidden on a subsequent reload (consent already stored),
+visible again once `localStorage` is cleared, hidden after Reject, `localStorage` correctly holding
+`accepted`/`rejected` at each step, zero console errors across all of the above, and the accessibility
+widget (bottom-left) and this banner (bottom, full-width) confirmed **not** to collide -- both remain
+independently clickable/visible with the accessibility panel open at the same time the consent banner is
+showing. Screenshotted at desktop (1280px) and mobile (390px), both languages.
+
+**Files**: `core/modules/google_analytics/{google_analytics.info.yaml,google_analytics.yaml,
+google_analytics.php,css/google-analytics.css,js/google-analytics.js}` (all new),
+`core/templates/modules/google_analytics/google_analytics.zetem` (new). No `core/bootstrap.php` change
+-- same as `accessibility`, `registerModules()` already `require()`s a module's own `.php` file
+dynamically the moment an app lists it under its own `modules:` config, so nothing in core needs to
+change for a new opt-in module to become available framework-wide. See erweb's own `CLAUDE.md` for the
+app-level wiring (the `modules:` list addition, the `main.zetem` call site, and the removal of the
+now-superseded `consent.js`/`consent.css`/`erweb-consent-banner.zetem`).
