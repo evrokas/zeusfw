@@ -1227,3 +1227,65 @@ dynamically the moment an app lists it under its own `modules:` config, so nothi
 change for a new opt-in module to become available framework-wide. See erweb's own `CLAUDE.md` for the
 app-level wiring (the `modules:` list addition, the `main.zetem` call site, and the removal of the
 now-superseded `consent.js`/`consent.css`/`erweb-consent-banner.zetem`).
+
+## `core/db/dbal.php` -- config-driven PDO driver, SQLite as the first alternative to MySQL (2026-09-18)
+
+At direct request, prompted by a new app (`zgeotrack`, GPS-tracking data ingested from the Overland iOS
+app) asking whether SQLite would suit it better than MySQL for a single-writer, low-concurrency
+workload. `dbConnection::Connect()` (`core/db/dbal.php`) had exactly one DSN, hardcoded:
+`new PDO("mysql:host=...;dbname=...", $user, $pass)` -- no branch, no config knob, confirmed via
+`grep -rn dbConnection::init` across every `core/*.php` call site (`Kernel.php`, `maker.php` x3,
+`functions.php` x3, `messages.php`) that all nine of them call `init()` with exactly the same four
+positional args (`DB_HOST, DB_USER, DB_PASS, DB_NAME`) -- `Kernel::__construct()`'s own call
+(`core/kernel/Kernel.php:78`) is the one every real HTTP request goes through, and it has no way to
+pass a driver choice through to `init()` without itself being edited, which would touch every app on
+this framework whether or not it wanted SQLite.
+
+**`init()` gained a 5th, optional `$adriver = null` parameter** -- every existing 4-arg call site
+(all nine above, and any app's own CLI script following the same `bin/migrate_roles.php`-style
+bootstrap) keeps resolving to `'mysql'` untouched. Resolution order: the explicit `$adriver` arg if a
+caller passes one, else a `DB_DRIVER` constant if the app's own `config/db.php` defines one (same file,
+same convention as `DB_HOST`/`DB_USER`/`DB_PASS`/`DB_NAME`), else `'mysql'` -- the constant tier is what
+actually reaches `Kernel.php`'s own call without `Kernel.php` itself needing to change at all, since it
+already just forwards those four `DB_*` constants verbatim. A new `dbConnection::getDriver(): string`
+getter exposes the resolved value, for any future app-level code that needs to branch on it (see the
+`ON DUPLICATE KEY UPDATE` limitation below for exactly one existing reason to).
+
+**`Connect()`** now switches on the resolved driver: `'sqlite'` opens `new PDO("sqlite:" . $database)`
+(`$database` is a filesystem path or `:memory:` here, not a schema name -- `$host`/`$username`/
+`$password` are simply unused for this branch); anything else (`'mysql'`, or no driver resolved at all,
+matching `init()`'s own default) is the exact original DSN line, moved into a `default:` case
+character-for-character, not rewritten.
+
+**This is a connection-layer change only -- it does not make an app's schema portable to SQLite by
+itself.** Confirmed via `grep -rln 'ON DUPLICATE KEY\|ENGINE=InnoDB\|AUTO_INCREMENT\|CURRENT_TIMESTAMP'`
+across every `core/*.php` outside the `maker/` codegen tooling: exactly one runtime (non-DDL) MySQL-only
+query exists today, `core/ernsauthSsoAttemptsClassEx.php`'s atomic rate-limit upsert (`INSERT ... ON
+DUPLICATE KEY UPDATE`, see that file's own `CLAUDE.md` entry) -- an app using the opt-in `ernsauth_sso`
+module still needs MySQL/MariaDB regardless of this change. Separately, and larger: every `CREATE TABLE`
+`core/maker/functions.php`'s `spill:sql:all` generates is still MySQL-shaped (`ENGINE=InnoDB DEFAULT
+CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`, `AUTO_INCREMENT` as a column-level keyword) -- none of that
+syntax parses under SQLite. An app that wants to actually run on SQLite today has to hand-write its own
+SQLite-compatible `CREATE TABLE` statements from the same `classes/yaml/*.yaml` field list, rather than
+run `spill:sql:all` and load the result -- `spill:sql:all` gaining a second, SQLite-shaped output dialect
+is a real, separate, larger piece of work this change deliberately did not attempt, so its absence here
+isn't an oversight.
+
+**Verified**: `php -l` clean on the changed file (the only file this touches) and, separately, every
+`.php` file in this repo (a full-repo lint pass, not spot-checking). A standalone script covering both
+directions -- not just unit logic in isolation -- against the *real* `Connect()` path (no reflection
+injection, unlike the ZeusFW-scoped SQLite verification zgeotrack's own history describes doing against
+this exact framework before this fix existed): a plain 4-arg `init()` call resolves `getDriver()` to
+`'mysql'` (backward-compat default, confirmed rather than assumed); an explicit 5-arg call with
+`'sqlite'` resolves correctly and a real in-memory SQLite connection round-trips an actual
+`CREATE TABLE`/`INSERT`/`SELECT` through `dbConnection::getConnection()`; a `DB_DRIVER` constant defined
+before a plain 4-arg `init()` call (the exact shape `Kernel.php`'s own call uses) is picked up with zero
+changes needed to that call site, and `Connect()` honors it. **Not verified**: this sandbox has no
+MySQL/MariaDB server reachable at all (same constraint documented on `Recaptcha.php`'s and `ErnsAuth.php`'s
+own entries above), so the unchanged `mysql` branch was confirmed correct by direct byte-for-byte diff
+against the original line, not by a real connection attempt -- and no app on this framework (zpms/erweb/
+zweb/mweb) had its own test suite re-run against a live database as part of this change, since none was
+available in this sandbox either. Any app adopting `DB_DRIVER=sqlite` for real should re-verify against
+its own actual schema and query set before relying on it, especially around the two limitations above.
+
+**Files**: `core/db/dbal.php` only.
