@@ -1470,3 +1470,74 @@ still fires); a logged-in visit to `/patients` renders full chrome
 `bin/run_tests.sh` (40/40 static, 35/35 functional -- including login,
 CSRF enforcement, login lockout, remember-me-adjacent auth flows, and
 every RBAC/admin-CRUD test) stayed fully green throughout.
+
+### `Kernel::boot()` adopted by mweb and zweb; erweb deliberately left as-is (2026-09-18)
+
+Follow-up to the entry above, extending the same consolidation to the other two apps on this
+framework available this session (mweb, zweb -- both added to session scope and cloned fresh for
+this). Their bootstraps were near-identical to zpms's *pre-`boot()`* shape but simpler: no CSRF/
+login-lockout/login-redirect calls at all (`SecurityClass::init()` was even left commented out,
+"setup access restrictions"), a bare `session_start()` instead of `zeusfw_session_start()`, and one
+inline `contentPageClass::init('html');` call with no other app-specific setup.
+
+**Confirmed safe to default every opt-in switch on** (rather than explicitly passing `false` to
+preserve old behavior): grepped both apps' `config/settings.info.yaml` for `login`/`webform` routes
+and `access:` usages -- zero of either. `csrf_login`/`csrf_webforms`/`login_lockout` only ever affect
+`login_post()`/`processform()`, and neither app has a route reaching either handler; `SecurityClass::
+init()`/`userIsPermitted()`'s `access:` check is exercised by nothing here either (confirmed the
+inner `foreach(self::$roles as ...)` in `processRoles()` would have hard-`exit()`ed on any real
+`access:` check ever having run against an uninitialized `self::$roles` -- since no such check exists
+in either app's config, this was always a dormant, never-triggered footgun, not a live bug). So
+`boot()`'s own security defaults (all three `true`, matching zpms's own unconditional calls) are
+inert now and a safer default if either app ever adds a login route later, with zero behavior change
+today. `contentPageClass::init('html')` moved into a new `zeusfw_app_boot()` hook function, same
+pattern as zpms's.
+
+**A real, live-breaking bug found and fixed as a side effect for zweb specifically**: zweb's original
+`web/index.php` called `Renderer::init($kernel->getConfig('templates'));` with only 1 argument, but
+`Renderer::init()`'s signature (`core/templates/ZETEMTemplate.php`) has no default for its 2nd/3rd
+params (`$enable_cache`, `$cache_path`) -- a genuine `ArgumentCountError` under PHP 7.1+'s strict
+arity enforcement, confirmed by booting zweb's *unmodified* code against this session's PHP 8.4:
+every single request fataled before rendering anything. `boot()` always calls `Renderer::init()`
+with its full, correct 4 arguments (matching zpms's/mweb's own already-correct call), so adopting it
+fixes this outright rather than preserving a crash. mweb's own call already had all 4 args and needed
+no equivalent fix.
+
+**erweb deliberately NOT migrated onto `boot()`, on purpose, not an oversight.** Read erweb's own
+`web/index.php` in full before deciding: its bootstrap already diverges from the generic shape in
+ways `boot()` has no hook for -- `ob_start()` runs as the literal first line (before `bootstrap.php`
+even loads, paired with an `ob_clean()` right after, to discard whitespace artifacts from generated
+class files that would otherwise corrupt `/sitemap.xml`'s XML output -- see erweb's own `CLAUDE.md`,
+Phase 6), a `$basePath` computation that rewrites `$_SERVER['QUERY_STRING']` *before* `Kernel`/
+`RouterClass` are even constructed (subpath-deployment support, same file), and
+`zeusfw_register_error_handlers()` called immediately after `Renderer::init()` -- deliberately
+*before* session start/language selection/remember-me resolution, so a crash during any of those is
+still caught by the registered crash handler. `boot()`'s one extension point
+(`zeusfw_app_boot()`) fires only after session start, remember-me resolution, and language
+selection -- forcing erweb's error-handler registration through it would leave those three steps
+uncaught by the crash handler, a real robustness regression for the one app that actually built and
+relies on that catch-all (see `ErrorHandlers.php`'s own entry above). erweb's bootstrap is also
+already short (~30 lines to dispatch) and almost entirely app-specific at this point -- there isn't
+the ~95-line generic-boilerplate problem here that motivated `boot()` for zpms/mweb/zweb in the
+first place. Left untouched rather than either forcing a bad fit or extending `boot()`'s hook
+surface speculatively for a single caller.
+
+**Verified against mweb and zweb**: `php -l` clean on both `web/index.php` files. Both apps' full
+stack (framework + app-level `spill:sql:all`/`spill:class:all`/`update:bootstrap`, SQL imported into
+disposable throwaway MariaDB databases) booted fresh via a temporary dev-only `router.php` (not
+committed to either repo -- this session's own scratch tooling, mirroring the shim already committed
+in erweb) for a real end-to-end request. mweb: home page renders 200, output byte-identical between
+the old and new `web/index.php` (diffed with only the `time_profile` debug timing numbers differing,
+same non-determinism already noted for zpms). zweb: home page now renders 200 with the original code
+confirmed to fatal in the same environment (proving the `Renderer::init()` fix is real, not
+theoretical) -- with a throwaway, uncommitted one-line compatibility patch to zweb's own
+`locationsClassEx::sgetAll()` (an unrelated, pre-existing signature mismatch against the shared
+`locationsClass` base -- confirmed present and fatal identically regardless of old vs. new
+`index.php`, reverted before finishing, never committed) applied just to get past that separate,
+out-of-scope bug and reach a real page render: full chrome (header/nav/footer regions), breadcrumbs,
+and populated navigation all confirmed present, proving the same `global $Request`/`$router`/
+`$content_response` compatibility already established for zpms holds for these two apps' own modules
+too (confirmed via grep that neither app's own code touches those globals directly -- only the
+shared core modules, already covered by zpms's own verification). All scratch dev artifacts (test
+databases, symlinks, `router.php`, the temporary `locationsClassEx.php` patch) removed/reverted
+before finishing; `git status` on both repos shows only the intended `web/index.php` change.
