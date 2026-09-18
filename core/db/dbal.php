@@ -6,33 +6,15 @@ class dbConnection {
     static private $username;
     static private $password;
     static private $database;
-    static private $driver;
     static private $pdo;
 
-    // $adriver is optional and additive -- every existing call site
-    // across core (Kernel.php, maker.php, functions.php, messages.php)
-    // and every app on this framework calls init() with exactly the
-    // original 4 args, so they all keep resolving to 'mysql' exactly as
-    // before. An app that wants a different driver has two ways in,
-    // neither of which requires touching Kernel.php (the one place that
-    // calls init() on every real request, always with 4 args): pass
-    // $adriver explicitly to a direct init() call of its own (e.g. a CLI
-    // script), or -- the way that actually reaches Kernel.php's own
-    // call -- define a `DB_DRIVER` constant next to DB_HOST/DB_USER/
-    // DB_PASS/DB_NAME in config/db.php; see Connect()'s SQLite branch
-    // below for the one driver this currently changes anything for.
-    static function init($ahost, $ausername, $apassword, $adatabase, $adriver = null) {
+    static function init($ahost, $ausername, $apassword, $adatabase) {
         self::$host = $ahost;
         self::$username = $ausername;
         self::$password = $apassword;
         self::$database = $adatabase;
-        self::$driver = $adriver ?? (defined('DB_DRIVER') ? DB_DRIVER : 'mysql');
 
         self::setConnection( null );
-    }
-
-    static function getDriver() {
-        return (self::$driver);
     }
 
     static function isConnected() {
@@ -60,31 +42,7 @@ class dbConnection {
     static function Connect() {
         if(!self::$pdo) {
             try {
-                // self::$driver is only ever unset here if some caller
-                // reached Connect()/getConnection() without ever calling
-                // init() first -- not a real code path today (every real
-                // request goes through Kernel's constructor, which always
-                // calls init()), but the ?? keeps this branch's own
-                // default identical to init()'s ('mysql') rather than
-                // silently passing null into the match below.
-                switch (self::$driver ?? 'mysql') {
-                    case 'sqlite':
-                        // self::$database is a filesystem path (or
-                        // ':memory:') here, not a server-side schema name
-                        // -- host/username/password are meaningless for
-                        // SQLite and simply unused. Note this only makes
-                        // the *connection* driver-configurable: the SQL
-                        // `spill:sql:all` generates (core/maker/functions.php)
-                        // is still MySQL-shaped (ENGINE=/CHARSET=/
-                        // AUTO_INCREMENT), so a SQLite-backed app needs its
-                        // own hand-written, SQLite-compatible schema until
-                        // that generator gains a second dialect.
-                        self::$pdo = new PDO("sqlite:" . self::$database);
-                        break;
-                    default:
-                        self::$pdo = new PDO("mysql:host=".self::$host.";dbname=".self::$database, self::$username, self::$password);
-                        break;
-                }
+                self::$pdo = new PDO("mysql:host=".self::$host.";dbname=".self::$database, self::$username, self::$password);
                 self::$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             } catch (PDOException $e) {
                 die("Database connection failed: " . $e->getMessage());
