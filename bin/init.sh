@@ -2,6 +2,113 @@
 echo Zeus Framework Website builder
 echo
 
+# The old `cat $ifile | sed -s "s/<<host>>/$host/g" - | sed ... > $ofile`
+# chain breaks the instant any credential contains a `/` -- sed's `s///`
+# uses `/` as its delimiter, so e.g. a password of `Ab/c123` gets read as
+# `s/<<pass>>/Ab` (delimiter), `c123` (a 4th, extra field), which sed
+# rejects outright: "sed: -e expression #1, char N: unknown option to
+# `s'". Confirmed directly against a real run. Worse than just an error
+# message: the pipeline's stdout was empty when sed errored, so `> $ofile`
+# still truncated the file to zero bytes -- and this block never checked
+# sed's exit status at all, so it printed "$ofile created succesfully!"
+# immediately after, while having just emptied a previously-working file.
+# `&` (sed's "whole match" backreference in the replacement) and a literal
+# backslash are the same class of hazard, just silent instead of a hard
+# error -- a password containing either would have substituted something
+# other than what was typed, with no error at all.
+#
+# First fix attempt was pure bash substitution (`${content//<<pass>>/$password}`,
+# no sed at all) on the theory that literal string replacement has no
+# delimiter/metacharacter hazard -- wrong, caught by testing an `&`
+# password against it directly, not assumed safe: bash 5.2 (this sandbox's
+# version) gives `&` in a parameter-substitution REPLACEMENT the exact
+# same "insert whatever the pattern matched" meaning sed does (confirmed
+# in isolation: `x="X"; r="A&B"; echo "${x/X/$r}"` prints `AXB`, not
+# `A&B`) -- so a password containing `&` would have silently substituted
+# the literal placeholder text (`<<pass>>`) into the credential instead of
+# the `&`, the same "wrong file, no error" failure mode as the sed bug
+# above, just via a different mechanism. A literal backslash in the
+# replacement is *also* special (consumed as an escape character) even
+# with no `&` nearby, confirmed the same way.
+#
+# Fixed the substitution-mechanism hazard by escaping both metacharacters
+# in each value before it reaches the substitution -- backslash first
+# (`\` -> `\\`), then ampersand (`&` -> `\&`, using the now-doubled
+# backslash from the first step to escape it).
+sed_bash_escape() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//&/\\&}"
+    printf '%s' "$s"
+}
+
+# A THIRD, independent layer, found only by testing the fix above against
+# a real live database, not by reasoning about the script in isolation:
+# host/user/pass all land inside a single-quoted string literal in BOTH
+# generated files (`'<<pass>>'` in admin.sql's SQL, `'<<pass>>'` in
+# db.php's PHP) -- and MySQL's and PHP's own single-quoted-literal parsers
+# each have their OWN escaping rules, applied when *they* read the file,
+# completely independent of how the file got written. Confirmed directly:
+# `sed_bash_escape` alone correctly writes a password containing `\&`
+# byte-for-byte into both files, but MySQL string literals silently drop
+# a backslash before any character it doesn't recognize as an escape
+# sequence (confirmed against a real server: the literal bytes
+# `'Re/check\&2026'` in a .sql file parse to the *value* `Re/check&2026`,
+# backslash gone) -- so the account MySQL actually creates ends up with a
+# different password than the byte-identical string db.php holds, and a
+# real login with the "correct" (db.php's) password then fails outright
+# (confirmed: `ERROR 1045 Access denied`, reproduced against a real
+# MariaDB server before touching this). PHP's single-quoted strings have
+# the same rule (only `\\` and `\'` are recognized escapes), so db.php has
+# the identical exposure for a password containing a raw `'`.
+#
+# Fixed by escaping for that target-language literal FIRST (backslash
+# doubled, single quote escaped -- the one rule both MySQL and PHP
+# single-quoted strings share), then layering the bash-substitution
+# escaping above on top of that already-escaped value, not the raw one --
+# verified by actually letting MySQL and PHP parse the generated files
+# back, not just diffing bytes, since correct output here is expected to
+# differ from the raw input (a lone `\` legitimately becomes `\\` on disk).
+# `database` is exempt -- it's the one placeholder that's never inside
+# quotes in either template (`CREATE DATABASE IF NOT EXISTS <<db>>;`, a
+# bare identifier), so literal-escaping it would be wrong, not just
+# unnecessary; it still gets the bash-substitution layer like the others.
+escape_for_quoted_literal() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\'/\\\'}"
+    printf '%s' "$s"
+}
+
+# Exact inverse of escape_for_quoted_literal() above, in the opposite
+# order (undo the quote-escaping first, then the backslash-doubling --
+# reversing operations in the opposite order they were applied, same as
+# any composed transform). Used when re-reading an already-generated
+# admin.sql to offer its real values back as this run's defaults.
+unescape_quoted_literal() {
+    local s="$1"
+    s="${s//\\\'/\'}"
+    s="${s//\\\\/\\}"
+    printf '%s' "$s"
+}
+
+render_template() {
+    local ifile="$1"
+    local ofile="$2"
+    local content
+    local h u p d
+    h=$(sed_bash_escape "$(escape_for_quoted_literal "$host")")
+    u=$(sed_bash_escape "$(escape_for_quoted_literal "$username")")
+    p=$(sed_bash_escape "$(escape_for_quoted_literal "$password")")
+    d=$(sed_bash_escape "$database")
+    content=$(<"$ifile")
+    content="${content//<<host>>/$h}"
+    content="${content//<<user>>/$u}"
+    content="${content//<<pass>>/$p}"
+    content="${content//<<db>>/$d}"
+    printf '%s\n' "$content" > "$ofile"
+}
+
 cd sql
 
 ifile=admin.sql.in
@@ -18,11 +125,30 @@ if [ -f $ofile ]; then
     sql=$(<$ofile)
     # echo $sql;
 
-    # Extract values using regex with 'grep'
+    # Extract values using regex with 'grep'. These come back as the RAW
+    # on-disk SQL literal, e.g. a real backslash is 2 characters here
+    # (`\\`) -- unescape_quoted_literal() below reverses exactly what
+    # escape_for_quoted_literal() applies on write, so a value re-read as
+    # this run's default is the real original again, not the escaped
+    # form. Found by testing a re-run (accept every default) against a
+    # password containing a backslash, not assumed: without this, the
+    # escaped-on-disk bytes got fed straight back through
+    # escape_for_quoted_literal() a second time on the next write,
+    # doubling the backslash count on every successive re-run that
+    # accepts the existing password unchanged. (Known, narrower,
+    # pre-existing limitation this doesn't attempt to fix: a password
+    # containing a literal `'` is re-extracted truncated at that quote,
+    # since this grep's `[^']+` has no way to tell an escaped `\'` apart
+    # from the literal closing quote -- unchanged from before today,
+    # and only reachable by re-running init.sh against an already-saved
+    # quote-containing password.)
     username_in=$(echo "$sql" | grep -oP "CREATE USER IF NOT EXISTS '\K[^']+(?='@)")
     host_in=$(echo "$sql" | grep -oP "@'\K[^']+(?=' IDENTIFIED)")
     password_in=$(echo "$sql" | grep -oP "IDENTIFIED BY '\K[^']+(?=')")
     database_in=$(echo "$sql" | grep -oP "CREATE DATABASE IF NOT EXISTS \K\w+(?=;)")
+    username_in=$(unescape_quoted_literal "$username_in")
+    host_in=$(unescape_quoted_literal "$host_in")
+    password_in=$(unescape_quoted_literal "$password_in")
 
 else
     host_in="localhost"
@@ -52,13 +178,20 @@ fi
 # this doesn't depend on readline/TTY behavior at all, so accepting a
 # default now works the same whether this script is run interactively or
 # not.
-read -e -i "$host_in" -p "Please enter the database host: [$host_in] " host
+#
+# `-r` added to all 4: without it, bash's `read` treats a backslash in the
+# typed line itself as an escape character and silently drops it (`Ab\c123`
+# read back as `Ab c123` -> actually collapses to `Abc123`) -- confirmed in
+# isolation, independent of and before either fix above ever sees the
+# value. `sql/msql.sh`/`msqldump.sh` already use `-r` for this same reason
+# on their own reads; this script's prompts never had it.
+read -e -r -i "$host_in" -p "Please enter the database host: [$host_in] " host
 host="${host:-$host_in}"
-read -e -i "$database_in" -p "Please enter database: [$database_in] " database
+read -e -r -i "$database_in" -p "Please enter database: [$database_in] " database
 database="${database:-$database_in}"
-read -e -i "$username_in" -p "Please enter database user name: [$username_in] " username
+read -e -r -i "$username_in" -p "Please enter database user name: [$username_in] " username
 username="${username:-$username_in}"
-read -e -s -i "$password_in" -p "Please enter database user password: [$password_in] " password
+read -e -r -s -i "$password_in" -p "Please enter database user password: [$password_in] " password
 password="${password:-$password_in}"
 echo		# new line to correct password input (was: echo "\n", which
 		# without -e prints the two literal characters \n instead of
@@ -72,7 +205,7 @@ echo		# new line to correct password input (was: echo "\n", which
 read -e -p "Do you want to update $ofile? [y/N] " adminupdate
 
 if [[ $adminupdate == [yY] ]]; then
-    cat $ifile | sed -s "s/<<host>>/$host/g" - | sed -s "s/<<user>>/$username/g" - | sed -s "s/<<pass>>/$password/g" - | sed -s "s/<<db>>/$database/g" - > $ofile
+    render_template "$ifile" "$ofile"
     #cat $ofile
     echo $ofile created succesfully!
 fi
@@ -86,7 +219,7 @@ ofile="db.php"
 read -e -p "Do you want to update $ofile? [y/N] " dbupdate
 
 if [[ $dbupdate == [yY] ]]; then
-    cat $ifile | sed -s "s/<<host>>/$host/g" - | sed -s "s/<<user>>/$username/g" - | sed -s "s/<<pass>>/$password/g" - | sed -s "s/<<db>>/$database/g" - > $ofile
+    render_template "$ifile" "$ofile"
     # cat $ofile
     echo $ofile created succesfully!
 fi

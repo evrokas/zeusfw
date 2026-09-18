@@ -1407,3 +1407,87 @@ host/user/pass/db, not blanked), confirming the fix. (3) Connected live (`mysql 
 using the exact credentials `db.php` held after that second run -- succeeded, proving the "preserved"
 values are the real, working ones, not just visually present in the file. **Files**: `bin/init.sh` only.
 
+## `bin/init.sh` -- credential substitution corrupted, or outright emptied, `admin.sql`/`db.php` for a real class of passwords (2026-09-18, second same-day follow-up)
+
+Reported directly, with the exact error: `sed: -e expression #1, char 44: unknown option to `s'` right
+after the previous entry's fix. Reproduced immediately rather than guessing: the `sed -s "s/<<pass>>/
+$password/g"` chain uses `/` as sed's own delimiter, so any credential containing a `/` (e.g. a password
+of `Ab/c123`) makes sed read `s/<<pass>>/Ab` as the whole command, `c123` as a bogus extra field --
+exactly the reported error. **Worse than the error message alone**: the pipe's stdout was empty when
+sed errored, so `> $ofile` still truncated the file to zero bytes, and this block never checked sed's
+own exit status -- it printed `$ofile created succesfully!` immediately after silently emptying a
+previously-working file.
+
+**First fix attempt, caught as wrong by testing it rather than trusting it**: switched the substitution
+to pure bash (`${content//<<pass>>/$password}`, no sed at all) on the theory that literal string
+replacement has no delimiter to collide with. Tested against an `&` password before moving on, and it
+failed too -- bash 5.2 (confirmed via `bash --version` in this sandbox) gives a literal `&` inside a
+parameter-substitution *replacement* the exact same "insert whatever the pattern matched" meaning sed's
+own `&` backreference has (isolated proof: `x="X"; r="A&B"; echo "${x/X/$r}"` prints `AXB`, not `A&B`) --
+so an `&` password would have silently written the literal placeholder text into the credential instead
+of itself, the same "wrong file, no error" failure shape as the sed bug, just via a different mechanism.
+A lone backslash in the replacement is separately consumed as an escape character too, confirmed the
+same way.
+
+**Second fix, layer 1**: escape both hazards in each value before it ever reaches the substitution --
+double every backslash, then prefix every `&` with the now-doubled backslash. Fixes the substitution
+mechanism itself.
+
+**Third, independent layer, found only by testing the layer-1 fix against a real live database rather
+than trusting file contents**: host/user/pass all sit inside a single-quoted string literal in *both*
+generated files, and MySQL's and PHP's own single-quoted-literal parsers each apply their own escaping
+rules when *they* read the file -- completely independent of how carefully the file was written. Layer 1
+alone wrote a `\&` password byte-for-byte into both files, but MySQL silently drops a backslash before
+any character it doesn't recognize as an escape sequence (confirmed against a real server:
+`SELECT HEX('Re/check\&2026')` decodes to `Re/check&2026`, backslash gone) -- so the account MySQL
+actually created ended up with a different password than the byte-identical string `db.php` held, and a
+real login with `db.php`'s "correct" password then failed outright (`ERROR 1045 Access denied`,
+reproduced against a real MariaDB server before touching the fix). PHP single-quoted strings share the
+identical rule (only `\\` and `\'` are recognized), so `db.php` has the same exposure for a raw `'`.
+
+Fixed by escaping for the *target-language* literal first (backslash doubled, single quote escaped --
+the one rule both MySQL and PHP single-quoted strings share), then layering the bash-substitution
+escaping from layer 1 on top of that already-escaped value, not the raw one. `database` is deliberately
+exempt from this target-language layer -- it's the one placeholder that's never inside quotes in either
+template (`CREATE DATABASE IF NOT EXISTS <<db>>;`, a bare identifier), so literal-escaping it would be
+wrong, not just unnecessary; it still gets the layer-1 substitution-safety escaping like the others.
+Verified by having real MySQL (`HEX()`, to see past `mysql -B`'s own batch-mode output re-escaping, which
+first looked like a fourth bug and wasn't -- it was this test harness reading the client's redisplay
+convention, not the actual stored value) and real PHP (`php -r "echo '...';"`) parse the generated
+literals back, not just diffing file bytes, since correct output is now expected to *differ* from the
+raw typed input (a lone `\` legitimately becomes `\\` on disk).
+
+**A fourth bug, found by testing the layer-1+2 fix's own re-run path**: re-running `init.sh` against an
+already-saved tricky password and accepting the shown default doubled its backslash count on every
+successive re-run. Cause: the block that reads an *existing* `admin.sql` back to offer its real values as
+this run's defaults (`grep -oP "IDENTIFIED BY '\K[^']+(?=')"`) extracts the raw on-disk SQL-literal bytes
+-- already escaped -- and had always treated them as if they were the original unescaped value, which
+was harmless before today (escaping was a no-op for a plain password) but now feeds an already-escaped
+value straight back through `escape_for_quoted_literal()` a second time on the next write. Fixed with
+`unescape_quoted_literal()`, the exact inverse of the write-side function, applied to `host_in`/
+`username_in`/`password_in` right after extraction. Verified stable across 3 successive re-runs of a
+`Re/check\&2026` password, plus a real login on the account after all 3.
+
+**Read separately breaks a backslash before any of the above ever sees it**: `read` (no `-r`) treats a
+backslash in the *typed line itself* as an escape character and drops it, confirmed in isolation
+(`Ab\c123` piped into `read` without `-r` comes back as `Abc123`) -- independent of every fix above,
+since it happens before the value is even stored in the shell variable. Added `-r` to all 4 `read`
+calls (host/database/username/password), matching the convention `sql/msql.sh`/`msqldump.sh` already
+use for the identical reason.
+
+**One remaining, narrower, pre-existing, and disclosed-not-fixed limitation**: a password containing a
+literal `'` (not `\`) still gets truncated on *re-read* from an existing `admin.sql`, since the
+extraction regex's `[^']+` has no way to distinguish an escaped `\'` from the real closing quote --
+unchanged from before today, only reachable by re-running `init.sh` against an already-saved
+quote-containing password, and confirmed as exactly this shape (not a new regression) rather than left
+unexamined.
+
+**Verified end-to-end against a real MariaDB server and real PHP, not just bash string comparison**: a
+battery of passwords (`/`, `&`, `\`, `'`, `\&` combined, `\` + `'` combined, and a plain password as a
+control) each round-tripped through real `mysql ... < admin.sql` account creation, a real
+`mysql -h ... -u ... -p...` login using exactly what `db.php` held, and real `php -r` parsing of
+`db.php`'s own literal -- for the exact password that produced the originally-reported error
+(`Re/check\&2026`): real account created, real login succeeded, and the value stayed byte-stable (via
+PHP's own parsing, not raw file bytes) across 3 further re-runs accepting every default. **Files**:
+`bin/init.sh` only.
+
