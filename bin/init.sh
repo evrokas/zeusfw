@@ -77,7 +77,28 @@ read -e -p "Do you want to create the database? [y/N] " createdb
 
 if [[ $createdb == [yY] ]]; then
     echo Creating the database using the root credentials ...
-    sudo mysql -u root -p  < admin.sql
+
+    # `mysql -u root -p < admin.sql` (the previous version of this line)
+    # asks mysql to *interactively* prompt for a password on the same
+    # stdin admin.sql is already redirected into -- there is only one
+    # stdin, so the prompt silently reads (garbles) admin.sql's own first
+    # line as the password instead of ever running the script, and mysql
+    # still exits 0 regardless. Confirmed against a real MariaDB server:
+    # this printed "created succesfully" while creating neither the user
+    # nor the database, every single time -- not a rare edge case, this
+    # is what happens on every real run. Fixed by prompting for the
+    # password into a shell variable *first*, then feeding admin.sql on
+    # a stdin nothing else is competing for, via MYSQL_PWD -- the same
+    # convention sql/msql.sh/msqldump.sh already use for this exact
+    # reason (see their own comments).
+    read -srp "Enter the MySQL/MariaDB root password (leave empty if root needs none): " root_password
+    echo
+    if [ -n "$root_password" ]; then
+        MYSQL_PWD="$root_password" mysql -u root < admin.sql
+    else
+        mysql -u root < admin.sql
+    fi
+
     if [ $? -eq 0 ]; then
 	    echo User and database created succesfully.
     else
