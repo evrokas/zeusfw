@@ -38,11 +38,31 @@ fi
 # echo "Database: $database"
 
 
+# `read -e -i "$default"` only pre-fills the shown default via GNU readline,
+# which needs a real interactive TTY -- confirmed the hard way: piping answers
+# into this script (or running it from a terminal readline treats as
+# non-interactive, which several remote/CI-style shells do) makes the -i
+# default silently vanish, so pressing Enter to "accept" the bracketed
+# default produces an EMPTY string instead, not the value shown -- every
+# one of the 4 prompts below reproduced this, not just one. That empty
+# string then flows straight into admin.sql/db.php's sed substitution with
+# no further validation, so the very next run's "created succesfully!"
+# writes out a real, wrong file (e.g. `DB_HOST` = '') while still reporting
+# success. Fixed with an explicit `${var:-$default}` fallback on each one --
+# this doesn't depend on readline/TTY behavior at all, so accepting a
+# default now works the same whether this script is run interactively or
+# not.
 read -e -i "$host_in" -p "Please enter the database host: [$host_in] " host
+host="${host:-$host_in}"
 read -e -i "$database_in" -p "Please enter database: [$database_in] " database
+database="${database:-$database_in}"
 read -e -i "$username_in" -p "Please enter database user name: [$username_in] " username
+username="${username:-$username_in}"
 read -e -s -i "$password_in" -p "Please enter database user password: [$password_in] " password
-echo "\n"		# new line to correct password input
+password="${password:-$password_in}"
+echo		# new line to correct password input (was: echo "\n", which
+		# without -e prints the two literal characters \n instead of
+		# an actual newline -- confirmed in this same investigation)
 
 # echo "Host: " $host
 # echo "DB: " $database

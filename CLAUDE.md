@@ -1360,3 +1360,50 @@ database, and confirmed zero regressions on every query-param-free route already
 (`/`, `/login`, `/devices`, `/profile`, `/admin/users`, `/locations`) -- still 200 on every one.
 **Files**: `core/router/Request.php` only.
 
+## `bin/init.sh` -- accepting a shown `[default]` by pressing Enter silently wrote empty values instead (2026-09-18, same-day follow-up)
+
+Reported directly against zgeotrack: "`init.sh` doesn't create the correct `.php` files" -- i.e.
+`config/db.php` itself, not the `maker.php`-generated entity classes `update.sh` produces (those are a
+separate step; this report was specifically about `init.sh`'s own output). Reproduced by driving the
+actual script with piped answers rather than guessing at the cause: every one of the 4 credential
+prompts (`read -e -i "$default" -p "..." var`) uses `-i` to pre-fill the bracketed default shown in the
+prompt (e.g. `[localhost]`), intending that pressing Enter with no input accepts it -- but `-i`'s
+pre-fill only actually takes effect through GNU readline's interactive line-editing, which requires a
+real TTY. Outside that (piped input -- exactly how this same file's own `init.sh`/`update.sh` CLAUDE.md
+entry above drove every one of its own verification runs -- or any other non-fully-interactive shell),
+the `-i` default is silently dropped and an empty Enter produces an **empty string** for that variable,
+not the value shown in brackets. Confirmed directly: even the hardcoded `host_in="localhost"` fallback
+(used when no `admin.sql` exists yet) came out as `DB_HOST` = `''` after accepting every default this
+way -- not a database/username/password-only issue, all 4 fields are affected identically.
+
+**Why this matches "doesn't create the correct files" specifically, not "doesn't create files at all"**:
+the script's own `sed` substitution has no validation of what it's substituting -- an empty `$host`
+still cleanly replaces `<<host>>` with nothing, `db.php` is still written, and the script still prints
+"db.php created succesfully!". The file is real and well-formed PHP, just quietly wrong. The single most
+realistic trigger, confirmed directly: re-running `init.sh` on an *already-configured* app (the normal
+case for re-running it at all -- e.g. to add the "create the database" step after already having a
+working `db.php`) and pressing Enter through every prompt to keep the existing real values, expecting
+"just confirm what's already there" -- before this fix, that exact flow silently wiped a previously
+correct `db.php`/`admin.sql` down to all-empty values, overwriting real working credentials with nothing
+while reporting success at every step.
+
+Fixed with an explicit `var="${var:-$default_in}"` fallback immediately after each of the 4 `read`
+calls -- this is a plain bash parameter-expansion default, unrelated to readline/TTY state, so accepting
+a shown default now works identically whether the script is run from a real interactive terminal or
+driven with piped/redirected input. Also fixed, found while touching this same block: `echo "\n"`
+(intended to print a blank line after the silent password prompt) doesn't do that at all -- without
+`echo -e`, bash's `echo` prints the two literal characters `\`+`n`, not a newline (visible directly in
+this run's own output, a stray literal `\n` line); changed to a bare `echo`, which does what the
+original comment says it's for.
+
+**Verified against a real MariaDB server, three ways**: (1) a completely fresh setup accepting every
+default -- host now correctly falls back to `localhost`; database/username/password correctly stay empty
+(there is no real prior value to fall back to on a truly first-ever run, so this is correct, not a
+remaining bug -- the script still requires you to actually type those the first time). (2) The specific
+regression scenario: ran a real initial setup with real credentials (`zgeotrack_recheck`/`RecheckPass2026`),
+confirmed the database and MySQL user were genuinely created, then re-ran `init.sh` a second time
+accepting every prompt's default -- `admin.sql`/`db.php` came out byte-identical to the first run (real
+host/user/pass/db, not blanked), confirming the fix. (3) Connected live (`mysql -h ... -u ... -p...`)
+using the exact credentials `db.php` held after that second run -- succeeded, proving the "preserved"
+values are the real, working ones, not just visually present in the file. **Files**: `bin/init.sh` only.
+
