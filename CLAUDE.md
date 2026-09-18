@@ -1382,3 +1382,91 @@ Every already-correct breadcrumb (`/consultation/pending`,
 `/consultation/new`, `/settings`) confirmed unchanged. `php -l` clean;
 zpms's own `bin/run_tests.sh` (34/34 static, 35/35 functional) stayed
 green throughout.
+
+## `Kernel::boot()` -- absorb an app's `web/index.php` bootstrap boilerplate (2026-09-18)
+
+At direct request: every app on this framework was hand-writing the same
+~95-line bootstrap preamble in its own `web/index.php` before its first
+route handler -- construct `RequestClass`/`RouterClass`/`Renderer`, start
+the session, flip the same four opt-in security switches, resolve the
+remember-me cookie, pick a language, buffer output, register modules,
+match+dispatch the route, render, flush. None of that sequencing is
+app-specific; it's mechanical wiring every app on this framework has to
+reproduce identically. Only zeusfw + zpms were available this session
+(mweb/zweb/erweb also vendor this framework but weren't reachable to
+verify against), so per this file's own "keep changes additive" policy
+this is a **new, opt-in method only** -- zero changes to any existing
+method's signature or behavior, so every app that doesn't call it is
+unaffected by construction.
+
+**`Kernel::boot(array $opts = []): void`** (`core/kernel/Kernel.php`,
+right after `renderPage()`) runs the entire sequence: `RequestClass`/
+`RouterClass` construction, `SecurityClass::init()`, `Renderer::init()`,
+`zeusfw_session_start()`, the four opt-in switches (`csrfClass::
+enableLoginProtection()`/`enableWebformProtection()`, `LoginSecurityClass::
+enableLockout()`, `SecurityClass::enableLoginRedirect()` -- each
+individually skippable via `$opts['csrf_login']`/`['csrf_webforms']`/
+`['login_lockout']`, default `true` for all three, matching every existing
+caller's own unconditional calls; `$opts['login_redirect']` opt-in via a
+URL string, unset/empty = today's bare-401 default), `$this->
+isUserLoggedin()` (remember-me cookie resolution -- **not dead code**,
+despite its return value being discarded by every existing caller
+including this one; the side effect, not the return, is the point),
+language selection (`$opts['default_language']`, default `'en'`),
+`ob_start()`, a new app-hook (see below), `registerModules()`, route
+match+dispatch, `renderPage()`, `ob_end_flush()`.
+
+**The one detail that would have silently broken every nav/breadcrumb
+render if missed, caught by the functional suite, not by reading the
+code**: `RequestClass`/`RouterClass` aren't just assigned to new `$this->
+request`/`$this->router` properties -- they're also set as real PHP
+globals (`global $Request, $router;` inside the method, then `$Request =
+...;`/`$router = ...;`) because core modules (`breadcrumbs`, `content`,
+`mainnavigation`, `Routetrail`) and app modules (zpms's own `userprofile`/
+`location`/`backup`) all read them via `global $Request`/`global $router`,
+not via any Kernel accessor. **A third, easy-to-miss global**:
+`routerCallFunction()`'s return value has to become `global $content_response`
+too -- `contentModule::render()` (`core/modules/content/content.php`)
+reads it that way, not as a return value it fetches itself. Confirmed by
+grepping every `global $` in `core/modules/*/*.php`/`core/lib/*.php`
+before writing this method: those three names are the complete set.
+Missing the third one specifically produced a page that looked almost
+right (correct `<head>`, correct `wrapper-bare` chrome-hiding on `/login`)
+but with an entirely empty `main_content` region -- silently rendering no
+form/content at all, caught only by the functional suite's "could not
+find a csrf_token field on the login page" failure, not by `php -l` or a
+visual skim of the HTML `<head>`.
+
+**New extension-point hook**, same `function_exists()` convention as
+`zeusfw_app_resolve_user_roles()`/`zeusfw_app_resolve_ernsauth_username()`:
+`if (function_exists('zeusfw_app_boot')) { zeusfw_app_boot(); }`, called
+right after `ob_start()` -- the one place left for an app's own one-off
+setup that has to run at that exact point in the sequence (zpms's
+`locationsClassEx::setDefaultLocation()` moved here). An app that defines
+nothing changes nothing.
+
+**zpms's `web/index.php`** now reads its own config/optional-integration
+includes and `require_once`s (unchanged -- genuinely app-specific, and
+`include_once db.php` has to run before `new Kernel()` connects to the
+database using constants that file defines), declares `zeusfw_app_boot()`,
+then calls `$kernel->boot([...])` with its five options
+(`csrf_login`/`csrf_webforms`/`login_lockout` all `true`, `login_redirect
+=> '/login'`, `default_language => 'gr'`) -- collapsing what was ~95 lines
+of sequencing into one call. Every route handler function below it is
+untouched, since they already read `global $kernel`/`global $Request`/
+etc., which `boot()` still populates identically.
+
+**Verified against zpms**: after fixing the `$content_response` global
+gap above, `php -l` clean on both files; a real MariaDB-backed test
+server confirmed `/login` renders its form (including the `csrf_token`
+hidden field) exactly as before; an unauthenticated request to
+`/patients` redirects to `/login` (`SecurityClass::enableLoginRedirect()`
+still fires); a logged-in visit to `/patients` renders full chrome
+(header/nav/footer regions present) with correct breadcrumbs ("Ασθενείς /
+Λίστα ασθενών", not `nolangtext`) and a populated main navigation (proving
+`mainnavigation.php`'s `global $Request` still resolves); `/profile` and
+`/settings` (exercising the `location`/`backup`/`userprofile` modules'
+`global $router`) both render with zero PHP warnings/fatals. zpms's own
+`bin/run_tests.sh` (40/40 static, 35/35 functional -- including login,
+CSRF enforcement, login lockout, remember-me-adjacent auth flows, and
+every RBAC/admin-CRUD test) stayed fully green throughout.
