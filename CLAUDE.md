@@ -1491,3 +1491,57 @@ control) each round-tripped through real `mysql ... < admin.sql` account creatio
 PHP's own parsing, not raw file bytes) across 3 further re-runs accepting every default. **Files**:
 `bin/init.sh` only.
 
+## "Remember me" silently failing to log a returning visitor in -- a leftover device-fingerprint filter one step past where the same bug was already half-fixed (2026-09-19)
+
+Reported directly against zgeotrack, generalizing "remember me doesn't work, do not filter by ip" -- the
+literal IP filter was already gone (see `core/ClassExFW.php::getUserByToken()`'s own pre-existing "stop
+using ip for logging in" comment, from earlier work), but a second, equally strict filter on
+**user-agent** was sitting one step further down the exact same code path and had been missed at the
+time.
+
+`Kernel::isUserLoggedin()` (`core/kernel/Kernel.php`) already validates a `zeusfwrememberme` cookie
+correctly, in two steps: `userTokensClassEx::token_is_valid($token)` first -- selector+validator only, a
+real cryptographic check, no device fingerprint involved at all -- and only once that passes does it call
+`getUserByToken($token, $remoteip, $useragent)` to actually fetch the account. That second call's own SQL
+still had `AND useragent=:useragent` in its `WHERE` clause. Since the token was already proven
+cryptographically valid by the first check, this second filter was pure redundancy that could only ever
+turn a legitimate remember-me login into a silent failure -- exactly what happened the instant the UA
+string differed even slightly from whenever the cookie was first issued (an app update, a browser/OS
+update, a different WebView/browser context -- all realistic on a phone, none of them a sign the cookie
+was stolen). And the failure was *silent*: that branch of `isUserLoggedin()` doesn't clear the cookie or
+show any message on a mismatch, it just quietly falls through to `return false` -- from a visitor's side,
+indistinguishable from "remember me just doesn't work."
+
+**Fixed** by dropping the `useragent` filter from `getUserByToken()`'s `WHERE` clause too (mirroring the
+IP fix already sitting right above it in the same file), and simplifying `isUserLoggedin()`'s call site to
+match (`remoteip`/`useragent` params on `getUserByToken()` kept, but now optional/unused, so existing call
+shapes elsewhere don't need to change). `delete_user_token()` in the same file still filters by both --
+confirmed dead code first (`grep`, zero call sites anywhere in zeusfw/zpms/zgeotrack, fully superseded by
+`delete_by_selector()` per `logout()`'s own comment) -- left untouched rather than "fixed" code nothing
+calls.
+
+**A second, independent bug found in the same function while fixing the first**: the successful
+cookie-restore path called `$kernel->loginUser($us->getuname(), $us->getroles())` -- the legacy
+`users.roles` column directly, *not* `zeusfw_app_resolve_user_roles()`, the RBAC-aware hook `login_post()`
+itself already uses for a fresh password login (`core/lib/UserLogin.php`). Any RBAC-only app (roles/
+permissions/user_roles tables, no per-account `users.roles` value ever populated -- zgeotrack among them)
+would have had a remember-me restore establish a session with the *account* correctly identified but with
+empty/wrong roles, so every `rbacClass::require()` check downstream would then fail -- from the visitor's
+side this reads as "remember me doesn't really work" just as much as an outright failed restore does, just
+one layer further in. Fixed to call the same `function_exists('zeusfw_app_resolve_user_roles')` resolution
+`login_post()` already uses, so a cookie-restored session ends up with identical roles to a fresh password
+login for the same account.
+
+**Verified against zgeotrack, against a real MariaDB-backed instance, reproducing the actual failure
+first**: checked out the pre-fix commit into a disposable local test checkout, logged in as the real
+`administrator` account with "remember me" checked from one User-Agent, then made a *second*, completely
+separate request -- fresh cookie jar containing only the remember-me cookie (no session cookie at all,
+simulating a genuinely new visit) -- to `/devices` (an `operator`/`administrator`-gated page) using a
+*different* User-Agent string. Confirmed the bug reproduces exactly as diagnosed: `302 -> /login`, silent
+failure, no error shown. Re-ran the identical test against the fixed code: `200 OK`, the real Devices page
+with real data (not a disguised error page -- grepped the response for the actual device's own name).
+Also confirmed token rotation (a documented, deliberate, separate feature -- see `isUserLoggedin()`'s own
+comment on why the validator half of the cookie changes on every successful use) still works correctly
+across this: the second request's `Set-Cookie` carried a freshly rotated validator, distinct from the one
+issued at login. **Files**: `core/ClassExFW.php`, `core/kernel/Kernel.php`.
+
