@@ -30,12 +30,38 @@ class Menutrail {
         foreach($menu as $mkey => $mval) {
             // echopre("menu key: $key, mkey: " . print_r($mkey,1) . " val: " . array_key_first($mval));
             // echopre("menu item: " . print_r($mval, 1));
-            if(array_key_first($mval) === $key) {
+            $itemKey = array_key_first($mval);
+            // Optional, additive per-item YAML key: 'breadcrumb_aliases: [route1, route2]'
+            // -- for a route that's deliberately never a menu item itself
+            // (e.g. an edit/convert/delete action reached only via a row
+            // link on some list page, never the nav), this lets it still
+            // resolve to a correct, full breadcrumb trail: this menu
+            // item's own trail (built exactly as if $itemKey itself had
+            // matched, including recursing up through any parent
+            // submenus), with one extra trailing segment for $key's own
+            // route title appended after it. Without this, such a route
+            // fails this whole search (returns []) and the caller
+            // (breadcrumbsModule::render()) falls back to Routetrail's
+            // single, parent-less crumb -- correct in isolation, but with
+            // no path leading up to it, unlike every route that does
+            // appear in the menu somewhere.
+            $isAliasMatch = ($itemKey !== $key) && in_array($key, $mval['breadcrumb_aliases'] ?? [], true);
+            if(($itemKey === $key) || $isAliasMatch) {
                 // echopre("found: $mkey");
-                $out = ['key' => array_key_first($mval),
-                'title' => $mval['text']??array_key_first($mval),
+                $out = ['key' => $itemKey,
+                'title' => $mval['text']??$itemKey,
                 'url' => $mval['url']??null,
-                'route_title' => isset($routes[ array_key_first($mval) ])?$routes[ array_key_first($mval) ]['title']:null];
+                'route_title' => isset($routes[ $itemKey ])?$routes[ $itemKey ]['title']:null];
+
+                if($isAliasMatch) {
+                    $t = [];
+                    $t[] = ['key' => $key,
+                        'title' => $routes[$key]['title']??$key,
+                        'url' => null,
+                        'route_title' => isset($routes[$key])?$routes[$key]['title']:null];
+                    $t[] = $out;
+                    return $t;
+                }
 
                 $t = [];
                 $t[] = $out;

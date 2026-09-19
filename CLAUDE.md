@@ -1135,6 +1135,84 @@ rather than just silencing the check outright. zpms's own
 `bin/run_tests.sh` (30/30 static, 35/35 functional) stayed green
 throughout.
 
+## `core/modules/mainnavigation/mainnavigation.php` -- nav-menu `access:` used the wrong, bug-prone check (2026-09-17)
+
+Found while building a front-desk `secretary` role for zpms's own
+consultation-scheduling feature (see zpms's `README.md`, "Front-desk role:
+secretary"): a test account with only a narrow, front-desk-scoped set of
+RBAC permissions could still *see* zpms's "Ασθενείς" (patient records) nav
+menu item, even though that menu entry is `access: power-user` in
+`config/settings.info.yaml`.
+
+Root cause: `menuModule::setupMenuAttributes()` (this file) gated a menu
+item's `access:` string via `SecurityClass::require()`
+(`core/lib/Security.php`) -- but `require()`'s inner loop treats the
+`"authenticated"` role as an automatic pass on *any* `$aperm`, regardless
+of what the menu item actually asked for:
+
+```php
+switch( $urole ) {
+    case "authenticated":
+        $pass++;
+        break;
+    ...
+```
+
+`Kernel::loginUser()` appends `"authenticated"` to every logged-in
+session's role list unconditionally, so in practice this made every
+`access:`-restricted nav menu item visible to every logged-in user no
+matter their role -- the menu-level check was silently inert, not just for
+the new `secretary` role but for any role/menu combination on any app
+vendoring this framework. Confirmed via direct code reading, not just this
+one symptom: nothing about this bug is specific to the `secretary` role or
+to zpms.
+
+**This exact bug (`"authenticated"` auto-passing `SecurityClass::require()`)
+is already documented and fixed once in this codebase** -- see
+`core/lib/Rbac.php`'s own docblock, which describes it as one of "two
+now-fixed bugs in this same file's *previous* incarnation" and explicitly
+states "`SecurityClass::userIsPermitted()` (route-level `access:` checks,
+nav-menu gating) is untouched -- it does a plain role-identity check, not a
+permission-array lookup, so neither bug applies to it." zpms's own
+`config/settings.info.yaml` repeats the same claim in its `roles:` block
+comment. Both were **descriptions of the intended design, not of what this
+file's code actually did** -- `mainnavigation.php` had never been updated
+to match, and kept calling the older, bug-prone `require()` all along.
+
+Fixed by switching the one call site to the function both of those
+docblocks already say it should be using:
+
+```php
+$permitted = SecurityClass::userIsPermitted( $mdata['access'] );
+if(!$permitted)$show = 0;
+```
+
+`userIsPermitted()` does a plain role-identity check (`in_array($urole,
+$permlist)` per role) with no `"authenticated"` special case, so it isn't
+affected by this bug -- exactly the reasoning that made it the safe
+`require()` replacement inside zpms's own handlers when the same bug class
+was first found there (see `web/rbac.php`'s docblock, referenced above).
+
+**Blast radius**: this affects every app vendoring this framework
+(mweb/ZPMS/zweb/erweb) that uses `access:` on a `menu:`/`structure:` nav
+entry -- any such entry was previously visible to every logged-in user
+regardless of role, and after this fix now correctly hides for a user
+without that role. This is a pure bugfix restoring already-documented
+intended behavior, not a design change, so no app should need any config
+changes to keep working -- but an app relying (even accidentally) on the
+old permissive behavior to keep a menu item visible would see it disappear
+now that the check actually works. Nothing in mweb/zweb/erweb was
+available to test against in this session; only zpms's own regression
+suite was run.
+
+**Verified against zpms**: a real `secretary`-role test account (only
+`patients-view-list`/`pending-appointments-manage`) no longer sees the
+"Ασθενείς" menu item (`access: power-user`), while a `power-user` test
+account still sees every menu item it always did. `php -l` clean;
+zpms's own `bin/run_tests.sh` (34/34 static, 35/35 functional) stayed
+green throughout -- confirming this framework-level change didn't disturb
+any other role/menu/route combination the existing suite already covers.
+
 ### `core/modules/google_analytics/` -- Google Analytics (GA4) module, consent-gated (2026-09-17)
 
 At direct request: a reusable framework-level module wrapping GA4's `gtag.js` behind a real
@@ -1606,3 +1684,239 @@ comment on why the validator half of the cookie changes on every successful use)
 across this: the second request's `Set-Cookie` carried a freshly rotated validator, distinct from the one
 issued at login. **Files**: `core/ClassExFW.php`, `core/kernel/Kernel.php`.
 
+
+## Breadcrumbs: `nolangtext` on any grouping-only menu segment, and a way to include non-menu routes (2026-09-17)
+
+Two real, independent bugs in the breadcrumb trail (`core/lib/Menutrail.php`,
+`core/modules/breadcrumbs/breadcrumbs.php`), found while adding a compact
+read-only appointment view for zpms's `secretary` role and separately fixing
+its "Google Calendar appointments" (`pending_appointments`) breadcrumb path.
+
+**Bug 1 -- `nolangtext` on any breadcrumb segment for a menu item that's a
+pure grouping label with no route of its own** (e.g. zpms's "Ραντεβού"/
+"Ασθενείς" top-level menu entries, which exist only to hold a `submenu:`
+and have no `handler:`/`url:` matching them in `routes:`).
+`Menutrail::search_menu_trail_for_key()` builds each trail segment as
+`['key' => ..., 'title' => ..., 'url' => ..., 'route_title' => ...]` --
+note the field is named `title`, not `text`. But
+`breadcrumbsModule::render()`'s final text-resolution step read
+`$pathitem['route_title'] ?? $pathitem['text'] ?? null` -- `text` was never
+actually a key on a Menutrail-produced item (only `Routetrail::getTrail()`'s
+single-segment fallback array uses that key), so for any segment that isn't
+itself a real, named route (`route_title` unset) the whole chain fell
+through to `null`, and `getLangText(null)` returns the literal string
+`'nolangtext'` by design (its documented "couldn't resolve anything" case).
+A route that *is* itself in `routes:` (e.g. zpms's `pending_appointments_list`)
+never hit this, since `route_title` was already set and short-circuited the
+chain first -- which is exactly why this went unnoticed for a long time:
+every leaf/route segment was already fine, only the surrounding grouping
+labels were silently broken.
+
+Fixed by extending the fallback chain to `route_title ?? title ?? text ??
+null`, covering all three real shapes a segment can have: a real route
+(`route_title`), a pure menu-grouping label with no route behind it
+(`title`), and `Routetrail`'s own fallback shape (`text`).
+
+**Bug 2 -- no way for a route that's deliberately never a menu item itself
+to get a real breadcrumb path.** zpms has three routes reached only via a
+row-action link on `pending_appointments_list`'s own page (edit/convert a
+specific pending appointment), never the nav -- correctly so, since a
+generic "New appointment" quick-link needs an id and isn't a sensible
+top-level destination. But `search_menu_trail_for_key()` only ever matched
+a route name that's *literally* a menu item's own key, so these routes
+found nothing anywhere in the menu tree and fell all the way back to
+`Routetrail`'s single, parent-less segment -- correct in isolation, but
+with no "Ραντεβού / Εκκρεμή Ραντεβού /" leading up to it, unlike every
+other route in the app that does appear in the menu somewhere.
+
+Added an optional, additive per-menu-item YAML key,
+`breadcrumb_aliases: [route1, route2, ...]` -- when the route being
+searched for isn't this menu item's own key but *is* listed in its
+`breadcrumb_aliases`, `search_menu_trail_for_key()` now returns this
+item's own trail (built exactly as if it had matched directly, including
+recursing up through any parent submenus the normal way) with one extra
+trailing segment appended for the actual route's own `routes:` title. No
+existing menu item declares this key, so the change is a pure no-op for
+every current app/route that doesn't opt in.
+
+**Not fixed, left alone -- decorative-only breadcrumb links.**
+`breadcrumbsModule::render()` hardcodes every generated segment's `url` to
+`'#'` (a commented-out block shows an earlier attempt to resolve the real
+URL was abandoned), so clicking any breadcrumb segment except possibly the
+current page's own does nothing. This is a separate, framework-wide,
+long-standing characteristic unrelated to either bug above -- confirmed via
+direct code reading, not touched here, since it affects every app on this
+framework identically and wasn't what either fix above needed.
+
+**Verified against zpms**: `/patients` now reads "Ασθενείς / Λίστα ασθενών"
+(was "nolangtext / Λίστα ασθενών"); `/consultation/pending/{id}/edit` and
+`/consultation/pending/{id}/convert` (added `breadcrumb_aliases` on zpms's
+`pending_appointments_list` menu entry) now read "Ραντεβού / Εκκρεμή
+Ραντεβού / Επεξεργασία Εκκρεμούς Ραντεβού" and ".../ Δημιουργία Φακέλου
+Ασθενή" respectively (were bare single segments, no parent path at all,
+and zpms's own `pending_appointment_edit`/`_post` routes also had an
+English-only `title:` fixed in the same pass for consistency with its
+sibling `pending_appointment_convert`, which already had both languages).
+Every already-correct breadcrumb (`/consultation/pending`,
+`/consultation/new`, `/settings`) confirmed unchanged. `php -l` clean;
+zpms's own `bin/run_tests.sh` (34/34 static, 35/35 functional) stayed
+green throughout.
+
+## `Kernel::boot()` -- absorb an app's `web/index.php` bootstrap boilerplate (2026-09-18)
+
+At direct request: every app on this framework was hand-writing the same
+~95-line bootstrap preamble in its own `web/index.php` before its first
+route handler -- construct `RequestClass`/`RouterClass`/`Renderer`, start
+the session, flip the same four opt-in security switches, resolve the
+remember-me cookie, pick a language, buffer output, register modules,
+match+dispatch the route, render, flush. None of that sequencing is
+app-specific; it's mechanical wiring every app on this framework has to
+reproduce identically. Only zeusfw + zpms were available this session
+(mweb/zweb/erweb also vendor this framework but weren't reachable to
+verify against), so per this file's own "keep changes additive" policy
+this is a **new, opt-in method only** -- zero changes to any existing
+method's signature or behavior, so every app that doesn't call it is
+unaffected by construction.
+
+**`Kernel::boot(array $opts = []): void`** (`core/kernel/Kernel.php`,
+right after `renderPage()`) runs the entire sequence: `RequestClass`/
+`RouterClass` construction, `SecurityClass::init()`, `Renderer::init()`,
+`zeusfw_session_start()`, the four opt-in switches (`csrfClass::
+enableLoginProtection()`/`enableWebformProtection()`, `LoginSecurityClass::
+enableLockout()`, `SecurityClass::enableLoginRedirect()` -- each
+individually skippable via `$opts['csrf_login']`/`['csrf_webforms']`/
+`['login_lockout']`, default `true` for all three, matching every existing
+caller's own unconditional calls; `$opts['login_redirect']` opt-in via a
+URL string, unset/empty = today's bare-401 default), `$this->
+isUserLoggedin()` (remember-me cookie resolution -- **not dead code**,
+despite its return value being discarded by every existing caller
+including this one; the side effect, not the return, is the point),
+language selection (`$opts['default_language']`, default `'en'`),
+`ob_start()`, a new app-hook (see below), `registerModules()`, route
+match+dispatch, `renderPage()`, `ob_end_flush()`.
+
+**The one detail that would have silently broken every nav/breadcrumb
+render if missed, caught by the functional suite, not by reading the
+code**: `RequestClass`/`RouterClass` aren't just assigned to new `$this->
+request`/`$this->router` properties -- they're also set as real PHP
+globals (`global $Request, $router;` inside the method, then `$Request =
+...;`/`$router = ...;`) because core modules (`breadcrumbs`, `content`,
+`mainnavigation`, `Routetrail`) and app modules (zpms's own `userprofile`/
+`location`/`backup`) all read them via `global $Request`/`global $router`,
+not via any Kernel accessor. **A third, easy-to-miss global**:
+`routerCallFunction()`'s return value has to become `global $content_response`
+too -- `contentModule::render()` (`core/modules/content/content.php`)
+reads it that way, not as a return value it fetches itself. Confirmed by
+grepping every `global $` in `core/modules/*/*.php`/`core/lib/*.php`
+before writing this method: those three names are the complete set.
+Missing the third one specifically produced a page that looked almost
+right (correct `<head>`, correct `wrapper-bare` chrome-hiding on `/login`)
+but with an entirely empty `main_content` region -- silently rendering no
+form/content at all, caught only by the functional suite's "could not
+find a csrf_token field on the login page" failure, not by `php -l` or a
+visual skim of the HTML `<head>`.
+
+**New extension-point hook**, same `function_exists()` convention as
+`zeusfw_app_resolve_user_roles()`/`zeusfw_app_resolve_ernsauth_username()`:
+`if (function_exists('zeusfw_app_boot')) { zeusfw_app_boot(); }`, called
+right after `ob_start()` -- the one place left for an app's own one-off
+setup that has to run at that exact point in the sequence (zpms's
+`locationsClassEx::setDefaultLocation()` moved here). An app that defines
+nothing changes nothing.
+
+**zpms's `web/index.php`** now reads its own config/optional-integration
+includes and `require_once`s (unchanged -- genuinely app-specific, and
+`include_once db.php` has to run before `new Kernel()` connects to the
+database using constants that file defines), declares `zeusfw_app_boot()`,
+then calls `$kernel->boot([...])` with its five options
+(`csrf_login`/`csrf_webforms`/`login_lockout` all `true`, `login_redirect
+=> '/login'`, `default_language => 'gr'`) -- collapsing what was ~95 lines
+of sequencing into one call. Every route handler function below it is
+untouched, since they already read `global $kernel`/`global $Request`/
+etc., which `boot()` still populates identically.
+
+**Verified against zpms**: after fixing the `$content_response` global
+gap above, `php -l` clean on both files; a real MariaDB-backed test
+server confirmed `/login` renders its form (including the `csrf_token`
+hidden field) exactly as before; an unauthenticated request to
+`/patients` redirects to `/login` (`SecurityClass::enableLoginRedirect()`
+still fires); a logged-in visit to `/patients` renders full chrome
+(header/nav/footer regions present) with correct breadcrumbs ("Ασθενείς /
+Λίστα ασθενών", not `nolangtext`) and a populated main navigation (proving
+`mainnavigation.php`'s `global $Request` still resolves); `/profile` and
+`/settings` (exercising the `location`/`backup`/`userprofile` modules'
+`global $router`) both render with zero PHP warnings/fatals. zpms's own
+`bin/run_tests.sh` (40/40 static, 35/35 functional -- including login,
+CSRF enforcement, login lockout, remember-me-adjacent auth flows, and
+every RBAC/admin-CRUD test) stayed fully green throughout.
+
+### `Kernel::boot()` adopted by mweb and zweb; erweb deliberately left as-is (2026-09-18)
+
+Follow-up to the entry above, extending the same consolidation to the other two apps on this
+framework available this session (mweb, zweb -- both added to session scope and cloned fresh for
+this). Their bootstraps were near-identical to zpms's *pre-`boot()`* shape but simpler: no CSRF/
+login-lockout/login-redirect calls at all (`SecurityClass::init()` was even left commented out,
+"setup access restrictions"), a bare `session_start()` instead of `zeusfw_session_start()`, and one
+inline `contentPageClass::init('html');` call with no other app-specific setup.
+
+**Confirmed safe to default every opt-in switch on** (rather than explicitly passing `false` to
+preserve old behavior): grepped both apps' `config/settings.info.yaml` for `login`/`webform` routes
+and `access:` usages -- zero of either. `csrf_login`/`csrf_webforms`/`login_lockout` only ever affect
+`login_post()`/`processform()`, and neither app has a route reaching either handler; `SecurityClass::
+init()`/`userIsPermitted()`'s `access:` check is exercised by nothing here either (confirmed the
+inner `foreach(self::$roles as ...)` in `processRoles()` would have hard-`exit()`ed on any real
+`access:` check ever having run against an uninitialized `self::$roles` -- since no such check exists
+in either app's config, this was always a dormant, never-triggered footgun, not a live bug). So
+`boot()`'s own security defaults (all three `true`, matching zpms's own unconditional calls) are
+inert now and a safer default if either app ever adds a login route later, with zero behavior change
+today. `contentPageClass::init('html')` moved into a new `zeusfw_app_boot()` hook function, same
+pattern as zpms's.
+
+**A real, live-breaking bug found and fixed as a side effect for zweb specifically**: zweb's original
+`web/index.php` called `Renderer::init($kernel->getConfig('templates'));` with only 1 argument, but
+`Renderer::init()`'s signature (`core/templates/ZETEMTemplate.php`) has no default for its 2nd/3rd
+params (`$enable_cache`, `$cache_path`) -- a genuine `ArgumentCountError` under PHP 7.1+'s strict
+arity enforcement, confirmed by booting zweb's *unmodified* code against this session's PHP 8.4:
+every single request fataled before rendering anything. `boot()` always calls `Renderer::init()`
+with its full, correct 4 arguments (matching zpms's/mweb's own already-correct call), so adopting it
+fixes this outright rather than preserving a crash. mweb's own call already had all 4 args and needed
+no equivalent fix.
+
+**erweb deliberately NOT migrated onto `boot()`, on purpose, not an oversight.** Read erweb's own
+`web/index.php` in full before deciding: its bootstrap already diverges from the generic shape in
+ways `boot()` has no hook for -- `ob_start()` runs as the literal first line (before `bootstrap.php`
+even loads, paired with an `ob_clean()` right after, to discard whitespace artifacts from generated
+class files that would otherwise corrupt `/sitemap.xml`'s XML output -- see erweb's own `CLAUDE.md`,
+Phase 6), a `$basePath` computation that rewrites `$_SERVER['QUERY_STRING']` *before* `Kernel`/
+`RouterClass` are even constructed (subpath-deployment support, same file), and
+`zeusfw_register_error_handlers()` called immediately after `Renderer::init()` -- deliberately
+*before* session start/language selection/remember-me resolution, so a crash during any of those is
+still caught by the registered crash handler. `boot()`'s one extension point
+(`zeusfw_app_boot()`) fires only after session start, remember-me resolution, and language
+selection -- forcing erweb's error-handler registration through it would leave those three steps
+uncaught by the crash handler, a real robustness regression for the one app that actually built and
+relies on that catch-all (see `ErrorHandlers.php`'s own entry above). erweb's bootstrap is also
+already short (~30 lines to dispatch) and almost entirely app-specific at this point -- there isn't
+the ~95-line generic-boilerplate problem here that motivated `boot()` for zpms/mweb/zweb in the
+first place. Left untouched rather than either forcing a bad fit or extending `boot()`'s hook
+surface speculatively for a single caller.
+
+**Verified against mweb and zweb**: `php -l` clean on both `web/index.php` files. Both apps' full
+stack (framework + app-level `spill:sql:all`/`spill:class:all`/`update:bootstrap`, SQL imported into
+disposable throwaway MariaDB databases) booted fresh via a temporary dev-only `router.php` (not
+committed to either repo -- this session's own scratch tooling, mirroring the shim already committed
+in erweb) for a real end-to-end request. mweb: home page renders 200, output byte-identical between
+the old and new `web/index.php` (diffed with only the `time_profile` debug timing numbers differing,
+same non-determinism already noted for zpms). zweb: home page now renders 200 with the original code
+confirmed to fatal in the same environment (proving the `Renderer::init()` fix is real, not
+theoretical) -- with a throwaway, uncommitted one-line compatibility patch to zweb's own
+`locationsClassEx::sgetAll()` (an unrelated, pre-existing signature mismatch against the shared
+`locationsClass` base -- confirmed present and fatal identically regardless of old vs. new
+`index.php`, reverted before finishing, never committed) applied just to get past that separate,
+out-of-scope bug and reach a real page render: full chrome (header/nav/footer regions), breadcrumbs,
+and populated navigation all confirmed present, proving the same `global $Request`/`$router`/
+`$content_response` compatibility already established for zpms holds for these two apps' own modules
+too (confirmed via grep that neither app's own code touches those globals directly -- only the
+shared core modules, already covered by zpms's own verification). All scratch dev artifacts (test
+databases, symlinks, `router.php`, the temporary `locationsClassEx.php` patch) removed/reverted
+before finishing; `git status` on both repos shows only the intended `web/index.php` change.
