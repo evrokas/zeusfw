@@ -1288,3 +1288,321 @@ ZPMS's own README.md ("Backups + health monitoring" section) for the app-side ha
 of this migration (its deleted `web/modules/backup/`, new
 `deploy/{backup,health}-handler.php`, and `config/site.info.yaml.in`'s new
 `zops_backup_status_file` key).
+
+## Three real bugs found running `bin/init.sh`/`update.sh` end-to-end against a live MariaDB server (2026-09-18)
+
+At direct request ("actually run init.sh and update.sh against a real MySQL server") -- prompted by
+zgeotrack (the GPS-tracking app these two scripts were just fixed for, see that repo's own history)
+having no way to complete its own setup instructions without a real database. Installed a real MariaDB
+server in the sandbox (`apt-get install mariadb-server`, started via `service mariadb start` -- systemd
+itself is blocked by this sandbox's `policy-rc.d`, but the plain SysV `service` wrapper still works) and
+drove the *entire* pipeline for real: `fw/bin/init.sh` -> `fw/bin/update.sh` -> `bin/setup.php` -> login
+-> add a device through its real webform -> POST a real Overland-shaped GPS batch -> confirm it lands in
+the database and shows up on the map/table pages. Every bug below was found because something in that
+real chain either lied about succeeding or genuinely 404'd/crashed -- none of the three would have shown
+up from reading the code, running `php -l`, or a mocked/SQLite-substituted unit test (the three previous
+CLAUDE.md entries' own "not verified: no MySQL server in this sandbox" caveats were exactly the gap that
+let these sit undiscovered).
+
+### `bin/init.sh` -- the database-creation step silently did nothing, every time, while reporting success
+
+`sudo mysql -u root -p < admin.sql` combines two things that both want the same stdin: `-p` makes mysql
+*interactively* prompt for a password on stdin, and `< admin.sql` has already redirected that exact
+stdin to the SQL script. There is only one stdin -- mysql's password prompt reads (and discards, as
+a garbled password attempt) admin.sql's own first line instead of ever executing the script, and *still
+exits 0* regardless, so the very next line's `if [ $? -eq 0 ]` printed "User and database created
+succesfully." on every single run. Confirmed directly, twice, before touching the fix: ran the exact
+original line against a real MariaDB server with a real `CREATE USER`/`CREATE DATABASE` script,
+watched it print success, then confirmed via `SHOW DATABASES`/`mysql.user` that neither the database nor
+the user existed.
+
+Fixed by prompting for the root password into a shell variable *first* (`read -srp`, so it isn't echoed
+to the terminal), then feeding `admin.sql` on a stdin nothing else is competing for, passing the password
+via `MYSQL_PWD` -- the exact same convention `sql/msql.sh`/`msqldump.sh` already use for this identical
+reason (see their own comments, and the previous CLAUDE.md entry documenting them). An empty root
+password (the common case on a fresh Debian/Ubuntu MariaDB install, where root authenticates via the
+`unix_socket`/`mysql_native_password`-with-no-password default) skips `MYSQL_PWD` entirely rather than
+setting it to an empty string, since `mysql -u root` with no password argument at all is the more
+standard invocation for that case.
+
+**Verified against a real MariaDB server, both the specific failure and the fix**: the original line
+reproduced with a real `CREATE USER`/`CREATE DATABASE` script -- exit 0, "created succesfully" printed,
+`SHOW DATABASES`/`mysql.user` confirmed neither existed. The fixed block, run standalone first (same
+script, empty password path) -- database and user genuinely appeared this time. Then the *entire real
+`init.sh` script*, invoked exactly as a user would (`bash bin/init.sh` from a fresh directory, piped
+answers including an empty string at the new password prompt) -- `admin.sql`/`db.php` generated
+correctly, the database/user genuinely created, and a real `mysql -u <newuser> -p<newpass> <newdb>`
+connection with those exact credentials succeeded. **Files**: `bin/init.sh` only.
+
+### `core/lib/FormElement.php` -- `CheckboxElement` never bound a value, and ignored the per-instance value it was given
+
+Every other input element type (`BasicInputElement`/`InputElement`) renders `value="..."` from
+`$this->default_value ?? $this->element['default'] ?? null` -- `CheckboxElement::generateHTML()` set
+no `value` attribute at all. HTML's own default for a checkbox with no `value` is the literal string
+`"on"` -- harmless for a `varchar` column, but a hard `INSERT`/`UPDATE` failure
+(`SQLSTATE[22007]: Invalid datetime format: 1366 Incorrect integer value: 'on'`) for the far more common
+case this element exists for: a `boolean`/`tinyint` column, which is every `active`/`expired`/
+`is_superuser`-shaped field in this codebase (`users.yaml`, `roles.yaml`, zgeotrack's own
+`devices.yaml`). Confirmed live: submitting zgeotrack's own Devices "Add a device" form with Active
+checked crashed with exactly that `PDOException`, uncaught, straight through `formsClass::
+storeFormResults()` -> `devicesClass->insert()`.
+
+Second, independent bug in the same method: the `checked` attribute only ever read
+`$this->element['default']` (the static yaml-declared default), never `$this->default_value` (the
+per-instance value a caller's own `$default_values` array supplies via `generateHTMLFormFieldElement()`
+-- e.g. an existing row's current state, exactly what an edit form needs). Every other element type
+checks `$this->default_value` first; this one silently never did, so re-opening an edit form for any
+row already showed the checkbox in whatever state the *schema* default said, never the actual row --
+confirmed directly: `zgt_devices_row_edit()` passes the real device's `active` value into
+`$default_values`, and before this fix the rendered checkbox ignored it completely (devices.yaml's
+`active` form input has no static `default:` at all, so it would never render checked regardless of the
+real row's value).
+
+Fixed both in the same method: `$attributes['value'] = '1'` (matching this framework's own existing
+boolean convention everywhere else -- `0`/`1`, never a string like `"on"`), and the checked-state check
+changed to `!empty($this->default_value ?? $this->element['default'] ?? null)`, matching the other
+element types' own fallback order exactly. An unchecked box still submits nothing at all (that's plain,
+unavoidable HTML checkbox behavior) -- unchanged, and already exactly what `storeFormResults()`'s update
+path treats as "leave the existing value alone" (see that function's own docblock) rather than something
+this fix needed to touch.
+
+**Verified against zgeotrack, against a real MariaDB server**: reproduced the exact `PDOException` first
+(devices' Active checkbox, checked, submitted as literal `active=on`) with the bug still in place. After
+the fix: the same form's checkbox now renders `<input name="active" type="checkbox" value="1">`;
+submitting it (now `active=1`, matching what a real checked checkbox in a browser sends) inserted the
+row successfully with `active=1` in the database; re-opening that same device's edit form rendered
+`checked="checked"` correctly, reflecting the real row's actual value, not the yaml's (nonexistent)
+static default. **Files**: `core/lib/FormElement.php` only.
+
+### `core/router/Request.php` -- any route with query-string parameters 404s, full stop
+
+`web/.htaccess`'s `RewriteRule ^(.*)$ index.php?$1 [QSA,L,PT]` is the entire mechanism `Router::
+matchRoute()` relies on for matching: the requested *path* itself arrives as `QUERY_STRING` (`$1`), not
+`REQUEST_URI`/`PATH_INFO`. `[QSA]` ("query string append") means a request that *also* carries real
+query parameters -- e.g. `?device_id=X&key=Y` -- arrives with `QUERY_STRING = "api/overland&device_id=X
+&key=Y"`, not just `"api/overland"`. `RequestClass`'s constructor tokenized that whole string on `/`
+with no awareness of this, so the route's last path segment ("overland") arrived glued to
+`&device_id=X&key=Y` as one token, which can never equal the route table's own literal `"overland"` --
+`Router::matchRoute()` finds no match and the request 404s, for *any* route that receives so much as one
+query parameter, regardless of the route's own definition.
+
+**Why this went undiscovered until now**: grepped every route across zpms/erweb/zgeotrack -- every
+existing dynamic route segment on this framework, on any app, has always been a path token
+(`/patient/{id}/edit`, `/admin/{entity}/{id}/edit`), never a `?key=value` query parameter. zgeotrack's
+own `/api/overland` (built specifically to match Overland iOS's own webhook contract, which has no way
+to carry auth in a path segment) is very plausibly the first route on any app on this framework that
+actually needed one -- and confirmed the hard way: reproduced this exact 404 against a real request
+before touching anything, using a `php -S` router script that deliberately replicates Apache's real
+`[QSA]` rewrite target byte-for-byte (not php -S's own different default PATH_INFO-style dispatch for a
+router-less request, which would have masked this) -- so this is a real Apache-shape reproduction, not a
+dev-server-only artifact.
+
+Fixed at the source, in `RequestClass::__construct()`: `$this->query` (and the `$this->tokens` route-
+match array derived from it) now takes only the part of `QUERY_STRING` before the first `&`
+(`strtok($asrvr['QUERY_STRING'], '&')`, cast back to `string` since `strtok()` of an empty string -- the
+homepage's own case, once `$1` is empty -- returns `false`, not `''`, and every existing caller of
+`getQueryString()` expects a string). Real query parameters never legitimately appear in `$1` itself
+(that's a path segment from before the original request's own `?`, if any) -- anything from the first
+`&` onward here is always the browser's own appended query string, safe to drop for *routing* purposes.
+Confirmed this doesn't lose those parameters for application code: PHP's own native `$_GET` is parsed
+independently and upstream of this class, directly from the real `QUERY_STRING`, so `$_GET['device_id']`/
+`$_GET['key']` were already correct the whole time -- only the framework's own separate route-matching
+tokenization was broken. Grepped every other caller of `getQueryString()`/`getQueryRoute()` before
+fixing (`Router::matchRoute()`'s own token array, plus `mainnavigation`/`breadcrumbs`' nav-trail
+highlighting) -- none of them want the query-string suffix glued onto the path either, so narrowing
+`$this->query` itself at the source is correct for every current caller, not just the one that surfaced
+this.
+
+**Verified against a real MariaDB-backed zgeotrack, both the failure and the fix, over real HTTP**: a
+POST to `/api/overland?device_id=<guid>&key=<key>` 404'd with the bug in place (confirmed via the actual
+route table, not a guess); after the fix, the identical request matched correctly -- a wrong key
+returned `401`, a real Overland-shaped GeoJSON batch returned `{"result":"ok"}` and landed in the
+database, and confirmed zero regressions on every query-param-free route already covered by this run
+(`/`, `/login`, `/devices`, `/profile`, `/admin/users`, `/locations`) -- still 200 on every one.
+**Files**: `core/router/Request.php` only.
+
+## `bin/init.sh` -- accepting a shown `[default]` by pressing Enter silently wrote empty values instead (2026-09-18, same-day follow-up)
+
+Reported directly against zgeotrack: "`init.sh` doesn't create the correct `.php` files" -- i.e.
+`config/db.php` itself, not the `maker.php`-generated entity classes `update.sh` produces (those are a
+separate step; this report was specifically about `init.sh`'s own output). Reproduced by driving the
+actual script with piped answers rather than guessing at the cause: every one of the 4 credential
+prompts (`read -e -i "$default" -p "..." var`) uses `-i` to pre-fill the bracketed default shown in the
+prompt (e.g. `[localhost]`), intending that pressing Enter with no input accepts it -- but `-i`'s
+pre-fill only actually takes effect through GNU readline's interactive line-editing, which requires a
+real TTY. Outside that (piped input -- exactly how this same file's own `init.sh`/`update.sh` CLAUDE.md
+entry above drove every one of its own verification runs -- or any other non-fully-interactive shell),
+the `-i` default is silently dropped and an empty Enter produces an **empty string** for that variable,
+not the value shown in brackets. Confirmed directly: even the hardcoded `host_in="localhost"` fallback
+(used when no `admin.sql` exists yet) came out as `DB_HOST` = `''` after accepting every default this
+way -- not a database/username/password-only issue, all 4 fields are affected identically.
+
+**Why this matches "doesn't create the correct files" specifically, not "doesn't create files at all"**:
+the script's own `sed` substitution has no validation of what it's substituting -- an empty `$host`
+still cleanly replaces `<<host>>` with nothing, `db.php` is still written, and the script still prints
+"db.php created succesfully!". The file is real and well-formed PHP, just quietly wrong. The single most
+realistic trigger, confirmed directly: re-running `init.sh` on an *already-configured* app (the normal
+case for re-running it at all -- e.g. to add the "create the database" step after already having a
+working `db.php`) and pressing Enter through every prompt to keep the existing real values, expecting
+"just confirm what's already there" -- before this fix, that exact flow silently wiped a previously
+correct `db.php`/`admin.sql` down to all-empty values, overwriting real working credentials with nothing
+while reporting success at every step.
+
+Fixed with an explicit `var="${var:-$default_in}"` fallback immediately after each of the 4 `read`
+calls -- this is a plain bash parameter-expansion default, unrelated to readline/TTY state, so accepting
+a shown default now works identically whether the script is run from a real interactive terminal or
+driven with piped/redirected input. Also fixed, found while touching this same block: `echo "\n"`
+(intended to print a blank line after the silent password prompt) doesn't do that at all -- without
+`echo -e`, bash's `echo` prints the two literal characters `\`+`n`, not a newline (visible directly in
+this run's own output, a stray literal `\n` line); changed to a bare `echo`, which does what the
+original comment says it's for.
+
+**Verified against a real MariaDB server, three ways**: (1) a completely fresh setup accepting every
+default -- host now correctly falls back to `localhost`; database/username/password correctly stay empty
+(there is no real prior value to fall back to on a truly first-ever run, so this is correct, not a
+remaining bug -- the script still requires you to actually type those the first time). (2) The specific
+regression scenario: ran a real initial setup with real credentials (`zgeotrack_recheck`/`RecheckPass2026`),
+confirmed the database and MySQL user were genuinely created, then re-ran `init.sh` a second time
+accepting every prompt's default -- `admin.sql`/`db.php` came out byte-identical to the first run (real
+host/user/pass/db, not blanked), confirming the fix. (3) Connected live (`mysql -h ... -u ... -p...`)
+using the exact credentials `db.php` held after that second run -- succeeded, proving the "preserved"
+values are the real, working ones, not just visually present in the file. **Files**: `bin/init.sh` only.
+
+## `bin/init.sh` -- credential substitution corrupted, or outright emptied, `admin.sql`/`db.php` for a real class of passwords (2026-09-18, second same-day follow-up)
+
+Reported directly, with the exact error: `sed: -e expression #1, char 44: unknown option to `s'` right
+after the previous entry's fix. Reproduced immediately rather than guessing: the `sed -s "s/<<pass>>/
+$password/g"` chain uses `/` as sed's own delimiter, so any credential containing a `/` (e.g. a password
+of `Ab/c123`) makes sed read `s/<<pass>>/Ab` as the whole command, `c123` as a bogus extra field --
+exactly the reported error. **Worse than the error message alone**: the pipe's stdout was empty when
+sed errored, so `> $ofile` still truncated the file to zero bytes, and this block never checked sed's
+own exit status -- it printed `$ofile created succesfully!` immediately after silently emptying a
+previously-working file.
+
+**First fix attempt, caught as wrong by testing it rather than trusting it**: switched the substitution
+to pure bash (`${content//<<pass>>/$password}`, no sed at all) on the theory that literal string
+replacement has no delimiter to collide with. Tested against an `&` password before moving on, and it
+failed too -- bash 5.2 (confirmed via `bash --version` in this sandbox) gives a literal `&` inside a
+parameter-substitution *replacement* the exact same "insert whatever the pattern matched" meaning sed's
+own `&` backreference has (isolated proof: `x="X"; r="A&B"; echo "${x/X/$r}"` prints `AXB`, not `A&B`) --
+so an `&` password would have silently written the literal placeholder text into the credential instead
+of itself, the same "wrong file, no error" failure shape as the sed bug, just via a different mechanism.
+A lone backslash in the replacement is separately consumed as an escape character too, confirmed the
+same way.
+
+**Second fix, layer 1**: escape both hazards in each value before it ever reaches the substitution --
+double every backslash, then prefix every `&` with the now-doubled backslash. Fixes the substitution
+mechanism itself.
+
+**Third, independent layer, found only by testing the layer-1 fix against a real live database rather
+than trusting file contents**: host/user/pass all sit inside a single-quoted string literal in *both*
+generated files, and MySQL's and PHP's own single-quoted-literal parsers each apply their own escaping
+rules when *they* read the file -- completely independent of how carefully the file was written. Layer 1
+alone wrote a `\&` password byte-for-byte into both files, but MySQL silently drops a backslash before
+any character it doesn't recognize as an escape sequence (confirmed against a real server:
+`SELECT HEX('Re/check\&2026')` decodes to `Re/check&2026`, backslash gone) -- so the account MySQL
+actually created ended up with a different password than the byte-identical string `db.php` held, and a
+real login with `db.php`'s "correct" password then failed outright (`ERROR 1045 Access denied`,
+reproduced against a real MariaDB server before touching the fix). PHP single-quoted strings share the
+identical rule (only `\\` and `\'` are recognized), so `db.php` has the same exposure for a raw `'`.
+
+Fixed by escaping for the *target-language* literal first (backslash doubled, single quote escaped --
+the one rule both MySQL and PHP single-quoted strings share), then layering the bash-substitution
+escaping from layer 1 on top of that already-escaped value, not the raw one. `database` is deliberately
+exempt from this target-language layer -- it's the one placeholder that's never inside quotes in either
+template (`CREATE DATABASE IF NOT EXISTS <<db>>;`, a bare identifier), so literal-escaping it would be
+wrong, not just unnecessary; it still gets the layer-1 substitution-safety escaping like the others.
+Verified by having real MySQL (`HEX()`, to see past `mysql -B`'s own batch-mode output re-escaping, which
+first looked like a fourth bug and wasn't -- it was this test harness reading the client's redisplay
+convention, not the actual stored value) and real PHP (`php -r "echo '...';"`) parse the generated
+literals back, not just diffing file bytes, since correct output is now expected to *differ* from the
+raw typed input (a lone `\` legitimately becomes `\\` on disk).
+
+**A fourth bug, found by testing the layer-1+2 fix's own re-run path**: re-running `init.sh` against an
+already-saved tricky password and accepting the shown default doubled its backslash count on every
+successive re-run. Cause: the block that reads an *existing* `admin.sql` back to offer its real values as
+this run's defaults (`grep -oP "IDENTIFIED BY '\K[^']+(?=')"`) extracts the raw on-disk SQL-literal bytes
+-- already escaped -- and had always treated them as if they were the original unescaped value, which
+was harmless before today (escaping was a no-op for a plain password) but now feeds an already-escaped
+value straight back through `escape_for_quoted_literal()` a second time on the next write. Fixed with
+`unescape_quoted_literal()`, the exact inverse of the write-side function, applied to `host_in`/
+`username_in`/`password_in` right after extraction. Verified stable across 3 successive re-runs of a
+`Re/check\&2026` password, plus a real login on the account after all 3.
+
+**Read separately breaks a backslash before any of the above ever sees it**: `read` (no `-r`) treats a
+backslash in the *typed line itself* as an escape character and drops it, confirmed in isolation
+(`Ab\c123` piped into `read` without `-r` comes back as `Abc123`) -- independent of every fix above,
+since it happens before the value is even stored in the shell variable. Added `-r` to all 4 `read`
+calls (host/database/username/password), matching the convention `sql/msql.sh`/`msqldump.sh` already
+use for the identical reason.
+
+**One remaining, narrower, pre-existing, and disclosed-not-fixed limitation**: a password containing a
+literal `'` (not `\`) still gets truncated on *re-read* from an existing `admin.sql`, since the
+extraction regex's `[^']+` has no way to distinguish an escaped `\'` from the real closing quote --
+unchanged from before today, only reachable by re-running `init.sh` against an already-saved
+quote-containing password, and confirmed as exactly this shape (not a new regression) rather than left
+unexamined.
+
+**Verified end-to-end against a real MariaDB server and real PHP, not just bash string comparison**: a
+battery of passwords (`/`, `&`, `\`, `'`, `\&` combined, `\` + `'` combined, and a plain password as a
+control) each round-tripped through real `mysql ... < admin.sql` account creation, a real
+`mysql -h ... -u ... -p...` login using exactly what `db.php` held, and real `php -r` parsing of
+`db.php`'s own literal -- for the exact password that produced the originally-reported error
+(`Re/check\&2026`): real account created, real login succeeded, and the value stayed byte-stable (via
+PHP's own parsing, not raw file bytes) across 3 further re-runs accepting every default. **Files**:
+`bin/init.sh` only.
+
+## "Remember me" silently failing to log a returning visitor in -- a leftover device-fingerprint filter one step past where the same bug was already half-fixed (2026-09-19)
+
+Reported directly against zgeotrack, generalizing "remember me doesn't work, do not filter by ip" -- the
+literal IP filter was already gone (see `core/ClassExFW.php::getUserByToken()`'s own pre-existing "stop
+using ip for logging in" comment, from earlier work), but a second, equally strict filter on
+**user-agent** was sitting one step further down the exact same code path and had been missed at the
+time.
+
+`Kernel::isUserLoggedin()` (`core/kernel/Kernel.php`) already validates a `zeusfwrememberme` cookie
+correctly, in two steps: `userTokensClassEx::token_is_valid($token)` first -- selector+validator only, a
+real cryptographic check, no device fingerprint involved at all -- and only once that passes does it call
+`getUserByToken($token, $remoteip, $useragent)` to actually fetch the account. That second call's own SQL
+still had `AND useragent=:useragent` in its `WHERE` clause. Since the token was already proven
+cryptographically valid by the first check, this second filter was pure redundancy that could only ever
+turn a legitimate remember-me login into a silent failure -- exactly what happened the instant the UA
+string differed even slightly from whenever the cookie was first issued (an app update, a browser/OS
+update, a different WebView/browser context -- all realistic on a phone, none of them a sign the cookie
+was stolen). And the failure was *silent*: that branch of `isUserLoggedin()` doesn't clear the cookie or
+show any message on a mismatch, it just quietly falls through to `return false` -- from a visitor's side,
+indistinguishable from "remember me just doesn't work."
+
+**Fixed** by dropping the `useragent` filter from `getUserByToken()`'s `WHERE` clause too (mirroring the
+IP fix already sitting right above it in the same file), and simplifying `isUserLoggedin()`'s call site to
+match (`remoteip`/`useragent` params on `getUserByToken()` kept, but now optional/unused, so existing call
+shapes elsewhere don't need to change). `delete_user_token()` in the same file still filters by both --
+confirmed dead code first (`grep`, zero call sites anywhere in zeusfw/zpms/zgeotrack, fully superseded by
+`delete_by_selector()` per `logout()`'s own comment) -- left untouched rather than "fixed" code nothing
+calls.
+
+**A second, independent bug found in the same function while fixing the first**: the successful
+cookie-restore path called `$kernel->loginUser($us->getuname(), $us->getroles())` -- the legacy
+`users.roles` column directly, *not* `zeusfw_app_resolve_user_roles()`, the RBAC-aware hook `login_post()`
+itself already uses for a fresh password login (`core/lib/UserLogin.php`). Any RBAC-only app (roles/
+permissions/user_roles tables, no per-account `users.roles` value ever populated -- zgeotrack among them)
+would have had a remember-me restore establish a session with the *account* correctly identified but with
+empty/wrong roles, so every `rbacClass::require()` check downstream would then fail -- from the visitor's
+side this reads as "remember me doesn't really work" just as much as an outright failed restore does, just
+one layer further in. Fixed to call the same `function_exists('zeusfw_app_resolve_user_roles')` resolution
+`login_post()` already uses, so a cookie-restored session ends up with identical roles to a fresh password
+login for the same account.
+
+**Verified against zgeotrack, against a real MariaDB-backed instance, reproducing the actual failure
+first**: checked out the pre-fix commit into a disposable local test checkout, logged in as the real
+`administrator` account with "remember me" checked from one User-Agent, then made a *second*, completely
+separate request -- fresh cookie jar containing only the remember-me cookie (no session cookie at all,
+simulating a genuinely new visit) -- to `/devices` (an `operator`/`administrator`-gated page) using a
+*different* User-Agent string. Confirmed the bug reproduces exactly as diagnosed: `302 -> /login`, silent
+failure, no error shown. Re-ran the identical test against the fixed code: `200 OK`, the real Devices page
+with real data (not a disguised error page -- grepped the response for the actual device's own name).
+Also confirmed token rotation (a documented, deliberate, separate feature -- see `isUserLoggedin()`'s own
+comment on why the validator half of the cookie changes on every successful use) still works correctly
+across this: the second request's `Set-Cookie` carried a freshly rotated validator, distinct from the one
+issued at login. **Files**: `core/ClassExFW.php`, `core/kernel/Kernel.php`.
+
