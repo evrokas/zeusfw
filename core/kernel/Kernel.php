@@ -796,11 +796,18 @@ class Kernel {
         // to authenticated on the next login (session fixation).
         session_regenerate_id(true);
         $_SESSION['user'] = $uname;
-        $urolelist = SecurityClass::processRoles($uroles);
-        if(!$urolelist) {
-            echo "<pre>User roles are initialized falsely. Please check!";
-            exit();
-        }
+        // Lenient: $uroles is live account data (the legacy users.roles
+        // column, or an RBAC role list resolved from user_roles), not
+        // app config -- it can hold a role name that used to be valid
+        // and no longer is (see SecurityClass::processRoles()'s own
+        // docblock for the concrete "retired legacy role, never
+        // RBAC-migrated" case this guards against). Silently dropping an
+        // unrecognized token (logged via error_log) and logging the user
+        // in with whatever's left -- even nothing but 'authenticated' --
+        // beats a hard exit() taking down the entire login flow over one
+        // stale token; an admin can fix the account's real roles via
+        // /admin/user_roles afterward.
+        $urolelist = SecurityClass::processRoles($uroles, true);
         $urolelist[] = 'authenticated';
         $_SESSION['user_roles'] = $urolelist;
     }

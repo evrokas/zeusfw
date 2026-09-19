@@ -1920,3 +1920,87 @@ too (confirmed via grep that neither app's own code touches those globals direct
 shared core modules, already covered by zpms's own verification). All scratch dev artifacts (test
 databases, symlinks, `router.php`, the temporary `locationsClassEx.php` patch) removed/reverted
 before finishing; `git status` on both repos shows only the intended `web/index.php` change.
+
+## `Kernel::loginUser()` hard-crashed login for any account still holding a role the RBAC migration retired (2026-09-19)
+
+Reported directly against zpms `prod`: logging in produced a raw, uncaught page --
+`Role user is not valid` / `User roles are initialized falsely. Please check!` -- for
+account `guest`. Root cause, confirmed by reproducing the exact byte-for-byte error
+text against the pre-fix code before touching anything: `login_post()`
+(`core/lib/UserLogin.php`) resolves a user's session role list via
+`zeusfw_app_resolve_user_roles($us) ?? $us->getroles()` -- the RBAC hook (`core/lib/
+Rbac.php`) returns `null` for any account with no rows in `user_roles` yet, falling
+back to the legacy `users.roles` column. `guest`'s legacy column holds the literal
+string `"user"` -- exactly the role zpms's own `web/rbac_seed.php` docblock already
+documents as deliberately retired ("`'user'` (a generic view-only role nobody's
+actual account mapped to a real job)... retired here") and its migration script
+(`bin/migrate_roles.php`/`zpms_migrate_users_roles()`) deliberately refuses to
+auto-map to anything -- it's reported as an "unrecognized token" and left for a human
+to assign a real role by hand, precisely so a stale legacy value is never silently
+laundered into real access. `guest` was never given that manual RBAC assignment, so
+every login attempt fed the literal string `"user"` into `Kernel::loginUser()` ->
+`SecurityClass::processRoles()`, which validates against `config/settings.info.yaml`'s
+current `roles:` block (`anonymous`/`administrator`/`authenticated`/`doctor`/
+`secretary`/`maintenance` -- no `user`, by design) -- an unrecognized token there
+returned `null`, and `loginUser()`'s only handling for that was `echo ...; exit();`,
+taking down the entire login flow for that one stale token instead of just that
+account's extra access.
+
+**This is a real, general robustness gap, not just a zpms/`guest` data problem**:
+`processRoles()` was written for one purpose -- validating a route/menu `access:`
+string, which is app *config* a developer wrote, so failing loudly and immediately on
+a typo there is correct -- and `Kernel::loginUser()` reused it unchanged for a
+completely different purpose: validating a real account's live role list, which is
+*data* that can go stale on its own schedule (exactly as it did here, the moment a
+later RBAC migration retired a role name some account was still holding). Any app on
+this framework with an unmigrated account holding a since-retired legacy role would
+hit the identical crash -- this was never zpms-specific.
+
+**Fixed additively**: `SecurityClass::processRoles($arole, $lenient = false)` gains an
+opt-in second parameter, default `false` so every existing caller (route/menu
+`access:` checks in `userIsPermitted()`, and any other caller) keeps its exact prior
+all-or-nothing behavior, unchanged. `$lenient = true` drops any unrecognized token
+(logged via `error_log()`) and keeps the valid ones instead of failing the whole list
+-- it can never return `null`, even when every token is invalid (returns `[]`).
+`Kernel::loginUser()` is the one caller switched to `$lenient = true` (its `$uroles`
+argument is always live account data, on every call site -- password login and the
+remember-me cookie-restore path alike), and its `if(!$urolelist){exit();}` crash path
+is gone entirely -- a stale/unrecognized role is simply dropped, and the account still
+logs in (with `'authenticated'` always appended after, same as before), just without
+whatever access the dropped role would have granted, until an admin assigns it a real
+role via `/admin/user_roles`.
+
+**A second, smaller, real bug in the same code path, also fixed**: `core/lib/
+UserLogin.php`'s own debug trace -- `echopre("try to login user " . $us->getuname() .
+" with rules: " . print_r($uroles))` -- called `print_r()` without its second
+argument, so `print_r()` echoed its own output as a side effect *and* returned `true`,
+which stringified to the literal `"1"` in the concatenation. This is exactly why the
+reported error text read `with rules: 1` instead of showing the actual role list, and
+why the real roles output (`Array\n(\n [0] => user\n)`) appeared as a separate,
+unlabeled fragment ahead of the `echopre()` line in the response -- both symptoms
+traced directly to the missing `true` argument, confirmed by reading `echopre()`'s own
+implementation (`core/kernel/utils.php`) and PHP's own `print_r()` semantics, not
+guessed at. Fixed with `print_r($uroles, true)`, matching every other `print_r(...,
+1)`/`print_r(..., true)` call already in this codebase.
+
+**Verified**: reproduced the exact reported error text against the pre-fix code first
+(`git stash` back to the unfixed `Kernel.php`, ran a standalone script that calls
+`Kernel::loginUser('guest', 'user')` against `SecurityClass::init()`'d with zpms's real
+`config/settings.info.yaml` roles block -- byte-identical `Role user is not
+valid`/`User roles are initialized falsely` output), then confirmed the fix: the
+identical call now logs `SecurityClass::processRoles: dropping unrecognized role
+'user' (lenient mode)` and completes with `$_SESSION['user'] = 'guest'`,
+`$_SESSION['user_roles'] = ['authenticated']` -- no crash, no exit. `php -l` clean on
+all three changed files. zpms's own `bin/run_tests.sh` (40/40 static, 35/35
+functional, including every login/CSRF/RBAC test) stayed fully green throughout --
+confirming `userIsPermitted()`'s strict-mode route/menu `access:` checks are
+completely unaffected by the new lenient path. **Files**: `core/lib/Security.php`,
+`core/kernel/Kernel.php`, `core/lib/UserLogin.php`.
+
+**Remaining action for the reporter, not a code fix**: `guest`'s account itself still
+has no row in `user_roles`, so after this fix it will log in successfully but with
+only the `'authenticated'` role -- no `doctor`/`secretary`/`maintenance`/`administrator`
+access. Assign it whichever role actually matches how that account is used, via
+`/admin/user_roles` (or `user_rolesClassEx::assignRole()` directly) -- `bin/
+migrate_roles.php` cannot do this automatically, by design, since `"user"` was never a
+recognized target for its token-mapping.

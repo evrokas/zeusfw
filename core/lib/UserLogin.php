@@ -168,7 +168,7 @@ function login_post($params) {
         $uroles = function_exists('zeusfw_app_resolve_user_roles')
             ? (zeusfw_app_resolve_user_roles($us) ?? $us->getroles())
             : $us->getroles();
-        echopre("try to login user ". $us->getuname() . " with rules: " . print_r($uroles));
+        echopre("try to login user ". $us->getuname() . " with rules: " . print_r($uroles, true));
 
         // ask kernel to login user
         $kernel->loginUser($us->getuname(), $uroles);
