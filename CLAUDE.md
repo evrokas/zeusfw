@@ -1227,3 +1227,64 @@ dynamically the moment an app lists it under its own `modules:` config, so nothi
 change for a new opt-in module to become available framework-wide. See erweb's own `CLAUDE.md` for the
 app-level wiring (the `modules:` list addition, the `main.zetem` call site, and the removal of the
 now-superseded `consent.js`/`consent.css`/`erweb-consent-banner.zetem`).
+
+## `core/modules/backup/` -- backup status page generalized from ZPMS's own module (2026-09-16)
+
+ZPMS had its own `web/modules/backup/` -- a plain `moduleClass` reading whatever
+`bin/backup.sh` (ZPMS's own bash backup script) wrote to `web/files/logs/
+{backup_status,backup_generations}.json`, gated by an app-specific
+`ZPMS_PERM_BACKUP_ACCESS` permission. Both ZPMS and DocArc migrated their backups
+onto **zops** (<https://github.com/evrokas/zops>, cloned as `lib/zops/` per app --
+see zops's own `docs/INSTALL.md`), a shared backup + health-monitoring engine now
+used across this practice's whole app suite; as part of that, ZPMS's app-local
+module moved into core so any ZeusFW app gets the same status page for free by
+adding `backup` to its own `settings.info.yaml` `modules:` list -- the identical
+"schema/engine into core, app keeps only its own config" precedent this file's own
+RBAC entry above already documents.
+
+**Same route/asset shape as the app-local version it replaces** (`/apps/backup`,
+`backup-library`'s `backup.css`), so ZPMS's existing nav link and bookmarks keep
+working unchanged after switching `modules.path`'s resolution from
+`web/modules/backup/` (deleted) to `core/modules/backup/` (same module name, first
+match wins in `registerModules()`'s path-list iteration -- see `core/lib/Modules.php`).
+
+**What changed, not just moved**: the old module's permission check
+(`rbacClass::require(ZPMS_PERM_BACKUP_ACCESS)`) is gone -- an app-specific constant
+that wouldn't exist in every app on the framework -- replaced with
+`rbacClass::require(ZEUSFW_PERM_MANAGE_USERS)`, the same "can manage
+users/roles/permissions" permission `admin_crud.php` already checks, since backup
+status reveals real infrastructure detail (destination hosts, retention counts,
+failure messages) appropriate to the same admin-only tier. And the data source
+itself changed shape: the old files were `{last_run_ts, status}` +
+`{generated_at, tiers}`; zops's status report (`lib/zops/docs/PROTOCOL.md`) is
+richer -- `status`/`stage`/`error`, per-element `name`/`type`/`bytes`/`files`/
+`verified`, per-destination `tiers` -- read from a single path,
+`$kernel->getConfig('zops_backup_status_file')`, that each app sets in its own
+`config/site.info.yaml` (see erweb's own CLAUDE.md or ZPMS's own README.md for
+the concrete value, matching `STATUS_FILE` in that site's
+`/etc/zops/sites.d/<id>.conf`).
+Missing/unset config, or a missing/malformed file, all degrade to a plain
+"not configured yet" state in the template -- never a fatal error, the same
+optional-integration convention `accessibilityModule`'s config-driven
+profiles/options already follows.
+
+**A real, useful discovery while verifying `{{{ }}}` still escapes**: rather than
+trust the doc comment in `ZETEMTemplate.php::compileCode()` (which explicitly notes
+`compileEscapedEchos0()` -- the real `htmlspecialchars()` version -- was wired in as
+a fix, superseding an earlier state where `{{{ }}}` was dead code and didn't escape
+at all, the state erweb's own CLAUDE.md documented at the time it was written),
+compiled `backup.zetem` with the real compiler and executed the output directly
+against three fabricated report states (unconfigured, success, and a failure whose
+`error` field contained a `<script>` XSS attempt) -- confirmed the script tag came
+back HTML-entity-escaped in the actual rendered output, not just that the doc
+comment claims it should. This means any app relying on erweb's older documented
+behavior ("`{{{ }}}` doesn't escape, use `| e`") should re-verify against its own
+vendored zeusfw checkout -- the fix may already be present.
+
+**Files**: `core/modules/backup/{backup.info.yaml,backup.yaml,backup.php,
+css/backup.css}` (new), `core/templates/modules/backup/backup.zetem` (new). No
+`core/bootstrap.php` change -- opt-in via `modules:`, same as `accessibility`. See
+ZPMS's own README.md ("Backups + health monitoring" section) for the app-side half
+of this migration (its deleted `web/modules/backup/`, new
+`deploy/{backup,health}-handler.php`, and `config/site.info.yaml.in`'s new
+`zops_backup_status_file` key).
