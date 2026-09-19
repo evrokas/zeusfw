@@ -41,52 +41,10 @@ class SecurityClass {
         else return false;
     }
 
-    // $lenient=false (default, unchanged for every existing caller):
-    // strict validation, used for app CONFIG -- a route/menu `access:`
-    // string is written by a developer, so an unrecognized role name in
-    // it is a real bug that should fail loudly and immediately, exactly
-    // as before this parameter existed.
-    //
-    // $lenient=true is for a real user's live login role list instead
-    // (Kernel::loginUser() -- see its own comment for why): that's
-    // account DATA, not config, and it can go stale on its own schedule
-    // -- e.g. a legacy `users.roles` token that a later RBAC migration
-    // deliberately retired (see zpms's bin/migrate_role_refactor.php:
-    // "safely retires 'user' ... refusing to delete it if any account
-    // still holds it" -- an account left un-migrated keeps holding a
-    // name that will never be valid again). Failing the whole login over
-    // one stale token would be worse than just dropping it: an
-    // unrecognized token is logged and skipped, valid ones are kept, and
-    // this never returns null, so a caller in this mode can never be
-    // handed "no roles at all" as a validation failure the way strict
-    // mode's null return signals one.
-    static function processRoles($arole, $lenient = false) {
+    static function processRoles($arole) {
         // validates if roles are ok and returns an array of them
         $arole = trim( $arole );
         $arole = str_replace(['  '],[' '], $arole);
-
-        if($lenient) {
-            if($arole === '') return array();
-            $rolelist = explode( ' ', $arole );
-            $valid = array();
-            foreach($rolelist as $role) {
-                if($role === '') continue;
-                $found = false;
-                foreach(self::$roles as $rlkey => $rldata) {
-                    if($rlkey == $role) {
-                        $found = true;
-                        break;
-                    }
-                }
-                if($found) {
-                    $valid[] = $role;
-                } else {
-                    error_log("SecurityClass::processRoles: dropping unrecognized role '$role' (lenient mode)");
-                }
-            }
-            return ($valid);
-        }
-
         $rolelist = explode( ' ', $arole );
         // echo "<pre>processRoles: " . print_r( $rolelist, 1 ) . "</pre>";
         $loop = 0; $ok = 0;
