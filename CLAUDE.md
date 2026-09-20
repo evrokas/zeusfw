@@ -1965,3 +1965,61 @@ list. Fixed with `print_r($uroles, true)`, matching every other `print_r(..., 1)
 lenient-mode revert and stays in place. **Files**: `core/lib/UserLogin.php` only
 (`core/lib/Security.php`/`core/kernel/Kernel.php` are unchanged from before this
 incident).
+
+## `core/maker/maker.php` -- `--flag=value` options can now appear anywhere on the command line (2026-09-20)
+
+At direct request: this file's own `rbac:*` command-list help text had carried a NOTE
+since it was added ("--flag=value options must be given BEFORE the command name...")
+warning about a real usability trap -- `getopt($short, $long, $i)` stops scanning the
+moment it reaches the first non-option token, which is always the command name itself
+(`rbac:roles:add`, `spill:class:all`, ...), so every option had to be written before it.
+`rbac:roles:add --name=x --label=y`, the objectively more natural reading order, silently
+discarded both flags instead of erroring -- confirmed directly: reproduced with a real
+invocation against a real MariaDB-backed zpms test database before touching anything;
+`getopt()` returned an empty options array and both flags ended up folded into
+`$optparams` as inert positional strings.
+
+**Fixed by replacing the `getopt()` call with a small custom parser,
+`zeusfw_maker_parse_argv(array $argv, string $shortOptSpec, array $longOptSpec):
+array`** (new function, top of the file, right after the `DIR` class), which walks the
+whole `$argv` list once and classifies every token as it goes, rather than stopping at
+the first non-option one -- so a flag can now appear before the command, after it, or
+interspersed with other positional arguments, in any combination. Returns
+`[$options, $optparams]` in exactly `getopt()`'s own shape (a value-bearing option
+present gets its `(string)` value, a bare flag gets `false`, an unrecognized `--xxx`/
+`-x` is silently discarded rather than erroring or ending up in `$optparams` --
+matching `getopt()`'s own observed behavior in every one of these respects, confirmed
+by testing real `getopt()` invocations side by side before writing the replacement),
+so every existing `isset($options[...])`/`$options[...]` call site in this file needed
+zero changes.
+
+**One deliberate, documented narrowing, not a compatibility gap**: a long option's
+value must be written as `--name=value`; the separate two-token form
+`--name value` (which PHP's own `getopt()` happens to support, but only when every
+option comes before the first positional argument) is no longer accepted. Every
+`Usage:`/command-list string this file already prints documents the `=` form
+exclusively (`[--name=] [--label=] rbac:roles:edit <id>`) -- grepped for any
+counter-example in this repo's own docs/scripts, found none -- and the two-token form
+becomes genuinely ambiguous the moment options can appear anywhere: a bare `--name`
+sitting immediately before a real positional argument (an id, a filename) would
+otherwise silently swallow it as its own value instead. Dropping it removes an
+ambiguity trap rather than breaking a documented, exercised usage pattern.
+
+**Verified against a real MariaDB-backed zpms test database** (`cd web/classes && php
+../core/maker/maker.php ...`, copying `config/db.test.php` to a throwaway `config/db.php`
+for the run, removed again after): `rbac:permissions:add --name=x --label=y` (options
+after the command -- the specific case that used to silently fail) created the row
+correctly; `--name=x --label=y rbac:permissions:add` (options before -- the old
+required order) produced an identical result; `rbac:permissions:edit <id>
+--label=...` (a positional id, then a flag, both after the command) and
+`rbac:permissions:remove <id> --yes` (a boolean flag after a positional argument, the
+purest arbitrary-interspersion case) both worked correctly; an unrecognized
+`--bogus=1` flag was silently ignored rather than erroring, matching `getopt()`'s own
+behavior; `--app-dir=...` worked identically before and after the command. zpms's own
+`bin/run_tests.sh` (40/40 static, 35/35 functional) stayed green throughout --
+notable here specifically because that suite's own `TestSchema::regenerateClasses()`
+drives `spill:class:all`/`update:bootstrap`/`spill:sql:all` through this exact
+parser on every run, so this wasn't verified in isolation from the rest of the
+framework's own tooling. The `rbac:*` command-list NOTE was updated to describe the
+new behavior instead of warning about the old limitation. **Files**:
+`core/maker/maker.php` only.
