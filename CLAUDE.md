@@ -2023,3 +2023,88 @@ parser on every run, so this wasn't verified in isolation from the rest of the
 framework's own tooling. The `rbac:*` command-list NOTE was updated to describe the
 new behavior instead of warning about the old limitation. **Files**:
 `core/maker/maker.php` only.
+
+## `core/lib/Modules.php` -- `registerModules()` could `require()` the same module twice and fatal (2026-09-20)
+
+Real production incident on zpms (a different server than the one the ErnsAuth
+incidents earlier in this file were reported against): `PHP Fatal error: Cannot
+redeclare function register_backup_module() (previously declared in .../zeusfw/
+core/modules/backup/backup.php:71) in .../zpms/web/modules/backup/backup.php on
+line 64`. Immediate cause on that specific server: `web/modules/backup/` -- ZPMS's
+original, app-local copy of the backup status module, superseded and (per this
+file's own "`core/modules/backup/`" entry above) deleted from the zpms git history
+the day the module moved into `core/modules/backup/` -- was still physically
+present on disk there, never removed when that commit was deployed. That's a
+real, separate deployment-hygiene gap (fixed by deleting the stale directory on
+that server, `rm -rf web/modules/backup/`), but reading `registerModules()`
+itself (this file) found a genuine, more general bug behind it: nothing in this
+function ever protected against exactly this shape of collision, for *any*
+module name, on *any* app.
+
+**Root cause, confirmed by reading the loop directly**: `registerModules()`
+iterates `$mods['path']` (an app's own `modules: path:` list, e.g. zpms's
+`['/web/core/modules/', '/web/modules/']`) as the *outer* loop, and
+`$mods['modules']` (the app's opted-in module names) as the *inner* one --
+for every `(path, modname)` combination whose `<modname>.info.yaml` exists, it
+unconditionally `require()`s that module's `.php` file and calls its
+`register_<modname>_module()` callback. There was no tracking of "already
+loaded this module name from an earlier path" anywhere -- so a module name
+present under *two* configured paths (the exact shape this incident hit, but
+reachable by any app any time an old, superseded copy of a module isn't
+cleaned up in lockstep with adopting a newer one, e.g. a core migration like
+this same file's own RBAC/backup/accessibility moves) gets `require()`'d
+**twice**. Since a module's `.php` file always defines the same global
+`register_<modname>_module()` function by name, the second `require()` is a
+guaranteed fatal `Cannot redeclare function` -- not a subtle bug, a 100%
+reproducible one the instant both files exist.
+
+**This directly contradicts a claim this same CLAUDE.md file already made**,
+in the "`core/modules/backup/`" entry above: "*same module name, first match
+wins in `registerModules()`'s path-list iteration*." That was true of the
+*intent*, never verified against the actual loop, which has no such logic at
+all -- confirmed the hard way here, by reading `registerModules()` end to end
+rather than trusting the earlier entry's own prose.
+
+**Fixed** with a `$loaded` tracking array, keyed by module name, checked
+before the existing `file_exists()`/`require()` block and set right after a
+successful load: a module name already loaded from an earlier `$mods['path']`
+entry is skipped on every later one. Loop structure and iteration order are
+otherwise unchanged (still path-outer, module-inner), so the fix is
+minimal and targeted -- the only observable behavior change is that a
+module present at two paths now loads once, from whichever path is listed
+first (every app on this framework already lists `core/modules/` before its
+own `web/modules/`, so core wins, matching what a clean, fully-migrated
+deploy already does today), instead of fataling. `registerModule()`
+(`core/kernel/Kernel.php`) stores modules in a name-keyed map, not an
+ordered list consumed elsewhere, so no other behavior (region/module
+rendering, which resolves modules by name via `getModule()`) depends on
+registration order -- confirmed by reading that function directly before
+relying on it.
+
+**Verified against a real MariaDB-backed zpms test server, reproducing the
+actual incident first**: copied `core/modules/backup/` into a throwaway
+`zpms/web/modules/backup/` (simulating the exact stale-leftover shape the
+live server had) and confirmed, against the pre-fix code, a request to
+`/login` fatals with byte-for-byte the same error text as reported
+(`Cannot redeclare function register_backup_module() ... on line 71` /
+`... on line 64` -- the discrepancy in line numbers between this repro and
+the original report is just the two files' sizes differing slightly by the
+time each was copied, not a different bug). Re-ran the identical request
+against the fixed code, stale directory still present: `200 OK`, a real
+login form, zero fatals. Confirmed `/apps/backup` itself still works
+correctly (loads from `core/modules/backup/`, the higher-priority path,
+not the stale copy): logged in as a real `is_superuser` test account,
+`200 OK`, zero fatals. Removed the throwaway `web/modules/backup/` copy
+before finishing -- it was never committed to zpms, only used to
+reproduce this in the sandbox. zpms's own `bin/run_tests.sh` (40/40
+static, 35/35 functional) stayed green throughout, confirming the fix
+doesn't change module registration for the normal, non-colliding case.
+**Files**: `core/lib/Modules.php` only.
+
+**If your own deployment hit this same error**: this fix stops the fatal
+going forward, but the stale directory itself is still dead code sitting on
+disk -- worth deleting anyway (`rm -rf web/modules/<name>/` for whichever
+module the error names) rather than relying on this fix to paper over it
+indefinitely, since the same collision would recur for any *other* module
+a future core migration moves without the app's own old copy being cleaned
+up in the same deploy.
