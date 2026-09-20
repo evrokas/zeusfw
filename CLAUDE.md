@@ -2108,3 +2108,82 @@ module the error names) rather than relying on this fix to paper over it
 indefinitely, since the same collision would recur for any *other* module
 a future core migration moves without the app's own old copy being cleaned
 up in the same deploy.
+
+## `core/modules/admin/admin_crud.php` -- assign a user's roles directly from the Users edit form (2026-09-20)
+
+At direct request: assigning a role to a user previously meant a separate
+trip to `/admin/user_roles`'s own generic list/new form (picking the user
+and the role from two `<select>`s, with no visibility into what that user
+already holds) rather than anything reachable from the Users entity's own
+edit page. Added a "Roles" checklist section directly on
+`/admin/users/{id}/edit` -- every seeded role as a checkbox, pre-checked
+for whichever ones the user already holds, saved together with the rest of
+that form's fields under the one existing Save button. `/admin/user_roles`
+itself is untouched and still works exactly as before -- this is an
+additional, more convenient path onto the same `user_roles` table, not a
+replacement.
+
+**Why this doesn't fit `$def['fields']`, and how it's handled instead.**
+Every other field this engine renders is a single column with a 1:1
+getter/setter on the entity's own generated class (`zeusfw_admin_field_value()`/
+`zeusfw_admin_apply_field()`'s generic per-field dispatch) -- `user_roles` is a
+many-to-many join table, so there's no single value to get/set on a `usersClass`
+instance for it. Follows the exact precedent already established in this same
+file for the `password` field (also virtual, also special-cased outside the
+generic per-field loop): two new functions,
+`zeusfw_admin_user_role_checklist(int $userId): array` (every role, each with
+an `assigned` bool -- used both to prefill checkbox state and to enumerate
+which roles exist to check in the first place) and
+`zeusfw_admin_sync_user_roles(int $userId, array $submittedRoleIds, string
+$cuser): void` (reconciles `user_roles` to match the submission exactly, via
+the pre-existing, already-idempotent `user_rolesClassEx::assignRole()`/
+`::removeRole()`), called from `admin_edit()`/`admin_edit_post()` only when
+`$entity === 'users'` -- every other entity's form is completely unaffected.
+
+**Submitted role ids are re-validated against the real `roles` table before
+syncing** (`zeusfw_admin_sync_user_roles()`'s own `SELECT id FROM roles WHERE
+id IN (...)` against the submitted set) -- this framework has no DB-level FK
+constraints anywhere (see this file's own recurring "no real FK constraints"
+note on every `cascade_delete` list), so without this a tampered POST naming a
+nonexistent role id would silently insert a dangling `user_roles` row with
+nothing to ever catch it.
+
+**Deliberately no special-case for an operator editing their own account** --
+submitting the form with every box unchecked (or the `roles[]` field missing
+entirely, e.g. a legacy client) clears every one of that account's role
+assignments, including the logged-in operator's own, exactly like a plain
+`<input>` checkbox always does when unticked. This follows the identical
+reasoning `admin_delete()`'s own comment already gives for self-deletion: once
+`ZEUSFW_PERM_MANAGE_USERS` has passed, this page extends the same trust level
+to a self-demotion as to any other account, on the theory that a UI which
+lets you delete your own account already has no lesser action left to guard
+against.
+
+**The checklist only ever appears on the edit form, never on create.** A
+brand-new user has no `id` yet, so there's nothing for `user_roles` rows to
+reference -- `admin_new()` passes `'user_roles' => null` for template-variable
+parity, and `admin_form.zetem`'s new `{% if($user_roles !== null): %}` guard
+around the whole section means the create form simply omits it, exactly as
+before this change.
+
+**Verified against a real MariaDB-backed zpms test server, not just unit
+logic** -- extended `tests/functional/admin_crud.php` (zpms) with a new,
+permanent regression test rather than a throwaway manual check: logging in as
+a real `is_superuser` account, confirmed a brand-new user's edit form renders
+the checklist with every seeded role listed and none pre-checked; submitting
+`roles[] = [doctor, secretary]` left exactly those two rows in `user_roles`
+and re-rendered both checkboxes checked on the next page load; submitting
+`roles[] = [doctor]` alone removed exactly the secretary row and left doctor
+alone; submitting the form with no `roles` field at all cleared every
+remaining assignment; submitting a nonexistent role id (`999999`) inserted
+nothing; and the `/admin/users/new` form was confirmed to render no
+`roles[]` checkbox at all. `php -l` clean on `admin_crud.php`; zpms's own
+`bin/run_tests.sh` (41/41 static, 36/36 functional -- the one new test
+included) stayed fully green throughout, confirming zero regression to every
+other entity's list/new/edit/delete behavior.
+
+**Files**: `core/modules/admin/admin_crud.php`,
+`core/templates/modules/admin/admin_form.zetem` (zeusfw);
+`tests/functional/admin_crud.php` (zpms, new regression test only -- no
+app-level wiring was needed since this is framework-level and already
+unconditionally required).
