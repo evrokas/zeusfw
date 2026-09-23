@@ -189,7 +189,7 @@ function login_post($params) {
         $us->setwrongpasscount(0);
         $us->update();
 
-        header('location: '.rel_url('/profile'));
+        header('location: '.rel_url('/'));
         exit();
     } else {
         // check for account with 'username' exists, if yes, then increase wrong password counter
