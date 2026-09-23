@@ -57,18 +57,36 @@ class userTokensClassEx extends userTokensClass {
         return $st->execute();
     }
 
-    static function getUserByToken(string $token, string $remoteip, string $useragent) {
+    // Neither remoteip nor useragent are used to filter this lookup --
+    // both parameters are kept only so existing call sites don't need to
+    // change shape. remoteip was already dropped from the WHERE clause
+    // (see the commented-out line below, from that earlier fix); useragent
+    // was missed at the time and stayed a real, silent bug: isUserLoggedin()
+    // (Kernel.php) already validates the token itself via token_is_valid()
+    // (selector+validator only, no device fingerprint at all) *before*
+    // calling this -- so by the time this runs, the token is already known
+    // cryptographically valid. Filtering this second, redundant lookup by
+    // useragent meant a perfectly valid remember-me cookie silently failed
+    // to log anyone in the moment the UA string differed even slightly from
+    // whenever the cookie was first issued (an app update, a browser
+    // update, a different WebView/browser context -- all realistic on
+    // mobile, and none of them a sign the cookie was stolen or forged).
+    // The failure was also completely silent: isUserLoggedin() doesn't
+    // clear the cookie or show any message in that case, it just quietly
+    // never logs the visitor in, which is exactly the reported symptom.
+    static function getUserByToken(string $token, string $remoteip = '', string $useragent = '') {
         $tokens = userTokensClassEx::parse_token($token);
         prelog("getUserByToken: $token, $tokens[0]");
 
         // $sql = "SELECT * FROM users INNER JOIN user_tokens ON user_tokens.uname=users.uname WHERE selector=:selector AND remoteip=:remoteip AND useragent=:useragent AND expiry > now() LIMIT 1";
-        
-        // stop using ip for logging in
-        $sql = "SELECT * FROM users INNER JOIN user_tokens ON user_tokens.uname=users.uname WHERE selector=:selector AND useragent=:useragent AND expiry > now() LIMIT 1";
+
+        // stop using ip (and useragent) for logging in -- see this
+        // function's own docblock above for why useragent was removed too.
+        $sql = "SELECT * FROM users INNER JOIN user_tokens ON user_tokens.uname=users.uname WHERE selector=:selector AND expiry > now() LIMIT 1";
         $st = dbConnection::getConnection()->prepare( $sql );
         $st->bindValue(":selector", $tokens[0], PDO::PARAM_STR);
         // $st->bindValue(":remoteip", $remoteip, PDO::PARAM_STR);
-        $st->bindValue(":useragent", $useragent, PDO::PARAM_STR);
+        // $st->bindValue(":useragent", $useragent, PDO::PARAM_STR);
         $st->execute();
         $row = $st->fetch();
 

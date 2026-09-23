@@ -5,7 +5,94 @@ class DIR {
     static $fw = null;
 };
 
+/*
+ * Parses $argv the way this script's own documented "--flag=value" Usage
+ * strings already assume, but -- unlike PHP's own getopt() -- allows a
+ * flag to appear anywhere on the command line, not just before the
+ * command name. getopt() stops scanning the moment it hits the first
+ * non-option token (the command name itself, e.g. `rbac:roles:add`), so
+ * every flag had to be written before it -- unintuitive, and exactly the
+ * footgun the 'rbac:*' entry in this file's own command-list help text
+ * used to warn about. This walks the whole argument list once instead,
+ * classifying each token as it goes, so `rbac:roles:add --name=x
+ * --label=y` and `--name=x --label=y rbac:roles:add` (and any other
+ * ordering) all parse identically -- fully backward compatible with
+ * every existing script that already puts its flags first.
+ *
+ * Long options always take their value as --name=value, never a
+ * following bare token (`--name value`) -- that space-separated form is
+ * something PHP's own getopt() happens to support when every option
+ * comes first, but it becomes genuinely ambiguous once flags can appear
+ * anywhere (a bare `--name` right before a real positional argument
+ * would otherwise silently swallow it as its value). Every Usage string
+ * this file prints already documents the `=` form exclusively (e.g.
+ * `[--name=] [--label=] rbac:roles:edit <id>`), so this drops nothing
+ * anyone relying on the documented syntax was using.
+ *
+ * $shortOptSpec/$longOptSpec are plain getopt()-style specs (a short spec
+ * string like "f:", a long spec list like ['app-dir:', 'yes', ...] -- a
+ * trailing ':' means the option takes a value). Returns
+ * [$options, $optparams]: $options is name => value, exactly like
+ * getopt()'s own return shape (a value-bearing option present gets its
+ * (string) value, a bare flag gets `false`), so every existing
+ * isset($options[...])/$options[...] call site is unaffected.
+ * $optparams is every remaining, non-option token, in original order --
+ * $optparams[0] is the command name, same as before this function
+ * existed.
+ */
+function zeusfw_maker_parse_argv(array $argv, string $shortOptSpec, array $longOptSpec): array {
+    $longValueOpts = array();
+    foreach ($longOptSpec as $spec) {
+        $longValueOpts[ rtrim($spec, ':') ] = (substr($spec, -1) === ':');
+    }
 
+    $shortValueOpts = array();
+    for ($p = 0; $p < strlen($shortOptSpec); $p++) {
+        $c = $shortOptSpec[$p];
+        if ($c === ':') continue;
+        $shortValueOpts[$c] = (isset($shortOptSpec[$p + 1]) && $shortOptSpec[$p + 1] === ':');
+    }
+
+    $options = array();
+    $optparams = array();
+
+    for ($i = 1, $n = count($argv); $i < $n; $i++) {
+        $tok = $argv[$i];
+
+        if (strncmp($tok, '--', 2) === 0) {
+            $body = substr($tok, 2);
+            $eq = strpos($body, '=');
+            if ($eq !== false) {
+                $name = substr($body, 0, $eq);
+                $value = substr($body, $eq + 1);
+            } else {
+                $name = $body;
+                $value = false;
+            }
+            if (array_key_exists($name, $longValueOpts)) {
+                $options[$name] = $longValueOpts[$name] ? (string)$value : false;
+            }
+            // an unrecognized long option is silently discarded here too,
+            // matching getopt()'s own behavior (see this function's own
+            // docblock)
+            continue;
+        }
+
+        if (strncmp($tok, '-', 1) === 0 && $tok !== '-' && strlen($tok) > 1) {
+            $c = $tok[1];
+            if (isset($shortValueOpts[$c])) {
+                $options[$c] = $shortValueOpts[$c] ? substr($tok, 2) : false;
+                continue;
+            }
+            // an unrecognized short option is silently discarded too
+            continue;
+        }
+
+        $optparams[] = $tok;
+    }
+
+    return array($options, $optparams);
+}
 
     $getopt_options_short = "f:";
     $getopt_options_long = array(
@@ -40,24 +127,18 @@ class DIR {
     // $getopt_options_long = array('app-dir:', 'add-id', 'extends-class:',
     //     'name:', 'type:', 'author:', 'title:', 'desc:', 'viewmode:',
     //     'template:', 'dir:');
-    $i=0;
-    $optparams = array();
-    
-    $cmdline_options = getopt($getopt_options_short, $getopt_options_long, $i);
+
+    // See zeusfw_maker_parse_argv()'s own docblock at the top of this file
+    // for why this replaces a plain getopt() call -- it lets --flag=value
+    // options appear anywhere on the command line (before the command,
+    // after it, or interspersed), not only before it.
+    list($cmdline_options, $optparams) = zeusfw_maker_parse_argv($argv, $getopt_options_short, $getopt_options_long);
     $options = array_merge($inline_options, $cmdline_options);
     // print_r($options);
 
     // if(!isset($options['extends-class'])) {
         // $options['extends-class'] = 'dbAbstractEntityClass';
     // }
-
-    while($i < $argc) {
-        $optparams[] = $argv[$i++];
-    }
-    // print_r( $opts );
-    // mlog( 'argc: ' . $argc );
-    // mlog( 'i: ' . $i );
-    // print_r( $optparams );
 
     if(!$optparams[0]) {
         mlog('Please specify a command to execute.');
@@ -1794,7 +1875,7 @@ function makesure_dir_exists($dir) {
      
                 'msg:new' => '[user] [message] create new message for `user` with `message`',
 
-                'rbac:*' => '-- NOTE: --flag=value options must be given BEFORE the command name, e.g. `--name=x --label=y rbac:roles:add`, not after (PHP getopt() stops scanning at the first non-option argument, and the command name is one)',
+                'rbac:*' => '-- NOTE: --flag=value options may appear anywhere on the command line -- before the command name, after it, or interspersed (e.g. `rbac:roles:add --name=x --label=y` and `--name=x --label=y rbac:roles:add` are equivalent) -- always as --flag=value, never a separate --flag value token',
                 'rbac:users:list' => 'list users (with their assigned roles)',
                 'rbac:users:add' => '--name= --email= --uname= [--password=] [--active=] [--expired=] add a new user',
                 'rbac:users:edit' => '[id] [--name=] [--email=] [--uname=] [--password=] [--prompt-password] [--active=] [--expired=] edit a user',

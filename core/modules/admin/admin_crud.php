@@ -79,10 +79,12 @@ function zeusfw_admin_entity_defs(): array {
                 ['name' => 'password', 'label' => 'Password', 'type' => 'password', 'required_on_create' => true],
                 ['name' => 'active', 'label' => 'Active', 'type' => 'checkbox'],
                 ['name' => 'expired', 'label' => 'Expired', 'type' => 'checkbox'],
-                // Role assignment is managed on the separate user_roles
-                // page (many-to-many -- doesn't fit a single-value field
-                // on this form), and the legacy users.roles column isn't
-                // meant to be hand-edited here either, so neither appears.
+                // Role assignment is many-to-many -- it doesn't fit a
+                // single-value field here, so it's rendered as a separate
+                // checklist section on the edit form instead (see
+                // zeusfw_admin_user_role_checklist()/admin_form.zetem's
+                // "user_roles" block). The legacy users.roles column isn't
+                // meant to be hand-edited here either, so it never appears.
             ],
             // users.roles is CHAR(36) NOT NULL with no default -- since no
             // field above sets it, a plain insert() would violate that NOT
@@ -175,6 +177,77 @@ function zeusfw_admin_lookup_label(string $table, string $labelCol, int $id): st
     $st->execute();
     $row = $st->fetch();
     return $row ? (string)$row['label'] : "(deleted #$id)";
+}
+
+// [{'id', 'name', 'label', 'assigned'}, ...] for every role, for the
+// Roles checklist on a user's edit form -- role assignment is many-to-
+// many, so it doesn't fit a single-value 'select'/'checkbox' field entry
+// the way every other column on this form does, hence this dedicated
+// section rather than a $def['fields'] entry (same "special-case outside
+// the generic per-field loop" precedent as the 'password' virtual field
+// above).
+function zeusfw_admin_user_role_checklist(int $userId): array {
+    $assignedIds = [];
+    $st = dbConnection::getConnection()->prepare('SELECT role_id FROM user_roles WHERE user_id = :id');
+    $st->bindValue(':id', $userId, PDO::PARAM_INT);
+    $st->execute();
+    while ($row = $st->fetch()) {
+        $assignedIds[(int)$row['role_id']] = true;
+    }
+
+    $out = [];
+    $st = dbConnection::getConnection()->query('SELECT id, name, label FROM roles ORDER BY name');
+    while ($row = $st->fetch()) {
+        $out[] = [
+            'id' => (int)$row['id'],
+            'name' => $row['name'],
+            'label' => $row['label'],
+            'assigned' => isset($assignedIds[(int)$row['id']]),
+        ];
+    }
+    return $out;
+}
+
+// Reconciles $userId's user_roles rows to match $submittedRoleIds exactly
+// -- every submitted id not already assigned gets a fresh row
+// (user_rolesClassEx::assignRole(), already idempotent), every currently
+// assigned id no longer submitted gets removed
+// (user_rolesClassEx::removeRole()). $submittedRoleIds is filtered
+// against the real roles table first -- no FK constraint anywhere in this
+// framework would otherwise stop a tampered POST naming a nonexistent
+// role id from inserting a dangling user_roles row. Deliberately doesn't
+// special-case "the logged-in operator just unassigned every role from
+// their own account" -- admin_delete()'s own comment already establishes
+// that this page extends the same trust level to a self-demotion/
+// self-deletion as to any other account once ZEUSFW_PERM_MANAGE_USERS has
+// passed, and this follows the identical reasoning.
+function zeusfw_admin_sync_user_roles(int $userId, array $submittedRoleIds, string $cuser): void {
+    $submittedRoleIds = array_unique(array_map('intval', $submittedRoleIds));
+
+    $validIds = [];
+    if ($submittedRoleIds) {
+        $placeholders = implode(',', array_fill(0, count($submittedRoleIds), '?'));
+        $st = dbConnection::getConnection()->prepare("SELECT id FROM roles WHERE id IN ($placeholders)");
+        $st->execute($submittedRoleIds);
+        while ($row = $st->fetch()) {
+            $validIds[] = (int)$row['id'];
+        }
+    }
+
+    $current = [];
+    $st = dbConnection::getConnection()->prepare('SELECT role_id FROM user_roles WHERE user_id = :id');
+    $st->bindValue(':id', $userId, PDO::PARAM_INT);
+    $st->execute();
+    while ($row = $st->fetch()) {
+        $current[] = (int)$row['role_id'];
+    }
+
+    foreach (array_diff($validIds, $current) as $roleId) {
+        user_rolesClassEx::assignRole($userId, $roleId, $cuser);
+    }
+    foreach (array_diff($current, $validIds) as $roleId) {
+        user_rolesClassEx::removeRole($userId, $roleId);
+    }
 }
 
 // [id => label, ...] for a 'select' field's <option> list.
@@ -292,6 +365,9 @@ function admin_new($params) {
         'entity' => $params['entity'],
         'entity_label' => $def['label'],
         'fields' => zeusfw_admin_render_fields($def['fields'], null),
+        // A role can only be assigned once the user has a real id, so this
+        // section never appears on the create form -- only on edit, below.
+        'user_roles' => null,
     ]);
 }
 
@@ -348,6 +424,9 @@ function admin_edit($params) {
         'entity' => $entity,
         'entity_label' => $def['label'],
         'fields' => zeusfw_admin_render_fields($def['fields'], $instance),
+        // Only the 'users' entity gets the Roles checklist -- every other
+        // entity's form has nothing many-to-many to offer here.
+        'user_roles' => $entity === 'users' ? zeusfw_admin_user_role_checklist((int)$params['id']) : null,
     ]);
 }
 
@@ -374,6 +453,14 @@ function admin_edit_post($params) {
         zeusfw_admin_apply_field($instance, $fieldDef, $_POST[$fieldDef['name']] ?? null, false);
     }
     $instance->update();
+
+    // Same virtual-section treatment as the checklist itself (see
+    // zeusfw_admin_user_role_checklist()'s own docblock) -- role
+    // assignment doesn't go through the generic per-field loop above,
+    // since user_roles is a many-to-many join, not a users column.
+    if ($entity === 'users') {
+        zeusfw_admin_sync_user_roles($id, $_POST['roles'] ?? [], $kernel->getUserName() ?? 'admin-ui');
+    }
 
     $kernel->addStatus('notice', $def['label'] . ' updated.');
     header('location: ' . rel_url("/admin/$entity"));

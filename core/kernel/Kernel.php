@@ -833,10 +833,15 @@ class Kernel {
         if($token && userTokensClassEx::token_is_valid($token)) {
             prelog("Found valid token in DB, token: " . print_r($token, 1));
 
-            $remoteip = $_SERVER['REMOTE_ADDR'];
-            $useragent = $_SERVER['HTTP_USER_AGENT'];
-
-            $user = userTokensClassEx::getUserByToken($token, $remoteip, $useragent);
+            // token_is_valid() above already authenticated this token
+            // cryptographically (selector+validator, no device fingerprint
+            // involved) -- getUserByToken() no longer takes/filters by
+            // remoteip/useragent either, for the same reason (see its own
+            // docblock, core/ClassExFW.php): re-checking either here would
+            // just silently fail a legitimate remember-me login the moment
+            // the IP or user-agent differs even slightly from whenever the
+            // cookie was first issued.
+            $user = userTokensClassEx::getUserByToken($token);
             if($user) {
                 $us = usersClassEx::getUserAccount( $user->getuname());
                 prelog("Found user: " . print_r($user, 1) . " user record: " . print_r($us, 1));
@@ -863,7 +868,22 @@ class Kernel {
                         }
                     }
 
-                    $kernel->loginUser($us->getuname(), $us->getroles());
+                    // Same RBAC-aware role resolution login_post() uses
+                    // (core/lib/UserLogin.php) -- was previously just
+                    // $us->getroles(), the legacy users.roles column,
+                    // which an RBAC-only app (roles/permissions/user_roles
+                    // tables, no per-user users.roles value ever set --
+                    // zgeotrack among them) leaves empty. A remember-me
+                    // restore would still technically log the account in,
+                    // but with no/wrong roles, so every rbacClass::
+                    // require() check downstream would then fail -- from
+                    // the visitor's side this looks exactly like "remember
+                    // me doesn't work" even though a session did get
+                    // established.
+                    $uroles = function_exists('zeusfw_app_resolve_user_roles')
+                        ? (zeusfw_app_resolve_user_roles($us) ?? $us->getroles())
+                        : $us->getroles();
+                    $kernel->loginUser($us->getuname(), $uroles);
                     return true;
                 }
 

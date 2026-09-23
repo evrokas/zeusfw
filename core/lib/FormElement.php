@@ -324,7 +324,34 @@ class CheckboxElement extends FormElement {
         $attributes['name'] = $this->element['name'];
         $attributes['type'] = 'checkbox';
 
-        if (!empty($this->element['default'])) {
+        // Every other element type binds a real column value (see
+        // BasicInputElement/InputElement above) -- this one never did,
+        // so a checked box submitted the browser's own default checkbox
+        // value, the literal string "on", straight into whatever column
+        // the yaml declares. Harmless for a `varchar`, but a hard INSERT/
+        // UPDATE failure for the far more common `boolean`/`tinyint`
+        // column this element exists for in the first place
+        // (SQLSTATE[22007] "Incorrect integer value: 'on'") -- confirmed
+        // against a real MariaDB server, not assumed: any checked
+        // checkbox on any webform on any app on this framework hits this
+        // the first time someone actually submits one. '1' matches this
+        // framework's own boolean convention everywhere else (users.yaml's
+        // `active`/`expired`, roles.yaml's `is_superuser`, ...) -- an
+        // unchecked box still submits nothing at all (plain HTML
+        // behavior, unchanged), which is what `formsClass::
+        // storeFormResults()`'s update path already treats as "leave the
+        // existing value alone" (see that function's own docblock).
+        $attributes['value'] = '1';
+
+        // Same bug, one line down: every other element type checks
+        // $this->default_value (the per-instance value a caller's own
+        // $default_values array supplies, e.g. an existing row's current
+        // state when rendering an edit form) before falling back to the
+        // yaml's static `default:` -- this element only ever checked the
+        // static yaml default, so an edit form's checkbox always
+        // rendered according to the *schema* default, never the actual
+        // row being edited.
+        if (!empty($this->default_value ?? $this->element['default'] ?? null)) {
             $attributes['checked'] = 'checked';
         }
 
