@@ -19,12 +19,18 @@
  * session), and 'administrator' => 'all' being a plain string rather than
  * an array made in_array() against it a fatal TypeError on PHP 8.
  * SecurityClass::userIsPermitted() (route-level access: checks, nav-menu
- * gating) is untouched -- it does a plain role-identity check, not a
- * permission-array lookup, so neither bug applies to it. Moved here so
- * every app gets a correct implementation without needing its own copy.
+ * gating) does a plain role-identity check, not a permission-array lookup,
+ * so neither bug above applies to it -- but as of 2026-09-24 it does call
+ * back into this file for one thing: an is_superuser bypass, via
+ * rbacClass::currentUserIsSuperuser() below. See that method's own
+ * docblock and Security.php's own call site for why.
  */
 
 class rbacClass {
+    // Per-request cache for currentUserIsSuperuser() below -- see that
+    // method's own docblock for why this exists.
+    private static array $superuserCache = [];
+
     // Always re-queries the database for the current user's actual
     // roles/permissions rather than trusting $_SESSION (the role list
     // Kernel::loginUser() builds always carries an extra "authenticated"
@@ -64,6 +70,63 @@ class rbacClass {
             return null;
         }
         return error_401();
+    }
+
+    // Best-effort is_superuser check with no permission slug involved --
+    // called from SecurityClass::userIsPermitted() (core/lib/Security.php)
+    // so an is_superuser account bypasses role-identity access: checks
+    // (nav-menu items, route-level access:, region/module access:) the
+    // same way it already bypasses this class's own isPermitted(). Kept
+    // as its own method rather than folded into isPermitted()'s existing
+    // loop -- that method already does an equivalent check inline as part
+    // of walking $role['permissions'], and touching that already-verified
+    // RBAC code for an unrelated caller is unnecessary risk.
+    //
+    // Unlike isPermitted(), this must never throw. userIsPermitted() (and
+    // therefore this method, transitively) is the one access-control
+    // mechanism used by every app on this framework, including apps that
+    // never adopted RBAC at all -- no roles/permissions/user_roles tables,
+    // no app-level usersClassEx::getUserAccount() (the method isPermitted()
+    // itself already depends on, and which is an app-supplied extension,
+    // not part of this framework -- see zeusfw's own CLAUDE.md, "Kernel::
+    // boot() adopted by mweb and zweb", confirming at least two apps on
+    // this framework have no RBAC/login setup whatsoever). A missing table
+    // or a missing app-level class extension must degrade to "not a
+    // superuser", not crash every single access:-gated page render on an
+    // app that was never part of RBAC to begin with.
+    //
+    // Memoized per username for the lifetime of the request: unlike
+    // isPermitted() (called once per protected handler), userIsPermitted()
+    // can call this once per access:-gated nav item/submenu/region on a
+    // single page render -- without this cache that's a real multiplication
+    // of the same two queries below, not just a theoretical one.
+    static function currentUserIsSuperuser(): bool {
+        global $kernel;
+
+        $uname = $kernel->getUserName();
+        if (!$uname) {
+            return false;
+        }
+        if (array_key_exists($uname, self::$superuserCache)) {
+            return self::$superuserCache[$uname];
+        }
+
+        $result = false;
+        try {
+            $user = UsersClassEx::getUserAccount($uname);
+            if ($user) {
+                foreach (user_rolesClassEx::getRolesForUser((int)$user->getid()) as $role) {
+                    if (!empty($role['is_superuser'])) {
+                        $result = true;
+                        break;
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            $result = false;
+        }
+
+        return self::$superuserCache[$uname] = $result;
     }
 }
 

@@ -2237,3 +2237,105 @@ refused. `bin/run_tests.sh` (99/99 static, 44/44 functional -- one new
 test added) stayed fully green throughout. **Files**:
 `core/modules/backup/backup.php` (zeusfw); `web/rbac.php`,
 `config/settings.info.yaml`, `tests/functional/auth_csrf.php` (zpms).
+
+## `SecurityClass::userIsPermitted()` gains an is_superuser bypass (2026-09-24)
+
+Direct follow-up to the entry above: the fix restoring `doctor`/`maintenance`
+to the "Backups" nav item's `access:` didn't restore it for `administrator`
+(is_superuser) -- reported directly. Root cause, read straight out of the two
+functions involved rather than guessed at: `SecurityClass::userIsPermitted()`
+(`core/lib/Security.php`) is a plain role-*identity* check --
+`in_array($urole, $permlist)` against the literal role names on
+`$_SESSION['user_roles']` -- with no `is_superuser` concept anywhere in it.
+`Kernel::loginUser()` only ever puts an account's actual resolved role
+NAMES (e.g. `['administrator']`) plus the literal string `'authenticated'`
+into that session array; nothing about is_superuser status is ever reflected
+there. So `access: doctor maintenance` is a closed list of exactly two
+strings, and an administrator-only account is simply absent from it -- while
+the *page* still opens fine, since `rbacClass::isPermitted()` (the separate,
+permission-slug-based check `backupModule::run()` actually uses) has its own,
+independent `is_superuser` short-circuit. Same shape of gap on `Settings`
+(`access: doctor maintenance` too) and, in principle, anything else in this
+app using role-identity `access:`.
+
+Considered and rejected first: switching nav-item `access:` checking from
+`SecurityClass::userIsPermitted()` to `rbacClass::isPermitted()` outright
+(RBAC's own permission-slug system, which already has the bypass). Concretely
+problematic, not just differently-styled, for reasons found by reading the
+actual call sites rather than assuming: (1) `access:` is not nav-specific --
+the identical mechanism also gates route-level `access:` (`Router.php`) and
+region/module `access:` (`Kernel::renderRegion()`/`renderModule()`, see this
+file's own "`access:` on regions and modules" entry) -- so converting only
+nav would make the same YAML key mean two different vocabularies depending on
+where it's written, including on the very same feature (Backups' nav entry
+and its own module both already say `access: doctor maintenance` today,
+meaning the same thing). (2) `SecurityClass::processRoles()` -- the function
+`userIsPermitted()` calls to validate its input -- doesn't fail closed on an
+unrecognized token, it `echo`s an error and `exit()`s the entire request;
+a permission slug like `backup-access` isn't in the app's declared `roles:`
+block, so writing one into `access:` under the *current* mechanism crashes
+every page render touching that menu, not just denies access. (3)
+`rbacClass::isPermitted()` accepts exactly one permission string, not "any of
+these" the way several existing `access:` lines need (`access: doctor
+secretary`); reaching parity would need a new multi-permission variant. (4)
+`rbacClass::isPermitted()` re-queries the database on every call, while
+`userIsPermitted()` is a pure session-array check -- the nav menu evaluates
+`access:` once per gated item/submenu on every single page load, so
+converting it multiplies DB round-trips per request in a way RBAC's own,
+call-once-per-handler design was never sized for. (5) `mainnavigation.php`
+is shared framework code, used by every app on ZeusFW -- at least two
+(mweb, zweb, per this file's own "Kernel::boot() adopted by mweb and zweb"
+entry) have no RBAC setup at all, so switching the shared mechanism would
+silently hide every `access:`-gated nav item for them the moment core
+changed, regardless of whether anyone touched their own config.
+
+**Fixed narrowly instead**: `rbacClass::currentUserIsSuperuser(): bool`, a
+new standalone method on the existing `rbacClass` (`core/lib/Rbac.php`) --
+resolves the current user's roles the same way `isPermitted()` already does
+(`UsersClassEx::getUserAccount()` + `user_rolesClassEx::getRolesForUser()`)
+and returns true the moment any role carries `is_superuser`, with no
+permission slug involved at all. Deliberately a separate method rather than
+refactored out of `isPermitted()`'s own loop -- that method already does an
+equivalent check inline while walking `$role['permissions']`, and touching
+already-verified RBAC code for an unrelated caller was unnecessary risk.
+`SecurityClass::userIsPermitted()` calls it once, right after validating
+`$aperm`, and returns pass immediately if true -- `class_exists('rbacClass')`
+-guarded, though `core/lib/Rbac.php` is unconditionally required from
+`core/bootstrap.php` so this is a documentation-of-intent guard more than a
+load-order necessity in practice.
+
+**Never throws, unlike `isPermitted()` -- this is the one property that
+makes it safe to call from every app on the framework, not just RBAC
+adopters.** `userIsPermitted()` is the access-control mechanism nav/route/
+region `access:` uses everywhere, including on apps with zero RBAC setup
+(no `roles`/`permissions`/`role_permissions`/`user_roles` tables, no
+app-level `usersClassEx::getUserAccount()` -- itself an app-supplied
+extension class, not part of this framework, confirmed by grepping for it:
+zpms defines it in `web/ClassesEx.php`, nothing in `core/` does). Wrapped the
+whole lookup in `try { ... } catch (\Throwable $e) { return false; }` --
+a missing table or a missing class extension degrades to "not a superuser"
+(falls through to the ordinary role check, unchanged from before this fix),
+never a fatal error on every single `access:`-gated page render for an app
+that was never part of RBAC to begin with. Memoized per username in a static
+array for the lifetime of the request -- unlike `isPermitted()` (called once
+per protected handler), `userIsPermitted()` can invoke this once per
+`access:`-gated nav item/submenu/region on a *single* page render, so without
+the cache this would multiply the same two queries per menu item, exactly
+the performance concern that ruled out the full-RBAC-conversion option
+above.
+
+**Verified against zpms, against a real MariaDB-backed test server**: added
+a new `administrator` (is_superuser) test fixture
+(`TestFixtures::createAdministratorUser()`/`loginAsAdministrator()`) and a
+new regression test confirming that account now sees both `/apps/backup` and
+`/settings` in its rendered nav (previously absent, `access: doctor
+maintenance` on both) while still being able to actually open each page
+(unchanged -- that was always true via `rbacClass::isPermitted()`'s own
+bypass); a pre-existing test already covering `rbacClass::isPermitted()`'s
+side of this ("a logged-in administrator (is_superuser) account passes every
+permission check") stayed green throughout, confirming this change didn't
+touch that separate code path. `php -l` clean on both modified files.
+`bin/run_tests.sh` (101/101 static, 45/45 functional -- two new tests added:
+one fixture setup, one assertion) stayed fully green. **Files**:
+`core/lib/Rbac.php`, `core/lib/Security.php` (zeusfw); `tests/lib/
+TestFixtures.php`, `tests/functional/auth_csrf.php` (zpms).

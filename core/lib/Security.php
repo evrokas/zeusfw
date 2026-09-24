@@ -78,6 +78,19 @@ class SecurityClass {
             exit();
         }
 
+        // An is_superuser account bypasses this role-identity check too --
+        // matching rbacClass::isPermitted()'s own is_superuser short-circuit,
+        // so e.g. an administrator-only account isn't hidden from a nav
+        // item/route/region gated by `access: doctor maintenance` just
+        // because "administrator" isn't literally one of the listed roles.
+        // class_exists() guards against a hypothetical app that predates
+        // core/lib/Rbac.php's unconditional require in bootstrap.php;
+        // rbacClass::currentUserIsSuperuser() itself is what actually
+        // makes this safe on an app with no RBAC schema installed at all.
+        if (class_exists('rbacClass') && rbacClass::currentUserIsSuperuser()) {
+            return 1;
+        }
+
         $uroles = $kernel->getUserRoles();
         // echopre("User access roles: " . print_r($uroles, 1));
 
