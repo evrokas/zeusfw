@@ -2187,3 +2187,53 @@ other entity's list/new/edit/delete behavior.
 `tests/functional/admin_crud.php` (zpms, new regression test only -- no
 app-level wiring was needed since this is framework-level and already
 unconditionally required).
+
+## `core/modules/backup/backup.php` -- opt-in permission override, `zeusfw_app_backup_permission()` (2026-09-24)
+
+Direct follow-up to this same file's own "backup status page generalized
+from ZPMS's own module" entry, which switched `backupModule::run()` from
+zpms's own app-specific `ZPMS_PERM_BACKUP_ACCESS` to the framework-level
+`ZEUSFW_PERM_MANAGE_USERS`, reasoning that an app-specific constant
+"wouldn't exist in every app on the framework." True, but it also broke
+zpms's own actual usage: zpms's `maintenance` role (web/rbac_seed.php)
+holds `ZPMS_PERM_BACKUP_ACCESS` but **deliberately never**
+`ZEUSFW_PERM_MANAGE_USERS` ("account/role administration stays an
+administrator-only concern," per that role's own docblock) -- so the
+"Backups" nav menu item stayed visible to `maintenance` (nav-level
+`access:` is a separate, role-identity check -- see this file's own
+"`access:` on regions and modules" entry -- that was never touched) while
+every click 401'd, since the actual page-level check now required a
+permission that role was never meant to hold. zpms's own
+`config/settings.info.yaml` at the time even carries a comment
+documenting exactly this shape of breakage for the *previous* version of
+this same gate (`doctor` removed from that menu item's `access:` "at
+direct request" once `doctor` stopped actually being able to open the
+page either).
+
+Fixed with the same `function_exists()` extension-point convention this
+file already uses repeatedly (`zeusfw_app_resolve_user_roles()`,
+`zeusfw_app_resolve_ernsauth_username()`): `zeusfw_app_backup_permission(): string`,
+defined in this same file guarded by `function_exists()`, defaulting to
+`ZEUSFW_PERM_MANAGE_USERS` exactly as before for any app that doesn't
+define an override. `backupModule::run()` now calls
+`rbacClass::require(zeusfw_app_backup_permission())` instead of the
+hardcoded constant. An app wanting a narrower, dedicated "just view
+backup status" permission -- zpms's own `ZPMS_PERM_BACKUP_ACCESS`, kept
+in `web/rbac.php` specifically for this rather than removed when the
+in-core module first landed -- defines this function to return that
+constant instead; an app with no opinion (or that genuinely wants backup
+status treated as an admin-only surface) needs no change at all.
+
+**Verified against zpms**: with `zeusfw_app_backup_permission()` defined
+in `web/rbac.php` to return `ZPMS_PERM_BACKUP_ACCESS`, and
+`config/settings.info.yaml`'s "Backups" menu item's `access:` restored to
+`doctor maintenance` (both roles that actually hold that permission,
+matching the menu-visibility fix this file's own "`access:` on regions
+and modules" entry already established as the correct pattern) -- a real
+MariaDB-backed test run confirmed a `doctor` account now gets a real 200
+from `/apps/backup` (previously 401 under `ZEUSFW_PERM_MANAGE_USERS`),
+while a `secretary` account (holds neither permission) is still correctly
+refused. `bin/run_tests.sh` (99/99 static, 44/44 functional -- one new
+test added) stayed fully green throughout. **Files**:
+`core/modules/backup/backup.php` (zeusfw); `web/rbac.php`,
+`config/settings.info.yaml`, `tests/functional/auth_csrf.php` (zpms).

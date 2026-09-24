@@ -20,14 +20,29 @@
  * optional-integration conventions (e.g. accessibilityModule's config-
  * driven profiles/options).
  *
- * Gated by ZEUSFW_PERM_MANAGE_USERS (the same "can manage
+ * Gated by ZEUSFW_PERM_MANAGE_USERS by default (the same "can manage
  * users/roles/permissions" permission admin_crud.php already checks) --
  * backup status reveals real infrastructure detail (destination hosts,
- * retention counts, failure messages), so it's treated as an admin-only
- * surface, not the narrower app-specific permission constant (e.g.
- * ZPMS_PERM_BACKUP_ACCESS) this module used to check, which wouldn't
- * exist in every app on the framework.
+ * retention counts, failure messages), so an admin-only surface is the
+ * safe default for an app that hasn't opted into anything narrower.
+ *
+ * zeusfw_app_backup_permission() (below) is an opt-in override, same
+ * function_exists() extension-point convention as
+ * zeusfw_app_resolve_user_roles()/zeusfw_app_resolve_ernsauth_username()
+ * (core/lib/Rbac.php / ErnsAuth.php) -- an app defines this to name its
+ * own, narrower permission constant (e.g. ZPMS's own ZPMS_PERM_BACKUP_ACCESS,
+ * kept in its rbac.php specifically for this) instead of requiring
+ * ZEUSFW_PERM_MANAGE_USERS, so a role that should only ever see backup
+ * status doesn't also need to be trusted with user/role administration
+ * just to reach this page. Undefined (the default) keeps today's
+ * ZEUSFW_PERM_MANAGE_USERS-only behavior exactly as-is.
  */
+
+if (!function_exists('zeusfw_app_backup_permission')) {
+    function zeusfw_app_backup_permission(): string {
+        return ZEUSFW_PERM_MANAGE_USERS;
+    }
+}
 
 class backupModule extends moduleClass {
 
@@ -50,7 +65,7 @@ class backupModule extends moduleClass {
     }
 
     function run($params = array()) {
-        if (($ret = rbacClass::require(ZEUSFW_PERM_MANAGE_USERS))) return $ret;
+        if (($ret = rbacClass::require(zeusfw_app_backup_permission()))) return $ret;
         return $this->render($params);
     }
 
