@@ -21,6 +21,8 @@ class Kernel {
     protected $config = null;       // framework configuration
     protected $siteconf = null;     // site configuration
     protected $modules = array();
+    protected $request = null;      // RequestClass instance built by boot()
+    protected $router = null;       // RouterClass instance built by boot()
 
     function __construct($asrv, $configdir) {
         $this->rootpath= substr($asrv['PHP_SELF'],0,strrpos($asrv['PHP_SELF'],'/')+1);
@@ -623,7 +625,96 @@ class Kernel {
             echo "Time : " . print_r($t2,1)." ~ ".print_r($t1,1)."\n";
             echo ($t2[1] - $t1[1])/1000000.0." msec";
         }
-        
+
+    }
+
+    // Runs the whole request bootstrap + dispatch sequence that every app on
+    // this framework was hand-writing identically in its own web/index.php
+    // (construct Request/Router/Renderer, start the session, the opt-in
+    // security switches, remember-me resolution, language selection, module
+    // registration, route dispatch, render, flush). Purely additive/opt-in --
+    // an app that keeps writing this sequence itself is completely
+    // unaffected; only a caller of boot() picks up this behavior.
+    //
+    // $opts:
+    //   'default_language' (string, default 'en') -- language to select when
+    //       $_SESSION['CURRENT_LANGUAGE'] isn't already set.
+    //   'login_redirect' (?string, default null) -- passed straight to
+    //       SecurityClass::enableLoginRedirect(); null keeps the framework's
+    //       default bare-401 behavior on an unpermitted route.
+    //   'csrf_login' / 'csrf_webforms' / 'login_lockout' (bool, default true
+    //       for all three) -- individually skippable, matching zpms's own
+    //       existing unconditional calls as the default.
+    function boot(array $opts = []): void {
+        global $Request, $router, $content_response;
+
+        // $Request/$router are also kept as real PHP globals, not just
+        // Kernel properties -- core modules (breadcrumbs, content,
+        // mainnavigation, Routetrail) and app modules (e.g. zpms's
+        // userprofile/location/backup) all read them via `global $Request`/
+        // `global $router`, so both forms have to stay in sync.
+        // $content_response similarly has to become a real global below --
+        // contentModule::render() (core/modules/content/content.php) reads
+        // it via `global $content_response`, not a Kernel property or a
+        // routerCallFunction() return value it fetches itself.
+        $this->request = new RequestClass($_SERVER);
+        $Request = $this->request;
+
+        $this->router = new RouterClass($this->getConfig('routes'));
+        $router = $this->router;
+
+        SecurityClass::init($this->getConfig('roles'));
+        Renderer::init($this->getConfig('templates'), false, $this->safeGetConfig('template_cache_path'), $this->getConfig('enable_comments'));
+
+        zeusfw_session_start();
+
+        if($opts['csrf_login'] ?? true) {
+            csrfClass::enableLoginProtection();
+        }
+        if($opts['csrf_webforms'] ?? true) {
+            csrfClass::enableWebformProtection();
+        }
+        if($opts['login_lockout'] ?? true) {
+            LoginSecurityClass::enableLockout();
+        }
+        if(!empty($opts['login_redirect'])) {
+            SecurityClass::enableLoginRedirect($opts['login_redirect']);
+        }
+
+        // Resolves a valid zeusfwrememberme cookie into a real session login
+        // when there's no active session yet (rotates the token, calls
+        // loginUser()) -- the return value is intentionally unused, exactly
+        // as every existing caller of this already discards it; only the
+        // side effect matters here.
+        $this->isUserLoggedin();
+
+        if(isset($_SESSION) && isset($_SESSION['CURRENT_LANGUAGE']))
+            $this->setCurrentLanguage($_SESSION['CURRENT_LANGUAGE']);
+        else
+            $this->setCurrentLanguage($opts['default_language'] ?? 'en');
+
+        ob_start();
+
+        // Opt-in, app-defined extension point for whatever one-off setup an
+        // app needs at this exact point in the sequence (e.g. zpms's
+        // locationsClassEx::setDefaultLocation()) -- same function_exists()
+        // convention as zeusfw_app_resolve_user_roles()/
+        // zeusfw_app_resolve_ernsauth_username(). An app that defines
+        // nothing here sees no behavior change.
+        if(function_exists('zeusfw_app_boot')) {
+            zeusfw_app_boot();
+        }
+
+        registerModules();
+
+        $match = $this->router->matchRoute($this->request);
+        $_SESSION['route_match'] = $match;
+        $_SESSION['request'] = $this->request->getQueryRoute();
+
+        $content_response = $this->router->routerCallFunction($match);
+        $this->renderPage();
+
+        ob_end_flush();
     }
 
     // status can be: error || warning || notice
@@ -742,10 +833,15 @@ class Kernel {
         if($token && userTokensClassEx::token_is_valid($token)) {
             prelog("Found valid token in DB, token: " . print_r($token, 1));
 
-            $remoteip = $_SERVER['REMOTE_ADDR'];
-            $useragent = $_SERVER['HTTP_USER_AGENT'];
-
-            $user = userTokensClassEx::getUserByToken($token, $remoteip, $useragent);
+            // token_is_valid() above already authenticated this token
+            // cryptographically (selector+validator, no device fingerprint
+            // involved) -- getUserByToken() no longer takes/filters by
+            // remoteip/useragent either, for the same reason (see its own
+            // docblock, core/ClassExFW.php): re-checking either here would
+            // just silently fail a legitimate remember-me login the moment
+            // the IP or user-agent differs even slightly from whenever the
+            // cookie was first issued.
+            $user = userTokensClassEx::getUserByToken($token);
             if($user) {
                 $us = usersClassEx::getUserAccount( $user->getuname());
                 prelog("Found user: " . print_r($user, 1) . " user record: " . print_r($us, 1));
@@ -772,7 +868,22 @@ class Kernel {
                         }
                     }
 
-                    $kernel->loginUser($us->getuname(), $us->getroles());
+                    // Same RBAC-aware role resolution login_post() uses
+                    // (core/lib/UserLogin.php) -- was previously just
+                    // $us->getroles(), the legacy users.roles column,
+                    // which an RBAC-only app (roles/permissions/user_roles
+                    // tables, no per-user users.roles value ever set --
+                    // zgeotrack among them) leaves empty. A remember-me
+                    // restore would still technically log the account in,
+                    // but with no/wrong roles, so every rbacClass::
+                    // require() check downstream would then fail -- from
+                    // the visitor's side this looks exactly like "remember
+                    // me doesn't work" even though a session did get
+                    // established.
+                    $uroles = function_exists('zeusfw_app_resolve_user_roles')
+                        ? (zeusfw_app_resolve_user_roles($us) ?? $us->getroles())
+                        : $us->getroles();
+                    $kernel->loginUser($us->getuname(), $uroles);
                     return true;
                 }
 

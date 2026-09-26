@@ -1135,6 +1135,84 @@ rather than just silencing the check outright. zpms's own
 `bin/run_tests.sh` (30/30 static, 35/35 functional) stayed green
 throughout.
 
+## `core/modules/mainnavigation/mainnavigation.php` -- nav-menu `access:` used the wrong, bug-prone check (2026-09-17)
+
+Found while building a front-desk `secretary` role for zpms's own
+consultation-scheduling feature (see zpms's `README.md`, "Front-desk role:
+secretary"): a test account with only a narrow, front-desk-scoped set of
+RBAC permissions could still *see* zpms's "Ασθενείς" (patient records) nav
+menu item, even though that menu entry is `access: power-user` in
+`config/settings.info.yaml`.
+
+Root cause: `menuModule::setupMenuAttributes()` (this file) gated a menu
+item's `access:` string via `SecurityClass::require()`
+(`core/lib/Security.php`) -- but `require()`'s inner loop treats the
+`"authenticated"` role as an automatic pass on *any* `$aperm`, regardless
+of what the menu item actually asked for:
+
+```php
+switch( $urole ) {
+    case "authenticated":
+        $pass++;
+        break;
+    ...
+```
+
+`Kernel::loginUser()` appends `"authenticated"` to every logged-in
+session's role list unconditionally, so in practice this made every
+`access:`-restricted nav menu item visible to every logged-in user no
+matter their role -- the menu-level check was silently inert, not just for
+the new `secretary` role but for any role/menu combination on any app
+vendoring this framework. Confirmed via direct code reading, not just this
+one symptom: nothing about this bug is specific to the `secretary` role or
+to zpms.
+
+**This exact bug (`"authenticated"` auto-passing `SecurityClass::require()`)
+is already documented and fixed once in this codebase** -- see
+`core/lib/Rbac.php`'s own docblock, which describes it as one of "two
+now-fixed bugs in this same file's *previous* incarnation" and explicitly
+states "`SecurityClass::userIsPermitted()` (route-level `access:` checks,
+nav-menu gating) is untouched -- it does a plain role-identity check, not a
+permission-array lookup, so neither bug applies to it." zpms's own
+`config/settings.info.yaml` repeats the same claim in its `roles:` block
+comment. Both were **descriptions of the intended design, not of what this
+file's code actually did** -- `mainnavigation.php` had never been updated
+to match, and kept calling the older, bug-prone `require()` all along.
+
+Fixed by switching the one call site to the function both of those
+docblocks already say it should be using:
+
+```php
+$permitted = SecurityClass::userIsPermitted( $mdata['access'] );
+if(!$permitted)$show = 0;
+```
+
+`userIsPermitted()` does a plain role-identity check (`in_array($urole,
+$permlist)` per role) with no `"authenticated"` special case, so it isn't
+affected by this bug -- exactly the reasoning that made it the safe
+`require()` replacement inside zpms's own handlers when the same bug class
+was first found there (see `web/rbac.php`'s docblock, referenced above).
+
+**Blast radius**: this affects every app vendoring this framework
+(mweb/ZPMS/zweb/erweb) that uses `access:` on a `menu:`/`structure:` nav
+entry -- any such entry was previously visible to every logged-in user
+regardless of role, and after this fix now correctly hides for a user
+without that role. This is a pure bugfix restoring already-documented
+intended behavior, not a design change, so no app should need any config
+changes to keep working -- but an app relying (even accidentally) on the
+old permissive behavior to keep a menu item visible would see it disappear
+now that the check actually works. Nothing in mweb/zweb/erweb was
+available to test against in this session; only zpms's own regression
+suite was run.
+
+**Verified against zpms**: a real `secretary`-role test account (only
+`patients-view-list`/`pending-appointments-manage`) no longer sees the
+"Ασθενείς" menu item (`access: power-user`), while a `power-user` test
+account still sees every menu item it always did. `php -l` clean;
+zpms's own `bin/run_tests.sh` (34/34 static, 35/35 functional) stayed
+green throughout -- confirming this framework-level change didn't disturb
+any other role/menu/route combination the existing suite already covers.
+
 ### `core/modules/google_analytics/` -- Google Analytics (GA4) module, consent-gated (2026-09-17)
 
 At direct request: a reusable framework-level module wrapping GA4's `gtag.js` behind a real
@@ -1227,6 +1305,888 @@ dynamically the moment an app lists it under its own `modules:` config, so nothi
 change for a new opt-in module to become available framework-wide. See erweb's own `CLAUDE.md` for the
 app-level wiring (the `modules:` list addition, the `main.zetem` call site, and the removal of the
 now-superseded `consent.js`/`consent.css`/`erweb-consent-banner.zetem`).
+
+## `core/modules/backup/` -- backup status page generalized from ZPMS's own module (2026-09-16)
+
+ZPMS had its own `web/modules/backup/` -- a plain `moduleClass` reading whatever
+`bin/backup.sh` (ZPMS's own bash backup script) wrote to `web/files/logs/
+{backup_status,backup_generations}.json`, gated by an app-specific
+`ZPMS_PERM_BACKUP_ACCESS` permission. Both ZPMS and DocArc migrated their backups
+onto **zops** (<https://github.com/evrokas/zops>, cloned as `lib/zops/` per app --
+see zops's own `docs/INSTALL.md`), a shared backup + health-monitoring engine now
+used across this practice's whole app suite; as part of that, ZPMS's app-local
+module moved into core so any ZeusFW app gets the same status page for free by
+adding `backup` to its own `settings.info.yaml` `modules:` list -- the identical
+"schema/engine into core, app keeps only its own config" precedent this file's own
+RBAC entry above already documents.
+
+**Same route/asset shape as the app-local version it replaces** (`/apps/backup`,
+`backup-library`'s `backup.css`), so ZPMS's existing nav link and bookmarks keep
+working unchanged after switching `modules.path`'s resolution from
+`web/modules/backup/` (deleted) to `core/modules/backup/` (same module name, first
+match wins in `registerModules()`'s path-list iteration -- see `core/lib/Modules.php`).
+
+**What changed, not just moved**: the old module's permission check
+(`rbacClass::require(ZPMS_PERM_BACKUP_ACCESS)`) is gone -- an app-specific constant
+that wouldn't exist in every app on the framework -- replaced with
+`rbacClass::require(ZEUSFW_PERM_MANAGE_USERS)`, the same "can manage
+users/roles/permissions" permission `admin_crud.php` already checks, since backup
+status reveals real infrastructure detail (destination hosts, retention counts,
+failure messages) appropriate to the same admin-only tier. And the data source
+itself changed shape: the old files were `{last_run_ts, status}` +
+`{generated_at, tiers}`; zops's status report (`lib/zops/docs/PROTOCOL.md`) is
+richer -- `status`/`stage`/`error`, per-element `name`/`type`/`bytes`/`files`/
+`verified`, per-destination `tiers` -- read from a single path,
+`$kernel->getConfig('zops_backup_status_file')`, that each app sets in its own
+`config/site.info.yaml` (see erweb's own CLAUDE.md or ZPMS's own README.md for
+the concrete value, matching `STATUS_FILE` in that site's
+`/etc/zops/sites.d/<id>.conf`).
+Missing/unset config, or a missing/malformed file, all degrade to a plain
+"not configured yet" state in the template -- never a fatal error, the same
+optional-integration convention `accessibilityModule`'s config-driven
+profiles/options already follows.
+
+**A real, useful discovery while verifying `{{{ }}}` still escapes**: rather than
+trust the doc comment in `ZETEMTemplate.php::compileCode()` (which explicitly notes
+`compileEscapedEchos0()` -- the real `htmlspecialchars()` version -- was wired in as
+a fix, superseding an earlier state where `{{{ }}}` was dead code and didn't escape
+at all, the state erweb's own CLAUDE.md documented at the time it was written),
+compiled `backup.zetem` with the real compiler and executed the output directly
+against three fabricated report states (unconfigured, success, and a failure whose
+`error` field contained a `<script>` XSS attempt) -- confirmed the script tag came
+back HTML-entity-escaped in the actual rendered output, not just that the doc
+comment claims it should. This means any app relying on erweb's older documented
+behavior ("`{{{ }}}` doesn't escape, use `| e`") should re-verify against its own
+vendored zeusfw checkout -- the fix may already be present.
+
+**Files**: `core/modules/backup/{backup.info.yaml,backup.yaml,backup.php,
+css/backup.css}` (new), `core/templates/modules/backup/backup.zetem` (new). No
+`core/bootstrap.php` change -- opt-in via `modules:`, same as `accessibility`. See
+ZPMS's own README.md ("Backups + health monitoring" section) for the app-side half
+of this migration (its deleted `web/modules/backup/`, new
+`deploy/{backup,health}-handler.php`, and `config/site.info.yaml.in`'s new
+`zops_backup_status_file` key).
+
+## Three real bugs found running `bin/init.sh`/`update.sh` end-to-end against a live MariaDB server (2026-09-18)
+
+At direct request ("actually run init.sh and update.sh against a real MySQL server") -- prompted by
+zgeotrack (the GPS-tracking app these two scripts were just fixed for, see that repo's own history)
+having no way to complete its own setup instructions without a real database. Installed a real MariaDB
+server in the sandbox (`apt-get install mariadb-server`, started via `service mariadb start` -- systemd
+itself is blocked by this sandbox's `policy-rc.d`, but the plain SysV `service` wrapper still works) and
+drove the *entire* pipeline for real: `fw/bin/init.sh` -> `fw/bin/update.sh` -> `bin/setup.php` -> login
+-> add a device through its real webform -> POST a real Overland-shaped GPS batch -> confirm it lands in
+the database and shows up on the map/table pages. Every bug below was found because something in that
+real chain either lied about succeeding or genuinely 404'd/crashed -- none of the three would have shown
+up from reading the code, running `php -l`, or a mocked/SQLite-substituted unit test (the three previous
+CLAUDE.md entries' own "not verified: no MySQL server in this sandbox" caveats were exactly the gap that
+let these sit undiscovered).
+
+### `bin/init.sh` -- the database-creation step silently did nothing, every time, while reporting success
+
+`sudo mysql -u root -p < admin.sql` combines two things that both want the same stdin: `-p` makes mysql
+*interactively* prompt for a password on stdin, and `< admin.sql` has already redirected that exact
+stdin to the SQL script. There is only one stdin -- mysql's password prompt reads (and discards, as
+a garbled password attempt) admin.sql's own first line instead of ever executing the script, and *still
+exits 0* regardless, so the very next line's `if [ $? -eq 0 ]` printed "User and database created
+succesfully." on every single run. Confirmed directly, twice, before touching the fix: ran the exact
+original line against a real MariaDB server with a real `CREATE USER`/`CREATE DATABASE` script,
+watched it print success, then confirmed via `SHOW DATABASES`/`mysql.user` that neither the database nor
+the user existed.
+
+Fixed by prompting for the root password into a shell variable *first* (`read -srp`, so it isn't echoed
+to the terminal), then feeding `admin.sql` on a stdin nothing else is competing for, passing the password
+via `MYSQL_PWD` -- the exact same convention `sql/msql.sh`/`msqldump.sh` already use for this identical
+reason (see their own comments, and the previous CLAUDE.md entry documenting them). An empty root
+password (the common case on a fresh Debian/Ubuntu MariaDB install, where root authenticates via the
+`unix_socket`/`mysql_native_password`-with-no-password default) skips `MYSQL_PWD` entirely rather than
+setting it to an empty string, since `mysql -u root` with no password argument at all is the more
+standard invocation for that case.
+
+**Verified against a real MariaDB server, both the specific failure and the fix**: the original line
+reproduced with a real `CREATE USER`/`CREATE DATABASE` script -- exit 0, "created succesfully" printed,
+`SHOW DATABASES`/`mysql.user` confirmed neither existed. The fixed block, run standalone first (same
+script, empty password path) -- database and user genuinely appeared this time. Then the *entire real
+`init.sh` script*, invoked exactly as a user would (`bash bin/init.sh` from a fresh directory, piped
+answers including an empty string at the new password prompt) -- `admin.sql`/`db.php` generated
+correctly, the database/user genuinely created, and a real `mysql -u <newuser> -p<newpass> <newdb>`
+connection with those exact credentials succeeded. **Files**: `bin/init.sh` only.
+
+### `core/lib/FormElement.php` -- `CheckboxElement` never bound a value, and ignored the per-instance value it was given
+
+Every other input element type (`BasicInputElement`/`InputElement`) renders `value="..."` from
+`$this->default_value ?? $this->element['default'] ?? null` -- `CheckboxElement::generateHTML()` set
+no `value` attribute at all. HTML's own default for a checkbox with no `value` is the literal string
+`"on"` -- harmless for a `varchar` column, but a hard `INSERT`/`UPDATE` failure
+(`SQLSTATE[22007]: Invalid datetime format: 1366 Incorrect integer value: 'on'`) for the far more common
+case this element exists for: a `boolean`/`tinyint` column, which is every `active`/`expired`/
+`is_superuser`-shaped field in this codebase (`users.yaml`, `roles.yaml`, zgeotrack's own
+`devices.yaml`). Confirmed live: submitting zgeotrack's own Devices "Add a device" form with Active
+checked crashed with exactly that `PDOException`, uncaught, straight through `formsClass::
+storeFormResults()` -> `devicesClass->insert()`.
+
+Second, independent bug in the same method: the `checked` attribute only ever read
+`$this->element['default']` (the static yaml-declared default), never `$this->default_value` (the
+per-instance value a caller's own `$default_values` array supplies via `generateHTMLFormFieldElement()`
+-- e.g. an existing row's current state, exactly what an edit form needs). Every other element type
+checks `$this->default_value` first; this one silently never did, so re-opening an edit form for any
+row already showed the checkbox in whatever state the *schema* default said, never the actual row --
+confirmed directly: `zgt_devices_row_edit()` passes the real device's `active` value into
+`$default_values`, and before this fix the rendered checkbox ignored it completely (devices.yaml's
+`active` form input has no static `default:` at all, so it would never render checked regardless of the
+real row's value).
+
+Fixed both in the same method: `$attributes['value'] = '1'` (matching this framework's own existing
+boolean convention everywhere else -- `0`/`1`, never a string like `"on"`), and the checked-state check
+changed to `!empty($this->default_value ?? $this->element['default'] ?? null)`, matching the other
+element types' own fallback order exactly. An unchecked box still submits nothing at all (that's plain,
+unavoidable HTML checkbox behavior) -- unchanged, and already exactly what `storeFormResults()`'s update
+path treats as "leave the existing value alone" (see that function's own docblock) rather than something
+this fix needed to touch.
+
+**Verified against zgeotrack, against a real MariaDB server**: reproduced the exact `PDOException` first
+(devices' Active checkbox, checked, submitted as literal `active=on`) with the bug still in place. After
+the fix: the same form's checkbox now renders `<input name="active" type="checkbox" value="1">`;
+submitting it (now `active=1`, matching what a real checked checkbox in a browser sends) inserted the
+row successfully with `active=1` in the database; re-opening that same device's edit form rendered
+`checked="checked"` correctly, reflecting the real row's actual value, not the yaml's (nonexistent)
+static default. **Files**: `core/lib/FormElement.php` only.
+
+### `core/router/Request.php` -- any route with query-string parameters 404s, full stop
+
+`web/.htaccess`'s `RewriteRule ^(.*)$ index.php?$1 [QSA,L,PT]` is the entire mechanism `Router::
+matchRoute()` relies on for matching: the requested *path* itself arrives as `QUERY_STRING` (`$1`), not
+`REQUEST_URI`/`PATH_INFO`. `[QSA]` ("query string append") means a request that *also* carries real
+query parameters -- e.g. `?device_id=X&key=Y` -- arrives with `QUERY_STRING = "api/overland&device_id=X
+&key=Y"`, not just `"api/overland"`. `RequestClass`'s constructor tokenized that whole string on `/`
+with no awareness of this, so the route's last path segment ("overland") arrived glued to
+`&device_id=X&key=Y` as one token, which can never equal the route table's own literal `"overland"` --
+`Router::matchRoute()` finds no match and the request 404s, for *any* route that receives so much as one
+query parameter, regardless of the route's own definition.
+
+**Why this went undiscovered until now**: grepped every route across zpms/erweb/zgeotrack -- every
+existing dynamic route segment on this framework, on any app, has always been a path token
+(`/patient/{id}/edit`, `/admin/{entity}/{id}/edit`), never a `?key=value` query parameter. zgeotrack's
+own `/api/overland` (built specifically to match Overland iOS's own webhook contract, which has no way
+to carry auth in a path segment) is very plausibly the first route on any app on this framework that
+actually needed one -- and confirmed the hard way: reproduced this exact 404 against a real request
+before touching anything, using a `php -S` router script that deliberately replicates Apache's real
+`[QSA]` rewrite target byte-for-byte (not php -S's own different default PATH_INFO-style dispatch for a
+router-less request, which would have masked this) -- so this is a real Apache-shape reproduction, not a
+dev-server-only artifact.
+
+Fixed at the source, in `RequestClass::__construct()`: `$this->query` (and the `$this->tokens` route-
+match array derived from it) now takes only the part of `QUERY_STRING` before the first `&`
+(`strtok($asrvr['QUERY_STRING'], '&')`, cast back to `string` since `strtok()` of an empty string -- the
+homepage's own case, once `$1` is empty -- returns `false`, not `''`, and every existing caller of
+`getQueryString()` expects a string). Real query parameters never legitimately appear in `$1` itself
+(that's a path segment from before the original request's own `?`, if any) -- anything from the first
+`&` onward here is always the browser's own appended query string, safe to drop for *routing* purposes.
+Confirmed this doesn't lose those parameters for application code: PHP's own native `$_GET` is parsed
+independently and upstream of this class, directly from the real `QUERY_STRING`, so `$_GET['device_id']`/
+`$_GET['key']` were already correct the whole time -- only the framework's own separate route-matching
+tokenization was broken. Grepped every other caller of `getQueryString()`/`getQueryRoute()` before
+fixing (`Router::matchRoute()`'s own token array, plus `mainnavigation`/`breadcrumbs`' nav-trail
+highlighting) -- none of them want the query-string suffix glued onto the path either, so narrowing
+`$this->query` itself at the source is correct for every current caller, not just the one that surfaced
+this.
+
+**Verified against a real MariaDB-backed zgeotrack, both the failure and the fix, over real HTTP**: a
+POST to `/api/overland?device_id=<guid>&key=<key>` 404'd with the bug in place (confirmed via the actual
+route table, not a guess); after the fix, the identical request matched correctly -- a wrong key
+returned `401`, a real Overland-shaped GeoJSON batch returned `{"result":"ok"}` and landed in the
+database, and confirmed zero regressions on every query-param-free route already covered by this run
+(`/`, `/login`, `/devices`, `/profile`, `/admin/users`, `/locations`) -- still 200 on every one.
+**Files**: `core/router/Request.php` only.
+
+## `bin/init.sh` -- accepting a shown `[default]` by pressing Enter silently wrote empty values instead (2026-09-18, same-day follow-up)
+
+Reported directly against zgeotrack: "`init.sh` doesn't create the correct `.php` files" -- i.e.
+`config/db.php` itself, not the `maker.php`-generated entity classes `update.sh` produces (those are a
+separate step; this report was specifically about `init.sh`'s own output). Reproduced by driving the
+actual script with piped answers rather than guessing at the cause: every one of the 4 credential
+prompts (`read -e -i "$default" -p "..." var`) uses `-i` to pre-fill the bracketed default shown in the
+prompt (e.g. `[localhost]`), intending that pressing Enter with no input accepts it -- but `-i`'s
+pre-fill only actually takes effect through GNU readline's interactive line-editing, which requires a
+real TTY. Outside that (piped input -- exactly how this same file's own `init.sh`/`update.sh` CLAUDE.md
+entry above drove every one of its own verification runs -- or any other non-fully-interactive shell),
+the `-i` default is silently dropped and an empty Enter produces an **empty string** for that variable,
+not the value shown in brackets. Confirmed directly: even the hardcoded `host_in="localhost"` fallback
+(used when no `admin.sql` exists yet) came out as `DB_HOST` = `''` after accepting every default this
+way -- not a database/username/password-only issue, all 4 fields are affected identically.
+
+**Why this matches "doesn't create the correct files" specifically, not "doesn't create files at all"**:
+the script's own `sed` substitution has no validation of what it's substituting -- an empty `$host`
+still cleanly replaces `<<host>>` with nothing, `db.php` is still written, and the script still prints
+"db.php created succesfully!". The file is real and well-formed PHP, just quietly wrong. The single most
+realistic trigger, confirmed directly: re-running `init.sh` on an *already-configured* app (the normal
+case for re-running it at all -- e.g. to add the "create the database" step after already having a
+working `db.php`) and pressing Enter through every prompt to keep the existing real values, expecting
+"just confirm what's already there" -- before this fix, that exact flow silently wiped a previously
+correct `db.php`/`admin.sql` down to all-empty values, overwriting real working credentials with nothing
+while reporting success at every step.
+
+Fixed with an explicit `var="${var:-$default_in}"` fallback immediately after each of the 4 `read`
+calls -- this is a plain bash parameter-expansion default, unrelated to readline/TTY state, so accepting
+a shown default now works identically whether the script is run from a real interactive terminal or
+driven with piped/redirected input. Also fixed, found while touching this same block: `echo "\n"`
+(intended to print a blank line after the silent password prompt) doesn't do that at all -- without
+`echo -e`, bash's `echo` prints the two literal characters `\`+`n`, not a newline (visible directly in
+this run's own output, a stray literal `\n` line); changed to a bare `echo`, which does what the
+original comment says it's for.
+
+**Verified against a real MariaDB server, three ways**: (1) a completely fresh setup accepting every
+default -- host now correctly falls back to `localhost`; database/username/password correctly stay empty
+(there is no real prior value to fall back to on a truly first-ever run, so this is correct, not a
+remaining bug -- the script still requires you to actually type those the first time). (2) The specific
+regression scenario: ran a real initial setup with real credentials (`zgeotrack_recheck`/`RecheckPass2026`),
+confirmed the database and MySQL user were genuinely created, then re-ran `init.sh` a second time
+accepting every prompt's default -- `admin.sql`/`db.php` came out byte-identical to the first run (real
+host/user/pass/db, not blanked), confirming the fix. (3) Connected live (`mysql -h ... -u ... -p...`)
+using the exact credentials `db.php` held after that second run -- succeeded, proving the "preserved"
+values are the real, working ones, not just visually present in the file. **Files**: `bin/init.sh` only.
+
+## `bin/init.sh` -- credential substitution corrupted, or outright emptied, `admin.sql`/`db.php` for a real class of passwords (2026-09-18, second same-day follow-up)
+
+Reported directly, with the exact error: `sed: -e expression #1, char 44: unknown option to `s'` right
+after the previous entry's fix. Reproduced immediately rather than guessing: the `sed -s "s/<<pass>>/
+$password/g"` chain uses `/` as sed's own delimiter, so any credential containing a `/` (e.g. a password
+of `Ab/c123`) makes sed read `s/<<pass>>/Ab` as the whole command, `c123` as a bogus extra field --
+exactly the reported error. **Worse than the error message alone**: the pipe's stdout was empty when
+sed errored, so `> $ofile` still truncated the file to zero bytes, and this block never checked sed's
+own exit status -- it printed `$ofile created succesfully!` immediately after silently emptying a
+previously-working file.
+
+**First fix attempt, caught as wrong by testing it rather than trusting it**: switched the substitution
+to pure bash (`${content//<<pass>>/$password}`, no sed at all) on the theory that literal string
+replacement has no delimiter to collide with. Tested against an `&` password before moving on, and it
+failed too -- bash 5.2 (confirmed via `bash --version` in this sandbox) gives a literal `&` inside a
+parameter-substitution *replacement* the exact same "insert whatever the pattern matched" meaning sed's
+own `&` backreference has (isolated proof: `x="X"; r="A&B"; echo "${x/X/$r}"` prints `AXB`, not `A&B`) --
+so an `&` password would have silently written the literal placeholder text into the credential instead
+of itself, the same "wrong file, no error" failure shape as the sed bug, just via a different mechanism.
+A lone backslash in the replacement is separately consumed as an escape character too, confirmed the
+same way.
+
+**Second fix, layer 1**: escape both hazards in each value before it ever reaches the substitution --
+double every backslash, then prefix every `&` with the now-doubled backslash. Fixes the substitution
+mechanism itself.
+
+**Third, independent layer, found only by testing the layer-1 fix against a real live database rather
+than trusting file contents**: host/user/pass all sit inside a single-quoted string literal in *both*
+generated files, and MySQL's and PHP's own single-quoted-literal parsers each apply their own escaping
+rules when *they* read the file -- completely independent of how carefully the file was written. Layer 1
+alone wrote a `\&` password byte-for-byte into both files, but MySQL silently drops a backslash before
+any character it doesn't recognize as an escape sequence (confirmed against a real server:
+`SELECT HEX('Re/check\&2026')` decodes to `Re/check&2026`, backslash gone) -- so the account MySQL
+actually created ended up with a different password than the byte-identical string `db.php` held, and a
+real login with `db.php`'s "correct" password then failed outright (`ERROR 1045 Access denied`,
+reproduced against a real MariaDB server before touching the fix). PHP single-quoted strings share the
+identical rule (only `\\` and `\'` are recognized), so `db.php` has the same exposure for a raw `'`.
+
+Fixed by escaping for the *target-language* literal first (backslash doubled, single quote escaped --
+the one rule both MySQL and PHP single-quoted strings share), then layering the bash-substitution
+escaping from layer 1 on top of that already-escaped value, not the raw one. `database` is deliberately
+exempt from this target-language layer -- it's the one placeholder that's never inside quotes in either
+template (`CREATE DATABASE IF NOT EXISTS <<db>>;`, a bare identifier), so literal-escaping it would be
+wrong, not just unnecessary; it still gets the layer-1 substitution-safety escaping like the others.
+Verified by having real MySQL (`HEX()`, to see past `mysql -B`'s own batch-mode output re-escaping, which
+first looked like a fourth bug and wasn't -- it was this test harness reading the client's redisplay
+convention, not the actual stored value) and real PHP (`php -r "echo '...';"`) parse the generated
+literals back, not just diffing file bytes, since correct output is now expected to *differ* from the
+raw typed input (a lone `\` legitimately becomes `\\` on disk).
+
+**A fourth bug, found by testing the layer-1+2 fix's own re-run path**: re-running `init.sh` against an
+already-saved tricky password and accepting the shown default doubled its backslash count on every
+successive re-run. Cause: the block that reads an *existing* `admin.sql` back to offer its real values as
+this run's defaults (`grep -oP "IDENTIFIED BY '\K[^']+(?=')"`) extracts the raw on-disk SQL-literal bytes
+-- already escaped -- and had always treated them as if they were the original unescaped value, which
+was harmless before today (escaping was a no-op for a plain password) but now feeds an already-escaped
+value straight back through `escape_for_quoted_literal()` a second time on the next write. Fixed with
+`unescape_quoted_literal()`, the exact inverse of the write-side function, applied to `host_in`/
+`username_in`/`password_in` right after extraction. Verified stable across 3 successive re-runs of a
+`Re/check\&2026` password, plus a real login on the account after all 3.
+
+**Read separately breaks a backslash before any of the above ever sees it**: `read` (no `-r`) treats a
+backslash in the *typed line itself* as an escape character and drops it, confirmed in isolation
+(`Ab\c123` piped into `read` without `-r` comes back as `Abc123`) -- independent of every fix above,
+since it happens before the value is even stored in the shell variable. Added `-r` to all 4 `read`
+calls (host/database/username/password), matching the convention `sql/msql.sh`/`msqldump.sh` already
+use for the identical reason.
+
+**One remaining, narrower, pre-existing, and disclosed-not-fixed limitation**: a password containing a
+literal `'` (not `\`) still gets truncated on *re-read* from an existing `admin.sql`, since the
+extraction regex's `[^']+` has no way to distinguish an escaped `\'` from the real closing quote --
+unchanged from before today, only reachable by re-running `init.sh` against an already-saved
+quote-containing password, and confirmed as exactly this shape (not a new regression) rather than left
+unexamined.
+
+**Verified end-to-end against a real MariaDB server and real PHP, not just bash string comparison**: a
+battery of passwords (`/`, `&`, `\`, `'`, `\&` combined, `\` + `'` combined, and a plain password as a
+control) each round-tripped through real `mysql ... < admin.sql` account creation, a real
+`mysql -h ... -u ... -p...` login using exactly what `db.php` held, and real `php -r` parsing of
+`db.php`'s own literal -- for the exact password that produced the originally-reported error
+(`Re/check\&2026`): real account created, real login succeeded, and the value stayed byte-stable (via
+PHP's own parsing, not raw file bytes) across 3 further re-runs accepting every default. **Files**:
+`bin/init.sh` only.
+
+## "Remember me" silently failing to log a returning visitor in -- a leftover device-fingerprint filter one step past where the same bug was already half-fixed (2026-09-19)
+
+Reported directly against zgeotrack, generalizing "remember me doesn't work, do not filter by ip" -- the
+literal IP filter was already gone (see `core/ClassExFW.php::getUserByToken()`'s own pre-existing "stop
+using ip for logging in" comment, from earlier work), but a second, equally strict filter on
+**user-agent** was sitting one step further down the exact same code path and had been missed at the
+time.
+
+`Kernel::isUserLoggedin()` (`core/kernel/Kernel.php`) already validates a `zeusfwrememberme` cookie
+correctly, in two steps: `userTokensClassEx::token_is_valid($token)` first -- selector+validator only, a
+real cryptographic check, no device fingerprint involved at all -- and only once that passes does it call
+`getUserByToken($token, $remoteip, $useragent)` to actually fetch the account. That second call's own SQL
+still had `AND useragent=:useragent` in its `WHERE` clause. Since the token was already proven
+cryptographically valid by the first check, this second filter was pure redundancy that could only ever
+turn a legitimate remember-me login into a silent failure -- exactly what happened the instant the UA
+string differed even slightly from whenever the cookie was first issued (an app update, a browser/OS
+update, a different WebView/browser context -- all realistic on a phone, none of them a sign the cookie
+was stolen). And the failure was *silent*: that branch of `isUserLoggedin()` doesn't clear the cookie or
+show any message on a mismatch, it just quietly falls through to `return false` -- from a visitor's side,
+indistinguishable from "remember me just doesn't work."
+
+**Fixed** by dropping the `useragent` filter from `getUserByToken()`'s `WHERE` clause too (mirroring the
+IP fix already sitting right above it in the same file), and simplifying `isUserLoggedin()`'s call site to
+match (`remoteip`/`useragent` params on `getUserByToken()` kept, but now optional/unused, so existing call
+shapes elsewhere don't need to change). `delete_user_token()` in the same file still filters by both --
+confirmed dead code first (`grep`, zero call sites anywhere in zeusfw/zpms/zgeotrack, fully superseded by
+`delete_by_selector()` per `logout()`'s own comment) -- left untouched rather than "fixed" code nothing
+calls.
+
+**A second, independent bug found in the same function while fixing the first**: the successful
+cookie-restore path called `$kernel->loginUser($us->getuname(), $us->getroles())` -- the legacy
+`users.roles` column directly, *not* `zeusfw_app_resolve_user_roles()`, the RBAC-aware hook `login_post()`
+itself already uses for a fresh password login (`core/lib/UserLogin.php`). Any RBAC-only app (roles/
+permissions/user_roles tables, no per-account `users.roles` value ever populated -- zgeotrack among them)
+would have had a remember-me restore establish a session with the *account* correctly identified but with
+empty/wrong roles, so every `rbacClass::require()` check downstream would then fail -- from the visitor's
+side this reads as "remember me doesn't really work" just as much as an outright failed restore does, just
+one layer further in. Fixed to call the same `function_exists('zeusfw_app_resolve_user_roles')` resolution
+`login_post()` already uses, so a cookie-restored session ends up with identical roles to a fresh password
+login for the same account.
+
+**Verified against zgeotrack, against a real MariaDB-backed instance, reproducing the actual failure
+first**: checked out the pre-fix commit into a disposable local test checkout, logged in as the real
+`administrator` account with "remember me" checked from one User-Agent, then made a *second*, completely
+separate request -- fresh cookie jar containing only the remember-me cookie (no session cookie at all,
+simulating a genuinely new visit) -- to `/devices` (an `operator`/`administrator`-gated page) using a
+*different* User-Agent string. Confirmed the bug reproduces exactly as diagnosed: `302 -> /login`, silent
+failure, no error shown. Re-ran the identical test against the fixed code: `200 OK`, the real Devices page
+with real data (not a disguised error page -- grepped the response for the actual device's own name).
+Also confirmed token rotation (a documented, deliberate, separate feature -- see `isUserLoggedin()`'s own
+comment on why the validator half of the cookie changes on every successful use) still works correctly
+across this: the second request's `Set-Cookie` carried a freshly rotated validator, distinct from the one
+issued at login. **Files**: `core/ClassExFW.php`, `core/kernel/Kernel.php`.
+
+
+## Breadcrumbs: `nolangtext` on any grouping-only menu segment, and a way to include non-menu routes (2026-09-17)
+
+Two real, independent bugs in the breadcrumb trail (`core/lib/Menutrail.php`,
+`core/modules/breadcrumbs/breadcrumbs.php`), found while adding a compact
+read-only appointment view for zpms's `secretary` role and separately fixing
+its "Google Calendar appointments" (`pending_appointments`) breadcrumb path.
+
+**Bug 1 -- `nolangtext` on any breadcrumb segment for a menu item that's a
+pure grouping label with no route of its own** (e.g. zpms's "Ραντεβού"/
+"Ασθενείς" top-level menu entries, which exist only to hold a `submenu:`
+and have no `handler:`/`url:` matching them in `routes:`).
+`Menutrail::search_menu_trail_for_key()` builds each trail segment as
+`['key' => ..., 'title' => ..., 'url' => ..., 'route_title' => ...]` --
+note the field is named `title`, not `text`. But
+`breadcrumbsModule::render()`'s final text-resolution step read
+`$pathitem['route_title'] ?? $pathitem['text'] ?? null` -- `text` was never
+actually a key on a Menutrail-produced item (only `Routetrail::getTrail()`'s
+single-segment fallback array uses that key), so for any segment that isn't
+itself a real, named route (`route_title` unset) the whole chain fell
+through to `null`, and `getLangText(null)` returns the literal string
+`'nolangtext'` by design (its documented "couldn't resolve anything" case).
+A route that *is* itself in `routes:` (e.g. zpms's `pending_appointments_list`)
+never hit this, since `route_title` was already set and short-circuited the
+chain first -- which is exactly why this went unnoticed for a long time:
+every leaf/route segment was already fine, only the surrounding grouping
+labels were silently broken.
+
+Fixed by extending the fallback chain to `route_title ?? title ?? text ??
+null`, covering all three real shapes a segment can have: a real route
+(`route_title`), a pure menu-grouping label with no route behind it
+(`title`), and `Routetrail`'s own fallback shape (`text`).
+
+**Bug 2 -- no way for a route that's deliberately never a menu item itself
+to get a real breadcrumb path.** zpms has three routes reached only via a
+row-action link on `pending_appointments_list`'s own page (edit/convert a
+specific pending appointment), never the nav -- correctly so, since a
+generic "New appointment" quick-link needs an id and isn't a sensible
+top-level destination. But `search_menu_trail_for_key()` only ever matched
+a route name that's *literally* a menu item's own key, so these routes
+found nothing anywhere in the menu tree and fell all the way back to
+`Routetrail`'s single, parent-less segment -- correct in isolation, but
+with no "Ραντεβού / Εκκρεμή Ραντεβού /" leading up to it, unlike every
+other route in the app that does appear in the menu somewhere.
+
+Added an optional, additive per-menu-item YAML key,
+`breadcrumb_aliases: [route1, route2, ...]` -- when the route being
+searched for isn't this menu item's own key but *is* listed in its
+`breadcrumb_aliases`, `search_menu_trail_for_key()` now returns this
+item's own trail (built exactly as if it had matched directly, including
+recursing up through any parent submenus the normal way) with one extra
+trailing segment appended for the actual route's own `routes:` title. No
+existing menu item declares this key, so the change is a pure no-op for
+every current app/route that doesn't opt in.
+
+**Not fixed, left alone -- decorative-only breadcrumb links.**
+`breadcrumbsModule::render()` hardcodes every generated segment's `url` to
+`'#'` (a commented-out block shows an earlier attempt to resolve the real
+URL was abandoned), so clicking any breadcrumb segment except possibly the
+current page's own does nothing. This is a separate, framework-wide,
+long-standing characteristic unrelated to either bug above -- confirmed via
+direct code reading, not touched here, since it affects every app on this
+framework identically and wasn't what either fix above needed.
+
+**Verified against zpms**: `/patients` now reads "Ασθενείς / Λίστα ασθενών"
+(was "nolangtext / Λίστα ασθενών"); `/consultation/pending/{id}/edit` and
+`/consultation/pending/{id}/convert` (added `breadcrumb_aliases` on zpms's
+`pending_appointments_list` menu entry) now read "Ραντεβού / Εκκρεμή
+Ραντεβού / Επεξεργασία Εκκρεμούς Ραντεβού" and ".../ Δημιουργία Φακέλου
+Ασθενή" respectively (were bare single segments, no parent path at all,
+and zpms's own `pending_appointment_edit`/`_post` routes also had an
+English-only `title:` fixed in the same pass for consistency with its
+sibling `pending_appointment_convert`, which already had both languages).
+Every already-correct breadcrumb (`/consultation/pending`,
+`/consultation/new`, `/settings`) confirmed unchanged. `php -l` clean;
+zpms's own `bin/run_tests.sh` (34/34 static, 35/35 functional) stayed
+green throughout.
+
+## `Kernel::boot()` -- absorb an app's `web/index.php` bootstrap boilerplate (2026-09-18)
+
+At direct request: every app on this framework was hand-writing the same
+~95-line bootstrap preamble in its own `web/index.php` before its first
+route handler -- construct `RequestClass`/`RouterClass`/`Renderer`, start
+the session, flip the same four opt-in security switches, resolve the
+remember-me cookie, pick a language, buffer output, register modules,
+match+dispatch the route, render, flush. None of that sequencing is
+app-specific; it's mechanical wiring every app on this framework has to
+reproduce identically. Only zeusfw + zpms were available this session
+(mweb/zweb/erweb also vendor this framework but weren't reachable to
+verify against), so per this file's own "keep changes additive" policy
+this is a **new, opt-in method only** -- zero changes to any existing
+method's signature or behavior, so every app that doesn't call it is
+unaffected by construction.
+
+**`Kernel::boot(array $opts = []): void`** (`core/kernel/Kernel.php`,
+right after `renderPage()`) runs the entire sequence: `RequestClass`/
+`RouterClass` construction, `SecurityClass::init()`, `Renderer::init()`,
+`zeusfw_session_start()`, the four opt-in switches (`csrfClass::
+enableLoginProtection()`/`enableWebformProtection()`, `LoginSecurityClass::
+enableLockout()`, `SecurityClass::enableLoginRedirect()` -- each
+individually skippable via `$opts['csrf_login']`/`['csrf_webforms']`/
+`['login_lockout']`, default `true` for all three, matching every existing
+caller's own unconditional calls; `$opts['login_redirect']` opt-in via a
+URL string, unset/empty = today's bare-401 default), `$this->
+isUserLoggedin()` (remember-me cookie resolution -- **not dead code**,
+despite its return value being discarded by every existing caller
+including this one; the side effect, not the return, is the point),
+language selection (`$opts['default_language']`, default `'en'`),
+`ob_start()`, a new app-hook (see below), `registerModules()`, route
+match+dispatch, `renderPage()`, `ob_end_flush()`.
+
+**The one detail that would have silently broken every nav/breadcrumb
+render if missed, caught by the functional suite, not by reading the
+code**: `RequestClass`/`RouterClass` aren't just assigned to new `$this->
+request`/`$this->router` properties -- they're also set as real PHP
+globals (`global $Request, $router;` inside the method, then `$Request =
+...;`/`$router = ...;`) because core modules (`breadcrumbs`, `content`,
+`mainnavigation`, `Routetrail`) and app modules (zpms's own `userprofile`/
+`location`/`backup`) all read them via `global $Request`/`global $router`,
+not via any Kernel accessor. **A third, easy-to-miss global**:
+`routerCallFunction()`'s return value has to become `global $content_response`
+too -- `contentModule::render()` (`core/modules/content/content.php`)
+reads it that way, not as a return value it fetches itself. Confirmed by
+grepping every `global $` in `core/modules/*/*.php`/`core/lib/*.php`
+before writing this method: those three names are the complete set.
+Missing the third one specifically produced a page that looked almost
+right (correct `<head>`, correct `wrapper-bare` chrome-hiding on `/login`)
+but with an entirely empty `main_content` region -- silently rendering no
+form/content at all, caught only by the functional suite's "could not
+find a csrf_token field on the login page" failure, not by `php -l` or a
+visual skim of the HTML `<head>`.
+
+**New extension-point hook**, same `function_exists()` convention as
+`zeusfw_app_resolve_user_roles()`/`zeusfw_app_resolve_ernsauth_username()`:
+`if (function_exists('zeusfw_app_boot')) { zeusfw_app_boot(); }`, called
+right after `ob_start()` -- the one place left for an app's own one-off
+setup that has to run at that exact point in the sequence (zpms's
+`locationsClassEx::setDefaultLocation()` moved here). An app that defines
+nothing changes nothing.
+
+**zpms's `web/index.php`** now reads its own config/optional-integration
+includes and `require_once`s (unchanged -- genuinely app-specific, and
+`include_once db.php` has to run before `new Kernel()` connects to the
+database using constants that file defines), declares `zeusfw_app_boot()`,
+then calls `$kernel->boot([...])` with its five options
+(`csrf_login`/`csrf_webforms`/`login_lockout` all `true`, `login_redirect
+=> '/login'`, `default_language => 'gr'`) -- collapsing what was ~95 lines
+of sequencing into one call. Every route handler function below it is
+untouched, since they already read `global $kernel`/`global $Request`/
+etc., which `boot()` still populates identically.
+
+**Verified against zpms**: after fixing the `$content_response` global
+gap above, `php -l` clean on both files; a real MariaDB-backed test
+server confirmed `/login` renders its form (including the `csrf_token`
+hidden field) exactly as before; an unauthenticated request to
+`/patients` redirects to `/login` (`SecurityClass::enableLoginRedirect()`
+still fires); a logged-in visit to `/patients` renders full chrome
+(header/nav/footer regions present) with correct breadcrumbs ("Ασθενείς /
+Λίστα ασθενών", not `nolangtext`) and a populated main navigation (proving
+`mainnavigation.php`'s `global $Request` still resolves); `/profile` and
+`/settings` (exercising the `location`/`backup`/`userprofile` modules'
+`global $router`) both render with zero PHP warnings/fatals. zpms's own
+`bin/run_tests.sh` (40/40 static, 35/35 functional -- including login,
+CSRF enforcement, login lockout, remember-me-adjacent auth flows, and
+every RBAC/admin-CRUD test) stayed fully green throughout.
+
+### `Kernel::boot()` adopted by mweb and zweb; erweb deliberately left as-is (2026-09-18)
+
+Follow-up to the entry above, extending the same consolidation to the other two apps on this
+framework available this session (mweb, zweb -- both added to session scope and cloned fresh for
+this). Their bootstraps were near-identical to zpms's *pre-`boot()`* shape but simpler: no CSRF/
+login-lockout/login-redirect calls at all (`SecurityClass::init()` was even left commented out,
+"setup access restrictions"), a bare `session_start()` instead of `zeusfw_session_start()`, and one
+inline `contentPageClass::init('html');` call with no other app-specific setup.
+
+**Confirmed safe to default every opt-in switch on** (rather than explicitly passing `false` to
+preserve old behavior): grepped both apps' `config/settings.info.yaml` for `login`/`webform` routes
+and `access:` usages -- zero of either. `csrf_login`/`csrf_webforms`/`login_lockout` only ever affect
+`login_post()`/`processform()`, and neither app has a route reaching either handler; `SecurityClass::
+init()`/`userIsPermitted()`'s `access:` check is exercised by nothing here either (confirmed the
+inner `foreach(self::$roles as ...)` in `processRoles()` would have hard-`exit()`ed on any real
+`access:` check ever having run against an uninitialized `self::$roles` -- since no such check exists
+in either app's config, this was always a dormant, never-triggered footgun, not a live bug). So
+`boot()`'s own security defaults (all three `true`, matching zpms's own unconditional calls) are
+inert now and a safer default if either app ever adds a login route later, with zero behavior change
+today. `contentPageClass::init('html')` moved into a new `zeusfw_app_boot()` hook function, same
+pattern as zpms's.
+
+**A real, live-breaking bug found and fixed as a side effect for zweb specifically**: zweb's original
+`web/index.php` called `Renderer::init($kernel->getConfig('templates'));` with only 1 argument, but
+`Renderer::init()`'s signature (`core/templates/ZETEMTemplate.php`) has no default for its 2nd/3rd
+params (`$enable_cache`, `$cache_path`) -- a genuine `ArgumentCountError` under PHP 7.1+'s strict
+arity enforcement, confirmed by booting zweb's *unmodified* code against this session's PHP 8.4:
+every single request fataled before rendering anything. `boot()` always calls `Renderer::init()`
+with its full, correct 4 arguments (matching zpms's/mweb's own already-correct call), so adopting it
+fixes this outright rather than preserving a crash. mweb's own call already had all 4 args and needed
+no equivalent fix.
+
+**erweb deliberately NOT migrated onto `boot()`, on purpose, not an oversight.** Read erweb's own
+`web/index.php` in full before deciding: its bootstrap already diverges from the generic shape in
+ways `boot()` has no hook for -- `ob_start()` runs as the literal first line (before `bootstrap.php`
+even loads, paired with an `ob_clean()` right after, to discard whitespace artifacts from generated
+class files that would otherwise corrupt `/sitemap.xml`'s XML output -- see erweb's own `CLAUDE.md`,
+Phase 6), a `$basePath` computation that rewrites `$_SERVER['QUERY_STRING']` *before* `Kernel`/
+`RouterClass` are even constructed (subpath-deployment support, same file), and
+`zeusfw_register_error_handlers()` called immediately after `Renderer::init()` -- deliberately
+*before* session start/language selection/remember-me resolution, so a crash during any of those is
+still caught by the registered crash handler. `boot()`'s one extension point
+(`zeusfw_app_boot()`) fires only after session start, remember-me resolution, and language
+selection -- forcing erweb's error-handler registration through it would leave those three steps
+uncaught by the crash handler, a real robustness regression for the one app that actually built and
+relies on that catch-all (see `ErrorHandlers.php`'s own entry above). erweb's bootstrap is also
+already short (~30 lines to dispatch) and almost entirely app-specific at this point -- there isn't
+the ~95-line generic-boilerplate problem here that motivated `boot()` for zpms/mweb/zweb in the
+first place. Left untouched rather than either forcing a bad fit or extending `boot()`'s hook
+surface speculatively for a single caller.
+
+**Verified against mweb and zweb**: `php -l` clean on both `web/index.php` files. Both apps' full
+stack (framework + app-level `spill:sql:all`/`spill:class:all`/`update:bootstrap`, SQL imported into
+disposable throwaway MariaDB databases) booted fresh via a temporary dev-only `router.php` (not
+committed to either repo -- this session's own scratch tooling, mirroring the shim already committed
+in erweb) for a real end-to-end request. mweb: home page renders 200, output byte-identical between
+the old and new `web/index.php` (diffed with only the `time_profile` debug timing numbers differing,
+same non-determinism already noted for zpms). zweb: home page now renders 200 with the original code
+confirmed to fatal in the same environment (proving the `Renderer::init()` fix is real, not
+theoretical) -- with a throwaway, uncommitted one-line compatibility patch to zweb's own
+`locationsClassEx::sgetAll()` (an unrelated, pre-existing signature mismatch against the shared
+`locationsClass` base -- confirmed present and fatal identically regardless of old vs. new
+`index.php`, reverted before finishing, never committed) applied just to get past that separate,
+out-of-scope bug and reach a real page render: full chrome (header/nav/footer regions), breadcrumbs,
+and populated navigation all confirmed present, proving the same `global $Request`/`$router`/
+`$content_response` compatibility already established for zpms holds for these two apps' own modules
+too (confirmed via grep that neither app's own code touches those globals directly -- only the
+shared core modules, already covered by zpms's own verification). All scratch dev artifacts (test
+databases, symlinks, `router.php`, the temporary `locationsClassEx.php` patch) removed/reverted
+before finishing; `git status` on both repos shows only the intended `web/index.php` change.
+
+## Login crash for an account holding a role the RBAC migration retired -- diagnosed, lenient-mode fix tried and deliberately reverted (2026-09-19)
+
+Reported directly against zpms `prod`: logging in produced a raw, uncaught page --
+`Role user is not valid` / `User roles are initialized falsely. Please check!` -- for
+account `guest`. Root cause, confirmed by reproducing the exact byte-for-byte error
+text before touching anything: `login_post()` (`core/lib/UserLogin.php`) resolves a
+user's session role list via `zeusfw_app_resolve_user_roles($us) ?? $us->getroles()`
+-- the RBAC hook (`core/lib/Rbac.php`) returns `null` for any account with no rows in
+`user_roles` yet, falling back to the legacy `users.roles` column. `guest`'s legacy
+column holds the literal string `"user"` -- exactly the role zpms's own
+`web/rbac_seed.php` docblock already documents as deliberately retired ("`'user'` (a
+generic view-only role nobody's actual account mapped to a real job)... retired
+here") and its migration script (`bin/migrate_roles.php`/`zpms_migrate_users_roles()`)
+deliberately refuses to auto-map to anything -- it's reported as an "unrecognized
+token" and left for a human to assign a real role by hand. `guest` was never given
+that manual assignment, so `"user"` reached `Kernel::loginUser()` ->
+`SecurityClass::processRoles()`, which validates against `config/settings.info.yaml`'s
+current `roles:` block (`anonymous`/`administrator`/`authenticated`/`doctor`/
+`secretary`/`maintenance` -- no `user`) and returned `null`, and `loginUser()`'s only
+handling for that was `echo ...; exit();`.
+
+**A lenient-mode fix (`SecurityClass::processRoles($arole, $lenient)`, dropping an
+unrecognized role token instead of failing the whole login) was written, verified, and
+pushed, then deliberately reverted the same day at the requester's explicit
+instruction ("drop lenient mode").** `Security.php`/`Kernel.php` are back to their
+exact pre-incident behavior -- an account holding an unrecognized role still hard-fails
+login with the same `echo ...; exit()` as before this whole incident, on purpose: the
+requester wants a bad role assignment to surface loudly as a login failure, not be
+silently downgraded to `'authenticated'`-only access. **The correct fix for this
+specific case is a data fix, not a code change** -- see the README/CLAUDE.md
+instructions on assigning `guest` (or any account in this state) a real role via
+`/admin/user_roles`, referenced from this app's own docs.
+
+**One real, unrelated bug found in the same code path was kept**: `core/lib/
+UserLogin.php`'s debug trace -- `echopre("try to login user " . $us->getuname() . "
+with rules: " . print_r($uroles))` -- called `print_r()` without its second argument,
+so `print_r()` echoed its own output as a side effect *and* returned `true`, which
+stringified to the literal `"1"` in the concatenation. This is exactly why the
+originally reported error text read `with rules: 1` instead of showing the actual role
+list. Fixed with `print_r($uroles, true)`, matching every other `print_r(..., 1)`/
+`print_r(..., true)` call already in this codebase -- this fix is independent of the
+lenient-mode revert and stays in place. **Files**: `core/lib/UserLogin.php` only
+(`core/lib/Security.php`/`core/kernel/Kernel.php` are unchanged from before this
+incident).
+
+## `core/maker/maker.php` -- `--flag=value` options can now appear anywhere on the command line (2026-09-20)
+
+At direct request: this file's own `rbac:*` command-list help text had carried a NOTE
+since it was added ("--flag=value options must be given BEFORE the command name...")
+warning about a real usability trap -- `getopt($short, $long, $i)` stops scanning the
+moment it reaches the first non-option token, which is always the command name itself
+(`rbac:roles:add`, `spill:class:all`, ...), so every option had to be written before it.
+`rbac:roles:add --name=x --label=y`, the objectively more natural reading order, silently
+discarded both flags instead of erroring -- confirmed directly: reproduced with a real
+invocation against a real MariaDB-backed zpms test database before touching anything;
+`getopt()` returned an empty options array and both flags ended up folded into
+`$optparams` as inert positional strings.
+
+**Fixed by replacing the `getopt()` call with a small custom parser,
+`zeusfw_maker_parse_argv(array $argv, string $shortOptSpec, array $longOptSpec):
+array`** (new function, top of the file, right after the `DIR` class), which walks the
+whole `$argv` list once and classifies every token as it goes, rather than stopping at
+the first non-option one -- so a flag can now appear before the command, after it, or
+interspersed with other positional arguments, in any combination. Returns
+`[$options, $optparams]` in exactly `getopt()`'s own shape (a value-bearing option
+present gets its `(string)` value, a bare flag gets `false`, an unrecognized `--xxx`/
+`-x` is silently discarded rather than erroring or ending up in `$optparams` --
+matching `getopt()`'s own observed behavior in every one of these respects, confirmed
+by testing real `getopt()` invocations side by side before writing the replacement),
+so every existing `isset($options[...])`/`$options[...]` call site in this file needed
+zero changes.
+
+**One deliberate, documented narrowing, not a compatibility gap**: a long option's
+value must be written as `--name=value`; the separate two-token form
+`--name value` (which PHP's own `getopt()` happens to support, but only when every
+option comes before the first positional argument) is no longer accepted. Every
+`Usage:`/command-list string this file already prints documents the `=` form
+exclusively (`[--name=] [--label=] rbac:roles:edit <id>`) -- grepped for any
+counter-example in this repo's own docs/scripts, found none -- and the two-token form
+becomes genuinely ambiguous the moment options can appear anywhere: a bare `--name`
+sitting immediately before a real positional argument (an id, a filename) would
+otherwise silently swallow it as its own value instead. Dropping it removes an
+ambiguity trap rather than breaking a documented, exercised usage pattern.
+
+**Verified against a real MariaDB-backed zpms test database** (`cd web/classes && php
+../core/maker/maker.php ...`, copying `config/db.test.php` to a throwaway `config/db.php`
+for the run, removed again after): `rbac:permissions:add --name=x --label=y` (options
+after the command -- the specific case that used to silently fail) created the row
+correctly; `--name=x --label=y rbac:permissions:add` (options before -- the old
+required order) produced an identical result; `rbac:permissions:edit <id>
+--label=...` (a positional id, then a flag, both after the command) and
+`rbac:permissions:remove <id> --yes` (a boolean flag after a positional argument, the
+purest arbitrary-interspersion case) both worked correctly; an unrecognized
+`--bogus=1` flag was silently ignored rather than erroring, matching `getopt()`'s own
+behavior; `--app-dir=...` worked identically before and after the command. zpms's own
+`bin/run_tests.sh` (40/40 static, 35/35 functional) stayed green throughout --
+notable here specifically because that suite's own `TestSchema::regenerateClasses()`
+drives `spill:class:all`/`update:bootstrap`/`spill:sql:all` through this exact
+parser on every run, so this wasn't verified in isolation from the rest of the
+framework's own tooling. The `rbac:*` command-list NOTE was updated to describe the
+new behavior instead of warning about the old limitation. **Files**:
+`core/maker/maker.php` only.
+
+## `core/lib/Modules.php` -- `registerModules()` could `require()` the same module twice and fatal (2026-09-20)
+
+Real production incident on zpms (a different server than the one the ErnsAuth
+incidents earlier in this file were reported against): `PHP Fatal error: Cannot
+redeclare function register_backup_module() (previously declared in .../zeusfw/
+core/modules/backup/backup.php:71) in .../zpms/web/modules/backup/backup.php on
+line 64`. Immediate cause on that specific server: `web/modules/backup/` -- ZPMS's
+original, app-local copy of the backup status module, superseded and (per this
+file's own "`core/modules/backup/`" entry above) deleted from the zpms git history
+the day the module moved into `core/modules/backup/` -- was still physically
+present on disk there, never removed when that commit was deployed. That's a
+real, separate deployment-hygiene gap (fixed by deleting the stale directory on
+that server, `rm -rf web/modules/backup/`), but reading `registerModules()`
+itself (this file) found a genuine, more general bug behind it: nothing in this
+function ever protected against exactly this shape of collision, for *any*
+module name, on *any* app.
+
+**Root cause, confirmed by reading the loop directly**: `registerModules()`
+iterates `$mods['path']` (an app's own `modules: path:` list, e.g. zpms's
+`['/web/core/modules/', '/web/modules/']`) as the *outer* loop, and
+`$mods['modules']` (the app's opted-in module names) as the *inner* one --
+for every `(path, modname)` combination whose `<modname>.info.yaml` exists, it
+unconditionally `require()`s that module's `.php` file and calls its
+`register_<modname>_module()` callback. There was no tracking of "already
+loaded this module name from an earlier path" anywhere -- so a module name
+present under *two* configured paths (the exact shape this incident hit, but
+reachable by any app any time an old, superseded copy of a module isn't
+cleaned up in lockstep with adopting a newer one, e.g. a core migration like
+this same file's own RBAC/backup/accessibility moves) gets `require()`'d
+**twice**. Since a module's `.php` file always defines the same global
+`register_<modname>_module()` function by name, the second `require()` is a
+guaranteed fatal `Cannot redeclare function` -- not a subtle bug, a 100%
+reproducible one the instant both files exist.
+
+**This directly contradicts a claim this same CLAUDE.md file already made**,
+in the "`core/modules/backup/`" entry above: "*same module name, first match
+wins in `registerModules()`'s path-list iteration*." That was true of the
+*intent*, never verified against the actual loop, which has no such logic at
+all -- confirmed the hard way here, by reading `registerModules()` end to end
+rather than trusting the earlier entry's own prose.
+
+**Fixed** with a `$loaded` tracking array, keyed by module name, checked
+before the existing `file_exists()`/`require()` block and set right after a
+successful load: a module name already loaded from an earlier `$mods['path']`
+entry is skipped on every later one. Loop structure and iteration order are
+otherwise unchanged (still path-outer, module-inner), so the fix is
+minimal and targeted -- the only observable behavior change is that a
+module present at two paths now loads once, from whichever path is listed
+first (every app on this framework already lists `core/modules/` before its
+own `web/modules/`, so core wins, matching what a clean, fully-migrated
+deploy already does today), instead of fataling. `registerModule()`
+(`core/kernel/Kernel.php`) stores modules in a name-keyed map, not an
+ordered list consumed elsewhere, so no other behavior (region/module
+rendering, which resolves modules by name via `getModule()`) depends on
+registration order -- confirmed by reading that function directly before
+relying on it.
+
+**Verified against a real MariaDB-backed zpms test server, reproducing the
+actual incident first**: copied `core/modules/backup/` into a throwaway
+`zpms/web/modules/backup/` (simulating the exact stale-leftover shape the
+live server had) and confirmed, against the pre-fix code, a request to
+`/login` fatals with byte-for-byte the same error text as reported
+(`Cannot redeclare function register_backup_module() ... on line 71` /
+`... on line 64` -- the discrepancy in line numbers between this repro and
+the original report is just the two files' sizes differing slightly by the
+time each was copied, not a different bug). Re-ran the identical request
+against the fixed code, stale directory still present: `200 OK`, a real
+login form, zero fatals. Confirmed `/apps/backup` itself still works
+correctly (loads from `core/modules/backup/`, the higher-priority path,
+not the stale copy): logged in as a real `is_superuser` test account,
+`200 OK`, zero fatals. Removed the throwaway `web/modules/backup/` copy
+before finishing -- it was never committed to zpms, only used to
+reproduce this in the sandbox. zpms's own `bin/run_tests.sh` (40/40
+static, 35/35 functional) stayed green throughout, confirming the fix
+doesn't change module registration for the normal, non-colliding case.
+**Files**: `core/lib/Modules.php` only.
+
+**If your own deployment hit this same error**: this fix stops the fatal
+going forward, but the stale directory itself is still dead code sitting on
+disk -- worth deleting anyway (`rm -rf web/modules/<name>/` for whichever
+module the error names) rather than relying on this fix to paper over it
+indefinitely, since the same collision would recur for any *other* module
+a future core migration moves without the app's own old copy being cleaned
+up in the same deploy.
+
+## `core/modules/admin/admin_crud.php` -- assign a user's roles directly from the Users edit form (2026-09-20)
+
+At direct request: assigning a role to a user previously meant a separate
+trip to `/admin/user_roles`'s own generic list/new form (picking the user
+and the role from two `<select>`s, with no visibility into what that user
+already holds) rather than anything reachable from the Users entity's own
+edit page. Added a "Roles" checklist section directly on
+`/admin/users/{id}/edit` -- every seeded role as a checkbox, pre-checked
+for whichever ones the user already holds, saved together with the rest of
+that form's fields under the one existing Save button. `/admin/user_roles`
+itself is untouched and still works exactly as before -- this is an
+additional, more convenient path onto the same `user_roles` table, not a
+replacement.
+
+**Why this doesn't fit `$def['fields']`, and how it's handled instead.**
+Every other field this engine renders is a single column with a 1:1
+getter/setter on the entity's own generated class (`zeusfw_admin_field_value()`/
+`zeusfw_admin_apply_field()`'s generic per-field dispatch) -- `user_roles` is a
+many-to-many join table, so there's no single value to get/set on a `usersClass`
+instance for it. Follows the exact precedent already established in this same
+file for the `password` field (also virtual, also special-cased outside the
+generic per-field loop): two new functions,
+`zeusfw_admin_user_role_checklist(int $userId): array` (every role, each with
+an `assigned` bool -- used both to prefill checkbox state and to enumerate
+which roles exist to check in the first place) and
+`zeusfw_admin_sync_user_roles(int $userId, array $submittedRoleIds, string
+$cuser): void` (reconciles `user_roles` to match the submission exactly, via
+the pre-existing, already-idempotent `user_rolesClassEx::assignRole()`/
+`::removeRole()`), called from `admin_edit()`/`admin_edit_post()` only when
+`$entity === 'users'` -- every other entity's form is completely unaffected.
+
+**Submitted role ids are re-validated against the real `roles` table before
+syncing** (`zeusfw_admin_sync_user_roles()`'s own `SELECT id FROM roles WHERE
+id IN (...)` against the submitted set) -- this framework has no DB-level FK
+constraints anywhere (see this file's own recurring "no real FK constraints"
+note on every `cascade_delete` list), so without this a tampered POST naming a
+nonexistent role id would silently insert a dangling `user_roles` row with
+nothing to ever catch it.
+
+**Deliberately no special-case for an operator editing their own account** --
+submitting the form with every box unchecked (or the `roles[]` field missing
+entirely, e.g. a legacy client) clears every one of that account's role
+assignments, including the logged-in operator's own, exactly like a plain
+`<input>` checkbox always does when unticked. This follows the identical
+reasoning `admin_delete()`'s own comment already gives for self-deletion: once
+`ZEUSFW_PERM_MANAGE_USERS` has passed, this page extends the same trust level
+to a self-demotion as to any other account, on the theory that a UI which
+lets you delete your own account already has no lesser action left to guard
+against.
+
+**The checklist only ever appears on the edit form, never on create.** A
+brand-new user has no `id` yet, so there's nothing for `user_roles` rows to
+reference -- `admin_new()` passes `'user_roles' => null` for template-variable
+parity, and `admin_form.zetem`'s new `{% if($user_roles !== null): %}` guard
+around the whole section means the create form simply omits it, exactly as
+before this change.
+
+**Verified against a real MariaDB-backed zpms test server, not just unit
+logic** -- extended `tests/functional/admin_crud.php` (zpms) with a new,
+permanent regression test rather than a throwaway manual check: logging in as
+a real `is_superuser` account, confirmed a brand-new user's edit form renders
+the checklist with every seeded role listed and none pre-checked; submitting
+`roles[] = [doctor, secretary]` left exactly those two rows in `user_roles`
+and re-rendered both checkboxes checked on the next page load; submitting
+`roles[] = [doctor]` alone removed exactly the secretary row and left doctor
+alone; submitting the form with no `roles` field at all cleared every
+remaining assignment; submitting a nonexistent role id (`999999`) inserted
+nothing; and the `/admin/users/new` form was confirmed to render no
+`roles[]` checkbox at all. `php -l` clean on `admin_crud.php`; zpms's own
+`bin/run_tests.sh` (41/41 static, 36/36 functional -- the one new test
+included) stayed fully green throughout, confirming zero regression to every
+other entity's list/new/edit/delete behavior.
+
+**Files**: `core/modules/admin/admin_crud.php`,
+`core/templates/modules/admin/admin_form.zetem` (zeusfw);
+`tests/functional/admin_crud.php` (zpms, new regression test only -- no
+app-level wiring was needed since this is framework-level and already
+unconditionally required).
 
 ### `core/modules/recaptcha/` -- reCAPTCHA v3 client module; GA banner fixes; crash handler logs (2026-09-26)
 

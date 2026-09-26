@@ -59,9 +59,22 @@ class menuModule extends moduleClass {
             // check for access key
             if(key_exists('access', $mdata)) {
                 // echopre("access key " . print_r($mdata, 1));
-                $errmsg = SecurityClass::require( $mdata['access'] );
-                // echopre("errmsg: $errmsg");
-                if($errmsg)$show = 0;
+                // SecurityClass::userIsPermitted() (a plain role-identity
+                // check), not ::require() -- the latter treats the
+                // "authenticated" role (always present for any logged-in
+                // user, see Kernel::loginUser()) as an automatic pass
+                // regardless of $mdata['access'], which made every
+                // access:-restricted menu item visible to every logged-in
+                // user no matter their actual role. userIsPermitted() does
+                // a real role-membership check with no such special case --
+                // see zeusfw's own CLAUDE.md ("ErnsAuth identity resolution"
+                // entry's sibling, core/lib/Rbac.php's docblock) and this
+                // app's config/settings.info.yaml, both of which already
+                // document nav-menu gating as going through
+                // userIsPermitted(), not require().
+                $permitted = SecurityClass::userIsPermitted( $mdata['access'] );
+                // echopre("permitted: $permitted");
+                if(!$permitted)$show = 0;
             }
 
             if($show>0) {

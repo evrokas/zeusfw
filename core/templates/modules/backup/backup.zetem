@@ -1,0 +1,82 @@
+{% attach_library('backup-library') %}
+
+<div class="backup-container">
+    <h1>{{t("Backups")}}</h1>
+    <p class="backup-note">
+        {{t("Backups run automatically overnight (via zops -- see lib/zops/docs/INSTALL.md) and are not triggered from this page. This shows the last run's status report.")}}
+    </p>
+
+    {% if(is_null($report)): %}
+        <section class="backup-status">
+            <p class="backup-status-unknown">
+                {{t("No backup status report yet -- either zops has never run on this server, or zops_backup_status_file is not set in this app's config/site.info.yaml (see lib/zops/docs/INSTALL.md).")}}
+            </p>
+        </section>
+    {% else: %}
+        <section class="backup-status">
+            {% if($report['status'] == 'success'): %}
+                <p class="backup-status-ok">{{t("Last backup run succeeded.")}}</p>
+            {% else: %}
+                <p class="backup-status-failed">
+                    {{t("Last backup run FAILED at stage")}} "{{{$report['stage'] ?? '?'}}}"{% if(!empty($report['error'])): %}: {{{$report['error']}}}{% endif %}
+                </p>
+            {% endif %}
+            <p class="backup-status-time">
+                {{t("Finished:")}} {{{$report['finished_at'] ?? '?'}}}
+                {% if(isset($report['duration_s'])): %}({{{$report['duration_s']}}}s){% endif %}
+            </p>
+        </section>
+
+        {% if(!empty($report['elements'])): %}
+            <section class="backup-generations backup-elements">
+                <h2>{{t("Elements (last run)")}}</h2>
+                <table>
+                    <thead><tr><th>{{t("Name")}}</th><th>{{t("Type")}}</th><th>{{t("Files")}}</th><th>{{t("Bytes")}}</th><th>{{t("Verified")}}</th></tr></thead>
+                    <tbody>
+                    {% foreach($report['elements'] as $el): %}
+                        <tr>
+                            <td>{{{$el['name'] ?? '?'}}}</td>
+                            <td>{{{$el['type'] ?? '?'}}}</td>
+                            <td>{{{$el['files'] ?? '?'}}}</td>
+                            <td>{{{$el['bytes'] ?? '?'}}}</td>
+                            <td>{% if(!empty($el['verified'])): %}{{t("yes")}}{% else: %}{{t("no")}}{% endif %}</td>
+                        </tr>
+                    {% endforeach %}
+                    </tbody>
+                </table>
+            </section>
+        {% endif %}
+
+        {% foreach(($report['destinations'] ?? []) as $dest): %}
+            <section class="backup-generations">
+                <h2>{{{$dest['type'] ?? '?'}}}: {{{$dest['target'] ?? '?'}}}</h2>
+                <p class="backup-generations-time">
+                    {{t("Latest generation:")}} {{{$dest['latest'] ?? '?'}}}
+                </p>
+                <div class="backup-tier">
+                    <h3>{{t("Daily")}}</h3>
+                    <p class="backup-tier-empty">{{{$dest['tiers']['daily'] ?? 0}}} {{t("kept")}}</p>
+                </div>
+                <div class="backup-tier">
+                    <h3>{{t("Weekly")}}</h3>
+                    <p class="backup-tier-empty">{{{$dest['tiers']['weekly'] ?? 0}}} {{t("kept")}}</p>
+                </div>
+                <div class="backup-tier">
+                    <h3>{{t("Monthly")}}</h3>
+                    <p class="backup-tier-empty">{{{$dest['tiers']['monthly'] ?? 0}}} {{t("kept")}}</p>
+                </div>
+            </section>
+        {% endforeach %}
+
+        {% if(!empty($report['stats'])): %}
+            <section class="backup-generations">
+                <h2>{{t("Stats")}}</h2>
+                <p class="backup-generations-time">
+                    {% foreach($report['stats'] as $statKey => $statValue): %}
+                        {{{$statKey}}}={{{is_scalar($statValue) ? $statValue : json_encode($statValue)}}}&nbsp;&nbsp;
+                    {% endforeach %}
+                </p>
+            </section>
+        {% endif %}
+    {% endif %}
+</div>

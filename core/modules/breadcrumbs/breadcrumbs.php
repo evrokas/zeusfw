@@ -52,7 +52,20 @@ class breadcrumbsModule extends moduleClass {
 
                 $pathfinal[] = [
                     // 'text' => $pathitem['text'],
-                    'text' => getLangText($pathitem['route_title']??$pathitem['text']??null),
+                    // Menutrail::search_menu_trail_for_key() keys its
+                    // entries 'title' (with 'route_title' set only when
+                    // the menu item is itself a real, named route);
+                    // Routetrail::getTrail()'s single-segment fallback
+                    // instead keys its one entry 'text'. This chain covers
+                    // all three: a real route (route_title), a pure
+                    // menu-grouping label with no route behind it (title
+                    // -- e.g. "Ραντεβού"/"Ασθενείς", which only exist to
+                    // hold a submenu), and the Routetrail fallback (text).
+                    // Checking route_title ?? text ?? null alone (as this
+                    // used to) left every grouping-label segment
+                    // rendering the literal string "nolangtext", since
+                    // it has neither route_title nor text, only title.
+                    'text' => getLangText($pathitem['route_title']??$pathitem['title']??$pathitem['text']??null),
                     'attributes' => new Attributes(['class' => 'breadcrumb-item']),
                     'url' => '#'    //is_array($pathitem['url'])?$pathitem['url'][0]:$pathitem['url']
                 ];

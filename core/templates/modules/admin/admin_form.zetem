@@ -35,6 +35,20 @@
         </div>
         {% endforeach %}
 
+        {% if($user_roles !== null): %}
+        <div class="input-div">
+            <label>Roles</label>
+            <div class="admin-role-checklist">
+                {% foreach($user_roles as $r): %}
+                <label class="admin-role-checklist-item">
+                    <input type="checkbox" name="roles[]" value="{{{$r['id']}}}" {% if($r['assigned']): %}checked{% endif %}>
+                    {{{$r['name']}}} ({{{$r['label']}}})
+                </label><br>
+                {% endforeach %}
+            </div>
+        </div>
+        {% endif %}
+
         <div class="buttons">
             <input type="submit" name="submit" value="Save">
             <a href="{{rel_url('/admin/'.$entity)}}" class="btn-secondary">Cancel</a>
