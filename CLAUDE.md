@@ -1227,3 +1227,50 @@ dynamically the moment an app lists it under its own `modules:` config, so nothi
 change for a new opt-in module to become available framework-wide. See erweb's own `CLAUDE.md` for the
 app-level wiring (the `modules:` list addition, the `main.zetem` call site, and the removal of the
 now-superseded `consent.js`/`consent.css`/`erweb-consent-banner.zetem`).
+
+### `core/modules/recaptcha/` -- reCAPTCHA v3 client module; GA banner fixes; crash handler logs (2026-09-26)
+
+At erweb's request ("add recaptcha support (there is a module in Zeusfw framework)"). The framework had
+only the **server** half of reCAPTCHA (`core/lib/Recaptcha.php`, `recaptchaClass`, above); every app still
+hand-wired Google's `api.js` tag and its own token-filling JS (erweb's `web/js/recaptcha-widget.js`). The
+**client** half is now a module, same `moduleClass`/`render($params)`/opt-in-via-`modules:` shape as
+`google_analytics` (and for the same `attach_library()` timing reason, it emits its own `<link>`/`<script>`
+tags). An app lists `recaptcha` under `modules:`, then in the one template with a protected form:
+`{{ module('recaptcha', ['siteKey' => ..., 'lang' => $lang, 'hideBadge' => false]) }}`, gives the form
+`data-recaptcha-action="<action>"` and a hidden `recaptcha_token` input, and verifies server-side with
+`recaptchaClass::isHuman(...)` (or `verify()` when it wants to log the reason). Page-scoped by design:
+Google's script loads only where the module renders. An empty/`TODO` site key renders **nothing** -- no
+request to Google, forms submit with an empty token, the server half rejects `not_configured` (same
+fail-closed contract as `recaptchaClass`). `hideBadge` hides Google's floating badge (via `visibility`, per
+Google's FAQ) and prints Google's required attribution line, bilingual `LABELS` el/en overridable via
+`labels`; the notice HTML is built in `render()` because ZETEM parses any `|` inside `{{ }}` as a filter
+separator (`ENT_QUOTES | ENT_HTML5` broke template compilation). `js/recaptcha.js` fails open on purpose
+(no `grecaptcha` -> submit with empty token, server rejects), and resubmits with `form.submit()`:
+`requestSubmit()` is a silent no-op when called synchronously inside the same submit event, which is
+exactly the grecaptcha-missing path -- found with a real browser, not by reading the code.
+
+**`google_analytics` module fixes**, all found driving erweb in Chromium: (1) at <=480px the banner's
+column layout kept the text's `flex: 1 1 20rem`, which in a column is a 20rem *height* -- a ~400px banner
+with an empty gap; the text is `flex: 0 0 auto` there now. (2) `.zfw-ga-banner__accept` (0,1,0) lost to
+`.zfw-ga-banner button` (0,1,1), so Accept never got its accent colour; now `.zfw-ga-banner
+.zfw-ga-banner__accept`. (3) No way to change a stored choice: any `[data-zfw-ga-reopen]` element (delegated
+from `document`) now reopens the banner and focuses Accept -- GDPR Art. 7(3) wants withdrawal as easy as
+consent -- and Reject after an earlier Accept also sets Google's documented `ga-disable-<id>` flag so an
+already-running gtag stops sending for the rest of that page. All additive; an app that never renders a
+reopen element sees no behaviour change beyond the two CSS fixes.
+
+**`zeusfw_register_error_handlers()` now logs.** The exception handler and the fatal-error shutdown handler
+rendered the crash page but never recorded *what* crashed -- a `set_exception_handler()` callback takes the
+exception away from PHP's own logging, so the cause was simply lost (hit while building the module above:
+a 500 with nothing in any log). Both now `error_log()` the class/message/file/line (plus trace for
+exceptions) before rendering. Visitors still see nothing technical.
+
+**Verified against erweb**: `php -l`/`node --check`/ZETEM compile check clean; module markup and both asset
+URLs (200) on the contact pages with a fake key, nothing rendered with a TODO key; Chromium submit with
+Google blocked -> server logs `missing_token`, with a stubbed `grecaptcha` -> token delivered, server logs
+`not_configured`; GA banner reject/reload/reopen/accept cycle, Accept highlighted, banner compact at 390px;
+all 220 erweb routes 200. **Files**: `core/modules/recaptcha/{recaptcha.info.yaml,recaptcha.yaml,
+recaptcha.php,css/recaptcha.css,js/recaptcha.js}`, `core/templates/modules/recaptcha/recaptcha.zetem`
+(new); `core/modules/google_analytics/{css/google-analytics.css,js/google-analytics.js}`;
+`core/router/ErrorHandlers.php`.
+

@@ -1,0 +1,11 @@
+{# reCAPTCHA v3 client half - see core/modules/recaptcha/recaptcha.php.
+   The site key reaches recaptcha.js via a data attribute (| e escaped),
+   never as a string spliced into a <script> body. $noticeHtml is built
+   (and escaped) in recaptchaModule::render(), since it carries two links. #}
+<div data-zfw-recaptcha data-zfw-recaptcha-sitekey="{{ $siteKey | e }}" hidden></div>
+{% if ($hideBadge): %}
+<link rel="stylesheet" href="{{ $cssUrl | e }}">
+<p class="zfw-recaptcha-notice">{{ $noticeHtml }}</p>
+{% endif; %}
+<script src="{{ $apiUrl | e }}" async defer></script>
+<script src="{{ $jsUrl | e }}" defer></script>
