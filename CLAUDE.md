@@ -2234,3 +2234,22 @@ recaptcha.php,css/recaptcha.css,js/recaptcha.js}`, `core/templates/modules/recap
 (new); `core/modules/google_analytics/{css/google-analytics.css,js/google-analytics.js}`;
 `core/router/ErrorHandlers.php`.
 
+
+### `maker.php` accepts `--name value` again -- `bin/update.sh`'s content step failed with "Unknown command" (2026-09-26)
+
+Reported from a real server: `bin/update.sh`, answering yes to "update content", printed `Unknown
+command` for every feeder. Cause: the 2026-09-20 parser change above (`zeusfw_maker_parse_argv()`)
+accepted long options **only** as `--name=value`, but `update.sh` has always called
+`php $MAKER --name $temp feed:clean|feed:gen:yaml|feed:load` with a space. The new parser set `name`
+to an empty value and left `$temp` (e.g. `erweb_tags.feeder.yaml`) as `$optparams[0]`, so the feeder
+file name was treated as the command. Reproduced by running prod's `maker.php` that way against
+erweb's feeders.
+
+Fixed on both ends. `zeusfw_maker_parse_argv()` again accepts `--name value` (and `-f value`) for
+options declared as value-taking (`'name:'`, `'f:'`): the next token is the value. That is the same
+rule `getopt()` applied, so it isn't the ambiguity the original docblock worried about, and flags
+without a value (`yes`, `add-id`) still never consume a following token. `bin/update.sh` now also
+writes `--name=$temp`, so it works with either parser. Verified: `--name x feed:load`,
+`--name=x feed:load`, `feed:load --name=x` and `feed:load --name x` all load erweb's tags feeder
+identically ("10 unchanged"), `feed:gen:yaml` in the space form works, and `bash -n bin/update.sh`
+is clean. **Files**: `core/maker/maker.php`, `bin/update.sh`.

@@ -19,15 +19,16 @@ class DIR {
  * ordering) all parse identically -- fully backward compatible with
  * every existing script that already puts its flags first.
  *
- * Long options always take their value as --name=value, never a
- * following bare token (`--name value`) -- that space-separated form is
- * something PHP's own getopt() happens to support when every option
- * comes first, but it becomes genuinely ambiguous once flags can appear
- * anywhere (a bare `--name` right before a real positional argument
- * would otherwise silently swallow it as its value). Every Usage string
- * this file prints already documents the `=` form exclusively (e.g.
- * `[--name=] [--label=] rbac:roles:edit <id>`), so this drops nothing
- * anyone relying on the documented syntax was using.
+ * A value-taking option accepts both `--name=value` and, like getopt(),
+ * `--name value` (the next token is the value). This parser originally
+ * accepted only the `=` form, reasoning that a space-separated value is
+ * ambiguous once flags can appear anywhere - but it isn't for an option
+ * declared as value-taking ('name:'): getopt() always consumed the next
+ * token for those too, so this is the same rule. Dropping it broke
+ * bin/update.sh, which calls `maker.php --name $feeder feed:load`: the
+ * feeder file name became the command and every feeder failed with
+ * "Unknown command". Flags without a value ('yes', 'add-id') never
+ * consume a following token.
  *
  * $shortOptSpec/$longOptSpec are plain getopt()-style specs (a short spec
  * string like "f:", a long spec list like ['app-dir:', 'yes', ...] -- a
@@ -69,6 +70,15 @@ function zeusfw_maker_parse_argv(array $argv, string $shortOptSpec, array $longO
                 $name = $body;
                 $value = false;
             }
+            // A value-taking option written as `--name value` takes the
+            // next token as its value, exactly as getopt() did for a
+            // required-value ('name:') option -- bin/update.sh calls
+            // `maker.php --name $feeder feed:load` in this form, and
+            // dropping it turned the feeder file name into the command
+            // ("Unknown command").
+            if ($value === false && !empty($longValueOpts[$name]) && $i + 1 < $n) {
+                $value = $argv[++$i];
+            }
             if (array_key_exists($name, $longValueOpts)) {
                 $options[$name] = $longValueOpts[$name] ? (string)$value : false;
             }
@@ -81,6 +91,11 @@ function zeusfw_maker_parse_argv(array $argv, string $shortOptSpec, array $longO
         if (strncmp($tok, '-', 1) === 0 && $tok !== '-' && strlen($tok) > 1) {
             $c = $tok[1];
             if (isset($shortValueOpts[$c])) {
+                // `-fvalue` or, like getopt(), `-f value`
+                if ($shortValueOpts[$c] && strlen($tok) === 2 && $i + 1 < $n) {
+                    $options[$c] = (string)$argv[++$i];
+                    continue;
+                }
                 $options[$c] = $shortValueOpts[$c] ? substr($tok, 2) : false;
                 continue;
             }
@@ -1875,7 +1890,7 @@ function makesure_dir_exists($dir) {
      
                 'msg:new' => '[user] [message] create new message for `user` with `message`',
 
-                'rbac:*' => '-- NOTE: --flag=value options may appear anywhere on the command line -- before the command name, after it, or interspersed (e.g. `rbac:roles:add --name=x --label=y` and `--name=x --label=y rbac:roles:add` are equivalent) -- always as --flag=value, never a separate --flag value token',
+                'rbac:*' => '-- NOTE: --flag=value options may appear anywhere on the command line -- before the command name, after it, or interspersed (e.g. `rbac:roles:add --name=x --label=y` and `--name=x --label=y rbac:roles:add` are equivalent) -- as --flag=value or --flag value',
                 'rbac:users:list' => 'list users (with their assigned roles)',
                 'rbac:users:add' => '--name= --email= --uname= [--password=] [--active=] [--expired=] add a new user',
                 'rbac:users:edit' => '[id] [--name=] [--email=] [--uname=] [--password=] [--prompt-password] [--active=] [--expired=] edit a user',
