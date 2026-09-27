@@ -180,7 +180,7 @@ if [[ $answer == [yY] ]]; then
     if [[ $cleanup == [yY] ]]; then
         feed_clean_no=0;
         for temp in `ls *.feeder.yaml`; do
-            php $MAKER --name $temp feed:clean
+            php $MAKER --name=$temp feed:clean
             if [ $? -eq 0 ]; then
                 feed_clean_no=$((feed_clean_no+1));
             fi
@@ -207,10 +207,10 @@ if [[ $answer == [yY] ]]; then
             if [[ $confirm == [yY] ]]; then 
                 if [[ -f ../classes/yaml/$schema ]]; then 
                     echo "Creating feeder data $temp (app)"
-                    php $MAKER --name $temp feed:gen:yaml
+                    php $MAKER --name=$temp feed:gen:yaml
                 elif [[ -f ../core/classes/yaml/$schema ]]; then
                     echo "Creating feeder data $temp (core)"
-                    php $MAKER --name $temp feed:gen:yaml
+                    php $MAKER --name=$temp feed:gen:yaml
                 else
                     echo Could not locate schema file $schema. Aborting...
                     exit
@@ -228,9 +228,9 @@ if [[ $answer == [yY] ]]; then
         echo "Loading feeder data $temp"
 
         # cannot call feed:clean because it cleans all entries from the table
-	    # php $MAKER --name $temp  feed:clean
+	    # php $MAKER --name=$temp  feed:clean
         
-	    php $MAKER --name $temp  feed:load
+	    php $MAKER --name=$temp  feed:load
         if [ $? -eq 0 ]; then
             echo "Feed loading succesfull"
         else

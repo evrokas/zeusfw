@@ -65,7 +65,13 @@ function zeusfw_register_error_handlers(?string $cssPath = null): void
         exit;
     };
 
+    // Both handlers log what crashed before rendering the page - the crash
+    // page itself deliberately shows visitors nothing technical, so without
+    // this the real cause would be lost entirely (PHP's own logging never
+    // sees an exception a set_exception_handler() callback has taken over).
     set_exception_handler(static function (Throwable $e) use ($renderCrashPage): void {
+        error_log('zeusfw uncaught ' . get_class($e) . ': ' . $e->getMessage()
+            . ' in ' . $e->getFile() . ':' . $e->getLine() . "\n" . $e->getTraceAsString());
         $renderCrashPage();
     });
 
@@ -76,6 +82,9 @@ function zeusfw_register_error_handlers(?string $cssPath = null): void
         }
         $fatalTypes = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR];
         if (in_array($error['type'], $fatalTypes, true)) {
+            // PHP has normally logged a fatal already (log_errors); repeated
+            // here with a fixed prefix so it's findable next to the line above.
+            error_log('zeusfw fatal error: ' . $error['message'] . ' in ' . $error['file'] . ':' . $error['line']);
             $renderCrashPage();
         }
     });

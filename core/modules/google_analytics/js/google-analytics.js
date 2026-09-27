@@ -88,7 +88,34 @@
       } catch (e) {
         /* ignore */
       }
+      // Withdrawing consent after an earlier "Accept" (via a reopen link,
+      // below): gtag.js may already be running on this page, so also set
+      // Google's own documented opt-out flag, which stops it sending
+      // anything further before the next page load (where it is simply
+      // never requested again).
+      if (window.__zfwGtagLoaded && measurementId) {
+        window['ga-disable-' + measurementId] = true;
+      }
       hideBanner();
     });
   }
+
+  // Any element carrying data-zfw-ga-reopen (e.g. a "Cookie settings"
+  // link in an app's footer) shows the banner again, so a visitor can
+  // change or withdraw their choice as easily as they gave it (GDPR Art.
+  // 7(3)) - without it, a stored choice hides the banner forever with no
+  // way back short of clearing site data. Delegated from document, so
+  // the trigger may sit anywhere on the page, before or after this
+  // script's own position.
+  document.addEventListener('click', function (event) {
+    var trigger = event.target.closest ? event.target.closest('[data-zfw-ga-reopen]') : null;
+    if (!trigger) {
+      return;
+    }
+    event.preventDefault();
+    root.hidden = false;
+    if (acceptBtn) {
+      acceptBtn.focus();
+    }
+  });
 })();

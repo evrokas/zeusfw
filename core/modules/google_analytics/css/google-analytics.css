@@ -60,12 +60,15 @@
   cursor: pointer;
   border-radius: 0.25rem;
 }
-.zfw-ga-banner__accept {
+/* Qualified with .zfw-ga-banner: a bare .zfw-ga-banner__accept (0,1,0)
+   loses to `.zfw-ga-banner button` (0,1,1) above, which left Accept
+   looking identical to Reject. */
+.zfw-ga-banner .zfw-ga-banner__accept {
   background: var(--zga-accent-bg);
   border-color: var(--zga-accent-bg);
   color: var(--zga-accent-text);
 }
-.zfw-ga-banner__accept:hover {
+.zfw-ga-banner .zfw-ga-banner__accept:hover {
   filter: brightness(1.08);
 }
 .zfw-ga-banner__accept:focus-visible,
@@ -78,6 +81,12 @@
   .zfw-ga-banner {
     flex-direction: column;
     align-items: stretch;
+  }
+  /* In column direction flex-basis is a height, so the row layout's
+     `flex: 1 1 20rem` would pad the text out to 20rem tall (a large
+     empty gap above the buttons on phones). */
+  .zfw-ga-banner p {
+    flex: 0 0 auto;
   }
   .zfw-ga-banner__actions {
     justify-content: flex-end;
