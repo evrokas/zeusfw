@@ -190,16 +190,18 @@ class RouterClass {
     static function routerCallFunction($match_route) {
         global $kernel;
         
-        $hasAnalytics = class_exists("analyticsClass");
-        $hasPageAnalytics = class_exists("pageAnalyticsClass");
+        // Off unless the app sets analytics: enabled: true (Kernel::analyticsEnabled()).
+        $analyticsOn = $kernel->analyticsEnabled();
+        $hasAnalytics = $analyticsOn && class_exists("analyticsClass");
+        $hasPageAnalytics = $analyticsOn && class_exists("pageAnalyticsClass");
 
-        if($hasAnalytics && $kernel->safeGetConfig('analytics')) {
+        if($analyticsOn) {
             $ips = $kernel->safeGetConfigValue('analytics', 'ignore_ips');
-            // error_log('ignore IPs: ' . print_r($ips, 1));
 
-            // ignore IPs that in ignore_ips list
-            if(in_array($_SERVER['REMOTE_ADDR'], $ips)) {
+            // ignore IPs that are in the ignore_ips list (log and counters)
+            if(in_array($_SERVER['REMOTE_ADDR'] ?? '', (array)$ips)) {
                 $hasAnalytics = false;
+                $hasPageAnalytics = false;
             }
         }
         // error_log("hasAnalytics: " . $hasAnalytics);
@@ -216,7 +218,7 @@ class RouterClass {
                 'page' => $page,
                 'url' => $url,
                 'remote_ip' => $_SERVER['REMOTE_ADDR'],
-                'user_agent' => $_SERVER['HTTP_USER_AGENT']
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? ''
             ]);
         }
         if(!$match_route) {

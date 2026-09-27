@@ -2405,3 +2405,46 @@ writes `--name=$temp`, so it works with either parser. Verified: `--name x feed:
 `--name=x feed:load`, `feed:load --name=x` and `feed:load --name x` all load erweb's tags feeder
 identically ("10 unchanged"), `feed:gen:yaml` in the space form works, and `bash -n bin/update.sh`
 is clean. **Files**: `core/maker/maker.php`, `bin/update.sh`.
+
+
+## Built-in request analytics off by default -- `analytics: enabled: true` to opt in (2026-09-27)
+
+At direct request, after reviewing how the `analytics`/`pageanalytics` tables work: turn them off.
+Until now they ran on every request of every app, with no switch. `RouterClass::routerCallFunction()`
+inserted one `analytics` row per request (raw URL, IP, user agent) and bumped a `pageanalytics`
+counter row keyed by the raw URL; `Maintenance` loaded the whole `pageanalytics` table on every
+request to roll the weekly/monthly counters over. Nothing in zeusfw, zpms or erweb ever read either
+table. Problems found (all measured on a real MariaDB stack, not inferred):
+- **Personal data in URLs.** zpms's `/patients/search/{term}`, `/patients/searchajax/{term}` and
+  `/api/v1/patients/search/{term}` (DocArc's typeahead) put patient-name fragments in the path, so
+  every term was stored in `analytics.url` with the staff IP and got its own permanent
+  `pageanalytics` row. Under Apache `[QSA]`, `QUERY_STRING` also carries real query parameters, so
+  API keys in URLs (zgeotrack's `?key=`) were logged too. No retention anywhere.
+- **Wrong counts.** Read-increment-write in PHP: 40 parallel requests to one URL raised the counter
+  by 23. `served=1`/the counter bump happen before the handler runs, so 404s from catch-all routes,
+  401s and crashes count; so do POSTs, AJAX polls and bots. `ignore_ips` skipped the log but not the
+  counters. The stats row stores week/month *numbers* in `last_week_count`/`last_month_count`.
+- **Cost.** 7 of a plain erweb page's 20 queries, including an unused full-table `SELECT` and an
+  unindexed `TEXT` URL lookup, on tables that only grow.
+
+**Change**: new `Kernel::analyticsEnabled(): bool`, reading `analytics: enabled` (default off). The
+router's log/counter writes, `pageAnalyticsClassEx::initializePageAnalyticsRecord()` in the
+constructor, and `Maintenance`'s rollover all check it; `Maintenance::init()` now takes the flag as a
+parameter because it runs inside the Kernel constructor, before the global `$kernel` exists.
+`remove_expired_user_tokens()` still runs as before. No default is written in
+`core/config/zeusfw.info.yaml` on purpose: `addConfig()` merges with `array_merge_recursive()`, which
+turns a scalar set in two layers into an array (see the `disabled_packages` entry above) --
+`analyticsEnabled()` takes the last value if that happens anyway. Also fixed while there: `ignore_ips`
+now skips the counters as well as the log, and a missing `User-Agent`/`ignore_ips` no longer warns.
+The tables, classes and schema are untouched, so an app can opt back in with one config line.
+
+**Existing data is not touched.** Live zpms databases still hold the old rows, patient search terms
+included; deleting them is a separate, deliberate step (see the zpms README/commit for the SQL).
+
+**Verified**: erweb on a real MariaDB stack -- with analytics off, requests to `/el`, `/en`,
+`/el/tags`, a 404 and a request with no `User-Agent` wrote nothing to either table; adding
+`analytics: enabled: true` to `site.info.yaml` wrote rows again, removing it stopped them. zpms's
+`bin/run_tests.sh` against this checkout: all suites pass (PHP 43/43, JS 8/8, CSS 14/14, templates
+36/36, patients 6/6, appointments 9/9, uploads 5/5, auth+CSRF 16/16, admin CRUD 9/9), and the test
+database held zero `analytics`/`pageanalytics` rows afterwards. **Files**: `core/kernel/Kernel.php`,
+`core/kernel/maintenance.php`, `core/router/Router.php`.

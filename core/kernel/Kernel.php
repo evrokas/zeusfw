@@ -85,14 +85,32 @@ class Kernel {
 
         /* check if it not invoked by maker.php */
         if(!key_exists('MAKER_INVOKE', $asrv) || !$asrv['MAKER_INVOKE']) {
-            if(class_exists('pageAnalyticsClassEx')) {
+            if($this->analyticsEnabled() && class_exists('pageAnalyticsClassEx')) {
                 pageAnalyticsClassEx::initializePageAnalyticsRecord();
             }
         }
 
         // set maintenance class
-        Maintenance::init();
+        Maintenance::init($this->analyticsEnabled());
         Maintenance::maintenance();
+    }
+
+    /**
+     * Whether the built-in request analytics (the `analytics` log table and
+     * the `pageanalytics` counters, written by RouterClass::routerCallFunction()
+     * and rolled over by Maintenance) run at all. Off unless an app opts in:
+     *
+     *   analytics:
+     *     enabled: true
+     *
+     * Set it in one config file only: addConfig() merges layers with
+     * array_merge_recursive(), which turns a scalar set in two layers into an
+     * array -- the last value wins here if that happens.
+     */
+    function analyticsEnabled(): bool {
+        $v = $this->config['analytics']['enabled'] ?? false;
+        if(is_array($v)) $v = end($v);
+        return filter_var($v, FILTER_VALIDATE_BOOLEAN);
     }
 
     function getConfig($section=null) {
