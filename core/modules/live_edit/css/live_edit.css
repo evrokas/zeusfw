@@ -1,6 +1,6 @@
 /*
  * Styles for the live_edit content-source block (core/modules/live_edit/).
- * Own --zfl-* custom-property namespace, matching the --zfa-*/--zga-*
+ * Own --zfl-* custom-property namespace, matching the --zfa-* / --zga-*
  * convention accessibility.css/google-analytics.css already use -- a
  * framework-level asset has no idea what design tokens the calling app
  * has, or whether it has any at all. An app wanting its own colors

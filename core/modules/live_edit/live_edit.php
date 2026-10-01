@@ -103,8 +103,18 @@ class liveEditModule extends moduleClass {
             return '';
         }
 
-        $cssUrl = rel_url($kernel->resolveModuleDir('@core/css/live_edit.css', $this->adir, $this->getName()));
-        $jsUrl = rel_url($kernel->resolveModuleDir('@core/js/live_edit.js', $this->adir, $this->getName()));
+        // Cache-busted the same way Kernel::renderPage() already busts every
+        // configured css:/head_script:/foot_script: asset (?.time()) --
+        // this module's CSS/JS never goes through that array (see the class
+        // docblock on why: resolved directly via resolveModuleDir()/rel_url()
+        // instead of attach_library()), so without this a browser that
+        // cached an earlier response for this exact, otherwise-unchanging
+        // URL would keep serving it indefinitely across a deploy or a local
+        // edit -- the identical staleness this framework already hit once
+        // for <script> tags (see Kernel.php's own head_scripts/foot_links
+        // comment) and fixed the same way there.
+        $cssUrl = rel_url($kernel->resolveModuleDir('@core/css/live_edit.css', $this->adir, $this->getName()) . '?' . time());
+        $jsUrl = rel_url($kernel->resolveModuleDir('@core/js/live_edit.js', $this->adir, $this->getName()) . '?' . time());
 
         return $this->renderTemplate([
             'templateName' => $entry['file'],

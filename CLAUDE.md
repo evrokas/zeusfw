@@ -2460,3 +2460,77 @@ css/live_edit.css,js/live_edit.js}`, `core/templates/modules/live_edit/
 live_edit.zetem` (all new, zeusfw); `config/settings.info.yaml`, `web/rbac.php`,
 `web/rbac_seed.php`, `web/templates/page/page.zetem`, `tests/functional/
 auth_csrf.php`, `tests/lib/ServerManager.php` (zpms).
+
+## `core/modules/live_edit/css/live_edit.css` -- a doc-comment's own prose accidentally closed the CSS comment early, invalidating the entire stylesheet (2026-10-01)
+
+Direct follow-up to the live_edit module's own entry above: moving the
+overlay from `position: fixed` to an in-flow, right-aligned flex block (at
+the requester's explicit "move it to the top, right-aligned" instruction)
+didn't visually apply at all -- the element rendered with plain browser
+defaults (`display: block`, no padding, default button chrome) on the real
+zpms page, even though `live_edit.css` itself looked completely ordinary on
+read-through and was served correctly over HTTP (verified repeatedly:
+correct `Content-Type: text/css`, correct `Content-Length`, byte-identical
+body via curl and via a real Chromium session's own `fetch()`).
+
+**Root cause, found only after ruling out every delivery-layer explanation**
+(wrong MIME type, a CSP block, a stale browser cache under the
+not-yet-cache-busted URL, the `web/core -> ../fw/core` symlink resolving to
+a different checkout than the one being edited -- all individually
+checked and eliminated) **by testing the fetched CSS text's own parseability
+in isolation**: injecting the exact fetched string as a fresh `<style>`
+element (bypassing the network entirely) still produced
+`style.sheet.cssRules.length === 0`, proving the bug lived in the
+stylesheet's own text, not anywhere in how it was served. `grep -c '/\*'`
+vs `grep -c '\*/'` on the file showed 1 opening comment marker but 2
+closing ones -- the file's own leading doc-comment, describing this
+module's `--zfl-*` custom-property naming next to `accessibility.css`'s
+`--zfa-*` and `google-analytics.css`'s `--zga-*` equivalents, literally
+wrote `--zfa-*/--zga-*` -- and `*` immediately followed by `/` **is** a
+CSS comment terminator, regardless of surrounding prose intent. That
+closed the doc-comment nine lines early, after which every subsequent
+word of what was meant to be commentary (five more paragraphs, ending at
+the *real*, now-second `*/`) was fed to the CSS parser as literal syntax --
+enough invalid garbage to desync parsing for the rest of the file, which is
+why the browser reported zero rules for the *entire* stylesheet rather
+than just the real rules below the comment coming out wrong.
+
+**Checked immediately whether this was systemic**: `accessibility.css` and
+`google-analytics.css` both use the identical `--zfa-*`/`--zga-*`-style
+prose convention this comment was imitating, so there was real reason to
+suspect the same typo elsewhere -- `grep -c '/\*'`/`grep -c '\*/'` on both
+confirmed balanced counts (4/4 and 1/1 respectively), so this was a
+one-off wording accident in this one file's comment, not a recurring
+pattern worth a lint rule.
+
+Fixed by adding a space around the slash (`--zfa-* / --zga-*`), which
+reads identically to a human and no longer forms a `*/` token to a CSS
+tokenizer. Also added cache-busting to this module's own CSS/JS URLs
+(`rel_url($kernel->resolveModuleDir(...) . '?' . time())`, matching
+`Kernel::renderPage()`'s own existing `?time()` convention for every
+configured `css:`/`head_script:`/`foot_script:` asset -- see that
+function's own entry above) while investigating, since this module's
+assets never went through that array in the first place (resolved
+directly via `resolveModuleDir()`/`rel_url()`, same as
+`accessibilityModule`/`googleAnalyticsModule`) and so had no cache-busting
+at all -- not the actual cause here (a fresh, uncached Chromium profile
+reproduced the bug identically), but a real, independent gap worth closing
+anyway rather than leaving this module as the one asset pair in the
+framework that could go stale indefinitely across a future edit.
+
+**Verified against a real zpms test server, reproducing the failure first**:
+confirmed `cssRules.length === 0` on the live, pre-fix file via three
+independent methods (the real `<link>` in the page, a byte-identical
+`<style>` injected from the fetched text, and a freshly cloned `<link>`
+element) before touching anything -- ruling out caching as the cause,
+since a fresh element/fresh fetch hit the same result. After the fix:
+`cssRules.length === 8` (the real rule count), and a Playwright screenshot
+of `/patients` confirms the badge now renders as designed -- a small,
+semi-transparent, pill-shaped, right-aligned block at the top of the page
+showing the real content template's relative path
+(`templates/content/patients_list.zetem`), monospace font, rounded corners,
+all computed styles matching the stylesheet rather than browser defaults.
+zpms's own `bin/run_tests.sh` (101/101 static, 47/47 functional) stayed
+fully green throughout. **Files**: `core/modules/live_edit/css/live_edit.css`,
+`core/modules/live_edit/live_edit.php` (zeusfw only -- no zpms-side change
+needed for this fix).
