@@ -1,10 +1,25 @@
 /*
- * Styles for the live_edit content-source overlay (core/modules/live_edit/).
+ * Styles for the live_edit content-source block (core/modules/live_edit/).
  * Own --zfl-* custom-property namespace, matching the --zfa-*/--zga-*
  * convention accessibility.css/google-analytics.css already use -- a
  * framework-level asset has no idea what design tokens the calling app
  * has, or whether it has any at all. An app wanting its own colors
  * overrides these from its own stylesheet rather than forking this file.
+ *
+ * Deliberately normal document flow, not position:fixed -- an earlier cut
+ * used position:fixed to float this in the top-right viewport corner, but
+ * on zpms this rendered inert (the element sat wherever it fell in the
+ * DOM instead of pinning to the viewport) -- almost certainly the exact
+ * containing-block hazard accessibility's own CLAUDE.md entry documents
+ * (a transform/filter/perspective/will-change on an ancestor makes
+ * position:fixed descendants resolve against *that* ancestor's box
+ * instead of the viewport). Rather than chase which app-level rule causes
+ * it on every host app that might adopt this module, this renders as a
+ * plain right-aligned block at the very start of the page's own content
+ * (see zpms's own page.zetem call site) -- guaranteed to actually be
+ * visible regardless of any ancestor's CSS, at the cost of nudging the
+ * rest of the page down a row. A disclosed, temporary trade-off while
+ * this is still step 1.
  */
 #zfw-live-root {
   --zfl-bg: rgba(22, 35, 58, 0.55);
@@ -13,10 +28,9 @@
   --zfl-border: rgba(244, 244, 242, 0.18);
   --zfl-accent: #2f6fed;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  position: fixed;
-  top: 0.6rem;
-  right: 0.6rem;
-  z-index: 2147483000;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.4rem 0.6rem;
 }
 #zfw-live-root * { box-sizing: border-box; }
 
@@ -63,6 +77,6 @@
 }
 
 @media (max-width: 640px) {
-  #zfw-live-root { top: 0.4rem; right: 0.4rem; }
+  #zfw-live-root { padding: 0.3rem 0.4rem; }
   #zfw-live-badge { max-width: 48vw; font-size: 0.68rem; }
 }
