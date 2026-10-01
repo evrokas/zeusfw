@@ -2339,3 +2339,124 @@ touch that separate code path. `php -l` clean on both modified files.
 one fixture setup, one assertion) stayed fully green. **Files**:
 `core/lib/Rbac.php`, `core/lib/Security.php` (zeusfw); `tests/lib/
 TestFixtures.php`, `tests/functional/auth_csrf.php` (zpms).
+
+## `core/modules/live_edit/` -- Step 1 of a planned live-editing feature: a content-source overlay (2026-10-01)
+
+At direct request, framed explicitly as "step 1": a small, transparent, opt-in overlay
+showing which `.zetem` template a page's main content actually came from -- nothing
+editable yet, just the source-of-truth indicator later steps (click-to-edit, write-
+back to disk) will build on. Same `moduleClass`/opt-in-via-`modules:` shape as
+`accessibility`/`google_analytics`.
+
+**How "which template" is actually known.** `Renderer::render()`
+(`core/templates/ZETEMTemplate.php`) is the one choke point every `.zetem` render goes
+through -- modules, form fields, the page wrapper, and a route handler's own content
+template all call it, and `self::$template_files[$file]` already held the resolved
+absolute path for every template name. Two small, generic, content-agnostic additions
+make the rest possible:
+- `Renderer::$topLevelRenders`/`$renderDepth` -- `render()` now tracks its own
+  re-entrancy depth and appends `['file' => ..., 'path' => ...]` to a static log only
+  for the OUTERMOST call (depth transitioning 0->1), never a nested one. This matters
+  because a `.zetem` template's own `{{ }}`/`{% %}` expressions can call `->render()`
+  on something (a form field via `FormElement::render()`, a module) while this
+  method's own `require $cached_file;` is still executing -- only the call that isn't
+  nested inside another render() call is "a page section" in the sense this module
+  cares about. `renderSafe()`/`renderRaw()` both already delegate to `render()`, so
+  nothing else needed instrumenting.
+- `RouterClass::routerCallFunction()` (`core/router/Router.php`) brackets BOTH of its
+  handler-invocation sites (the direct-handler path and the module-func path) with a
+  mark (`Renderer::topLevelRenderCount()`) taken right before calling the matched
+  route's handler, and a slice (`Renderer::topLevelRendersSince($mark)`) taken right
+  after, assigned to a new `Renderer::$lastContentRenders`. This bounds the result to
+  exactly the handler's own invocation window -- critical, since chrome templates
+  (`header.zetem`/`page.zetem`/`main.zetem`) render *after* dispatch, inside
+  `Kernel::boot()`'s own `$this->renderPage()` call (confirmed by reading `Kernel.php`
+  directly: `$content_response = $this->router->routerCallFunction($match); $this->
+  renderPage();`, sequential, not nested) -- a naive "last render of the whole
+  request" would pick the page wrapper, not the content.
+- `liveEditModule::resolveContentSource()` takes the LAST entry in
+  `Renderer::$lastContentRenders`. A handler that builds smaller pieces first (field/
+  widget sub-templates, each rendered as its own separate, non-nested outermost call
+  since building `$vars` happens in plain PHP between renders, not inside a template's
+  own execution) and composes the real page template last -- the pattern every
+  handler in this codebase's maker-generated/hand-written forms already follows --
+  means the real content template is reliably the final entry. Verified directly
+  against a form-heavy page (zpms's `/patient/new`, which renders many `FormElement`
+  field sub-templates before its own `edit_patient.zetem`) to confirm this picks the
+  real page template, not a field.
+
+**Gated two independent ways, since a resolved server-side file path is real
+information disclosure even to a logged-in staff account** (confirms app structure/
+tech stack, narrows what an attacker needs to guess):
+1. `live_edit.yaml`'s own `live_edit_enabled` (default `false`) / the `'enabled'`
+   param an app's own template call site passes explicitly to
+   `module('live_edit', [...])` -- an app has to turn this on on purpose, not get it
+   for free by merely listing the module under its own `modules:`.
+2. `rbacClass::isPermitted(ZEUSFW_PERM_LIVE_EDIT)` -- a new canonical framework
+   permission slug, `'content-live-edit'` (`core/lib/Rbac.php`, right next to
+   `ZEUSFW_PERM_MANAGE_USERS`), **deliberately a dedicated, narrow permission rather
+   than reusing `ZEUSFW_PERM_MANAGE_USERS`** -- seeing which template backs a page has
+   nothing to do with user/role administration and shouldn't require that broader
+   trust level, the same reasoning `zeusfw_app_backup_permission()`'s own override
+   exists for. An is_superuser role never needs this granted explicitly -- `rbacClass::
+   isPermitted()`'s own bypass already covers it. `zeusfw_app_live_edit_permission()`
+   is the usual `function_exists()` override point for an app wanting a different
+   permission slug instead; the framework default (`ZEUSFW_PERM_LIVE_EDIT` itself) was
+   used as-is for zpms, since it's exactly the dedicated slug this needed -- no
+   app-specific override function was written.
+
+Failure on either gate renders nothing (`''`) -- this is a decorative overlay bolted
+onto an otherwise normal page, not a protected route, so unlike `rbacClass::require()`
+it must never replace the page with a rendered 401.
+
+**The shown path is relativized, never an absolute server filesystem path** --
+`liveEditModule::relativizePath()` strips the `__APPDIR__` common prefix, the exact
+technique `core/kernel/utils.php`'s `echopre()` already uses for debug-trace paths.
+Deliberately NOT `realpath()`'d first: zpms's own `web/core` is a symlink into this
+checkout, and `realpath()` would resolve a core template's path to the real,
+out-of-app-tree zeusfw location, sharing no common prefix with `__APPDIR__` at all --
+defeating relativization for exactly the templates (error pages, core-only module
+templates) that most need it. A stray `/./ ` the configured template search path
+itself can leave behind is cleaned up with plain string ops instead, which don't
+touch symlinks.
+
+**A real, latent test-infrastructure bug found and fixed while verifying this**
+(zpms's `tests/lib/ServerManager.php`, not a zeusfw file, but documented here since
+the bug was found via this feature and would bite any sufficiently chatty future
+addition the same way): `TestServer::start()` opened its `php -S` child's stdout/
+stderr as pipes, set them non-blocking, and then never actually read from them
+anywhere. A pipe's OS buffer is small (64KB on Linux) -- `php -S` logs one line per
+request by default, plus every PHP warning/notice the app under test emits across a
+long functional run is enough to fill an unread 64KB buffer outright. Once full, the
+*child's* next `write()` call blocks, hanging the `php -S` process itself mid-request
+-- from a test's perspective, indistinguishable from a genuinely stuck page: a curl
+request connects, then times out after 15s having received zero bytes.
+`stream_set_blocking($pipes[N], false)` doesn't help here -- it only changes how the
+*reader* (a process that, in this file, never reads at all) would behave; it does
+nothing about whether the *writer* blocks on a full buffer. Root-caused by: disabling
+this module's own call site to prove the hang was feature-specific (it stopped
+reproducing instantly, confirming it wasn't a pre-existing issue misattributed to new
+code), then redirecting error output to a file to narrow it down, which also made the
+hang stop -- proving the pipe itself, not any application logic, was the actual
+bottleneck. Fixed by opening the child's stdout/stderr against real files
+(`tempnam()`-created, cleaned up in `stop()`) instead of pipes -- a file never blocks
+a writer the way a small, unread pipe does. Verified with 5 consecutive full suite
+runs (101/101 static, 46/46 functional) with zero hangs, after the identical code
+reproduced the hang on 2 separate occasions beforehand.
+
+**Verified against zpms, against a real MariaDB-backed test server**: the overlay
+shows the correct, relative template path for a plain list page (`/patients` ->
+`templates/content/patients_list.zetem`) and a form-heavy create page (`/patient/new`
+-> `templates/content/edit_patient.zetem`, not a field sub-template); an
+administrator (is_superuser) and a real `maintenance`-role account (holds
+`content-live-edit` via an explicit grant, see zpms's own `web/rbac_seed.php`) both
+see it; a `secretary` account (neither) and a logged-out visitor both correctly never
+see it. `php -l` clean on every new/modified PHP file; `node --check` clean on the
+new JS. `bin/run_tests.sh` (101/101 static, 46/46 functional -- one new test added)
+stayed fully green across 5 consecutive runs. **Files**: `core/templates/
+ZETEMTemplate.php`, `core/router/Router.php`, `core/lib/Rbac.php`,
+`core/modules/live_edit/{live_edit.info.yaml,live_edit.yaml,live_edit.php,
+css/live_edit.css,js/live_edit.js}`, `core/templates/modules/live_edit/
+live_edit.zetem` (all new, zeusfw); `config/settings.info.yaml`, `web/rbac.php`,
+`web/rbac_seed.php`, `web/templates/page/page.zetem`, `tests/functional/
+auth_csrf.php`, `tests/lib/ServerManager.php` (zpms).

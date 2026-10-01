@@ -140,6 +140,18 @@ if (!defined('ZEUSFW_PERM_MANAGE_USERS')) {
     define('ZEUSFW_PERM_MANAGE_USERS', 'users-manage');
 }
 
+// The framework's own canonical permission slug for "can see the
+// live_edit content-source overlay" (core/modules/live_edit/) -- a
+// dedicated, narrow permission rather than reusing ZEUSFW_PERM_MANAGE_USERS,
+// since seeing which template file backs a page has nothing to do with
+// user/role administration and shouldn't require that broader trust level.
+// An is_superuser role never needs this granted explicitly -- rbacClass::
+// isPermitted()'s own bypass already covers it, same as every other
+// permission slug in this framework.
+if (!defined('ZEUSFW_PERM_LIVE_EDIT')) {
+    define('ZEUSFW_PERM_LIVE_EDIT', 'content-live-edit');
+}
+
 // Opt-in extension point zeusfw core's login_post() (core/lib/
 // UserLogin.php) checks for via function_exists() before falling back to
 // the legacy users.roles column -- same pattern already used for

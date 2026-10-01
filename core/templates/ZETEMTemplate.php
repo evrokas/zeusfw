@@ -28,6 +28,31 @@ class Renderer {
 	// static $enable_comments = FALSE;
 	static $template_files = array();
 
+	// Passive bookkeeping for core/modules/live_edit/ (see its own
+	// docblock): every OUTERMOST render() call this request, in call
+	// order -- ['file' => the name render() was given, 'path' => the
+	// resolved filesystem path from $template_files]. $renderDepth makes
+	// this re-entrancy-aware: a .zetem template's own {{ }}/{% %}
+	// expressions can call ->render() on something (a form field, a
+	// module) while this method's own `require $cached_file;` is still
+	// executing, and those nested calls must never be recorded here --
+	// only the call that *isn't* nested inside another render() call is
+	// "a page section" in the sense live_edit cares about. Cost is one
+	// counter increment/decrement and (for outermost calls only) one
+	// array append per render() call -- negligible next to the template
+	// compile/require this method already does.
+	static $topLevelRenders = array();
+	static $renderDepth = 0;
+
+	// Set once per dispatch by RouterClass::routerCallFunction() -- the
+	// outermost render() call(s) made specifically during the matched
+	// route's own handler invocation (bounded to that one call, not the
+	// whole request -- chrome templates like header/page.zetem render
+	// *after* dispatch, inside Kernel::renderPage(), and must never show
+	// up here). core/modules/live_edit/ reads this directly; empty for a
+	// route that never rendered anything itself (a redirect, a 401/404).
+	static $lastContentRenders = array();
+
 	static $filterCallbackArray = array();	// filter callbacks
 
 	static $cstart;
@@ -93,15 +118,36 @@ class Renderer {
 
 	static function render($file, $data = array(), $stemplates = null): string
 	{
+		self::$renderDepth++;
+		$isOutermost = (self::$renderDepth === 1);
+
 		ob_start();
 		$cached_file = self::cache($file, $stemplates);
 		extract($data, EXTR_SKIP);
 		require $cached_file;
-		
+
 		$buffer = ob_get_contents();
 		ob_end_clean();
-		
+
+		if ($isOutermost) {
+			self::$topLevelRenders[] = ['file' => $file, 'path' => self::$template_files[$file] ?? null];
+		}
+		self::$renderDepth--;
+
 		return $buffer;
+	}
+
+	// How many outermost render() calls have happened so far this
+	// request -- a snapshot mark a caller takes before doing something,
+	// to later ask topLevelRendersSince() what rendered during it.
+	static function topLevelRenderCount(): int {
+		return count(self::$topLevelRenders);
+	}
+
+	// Every outermost render() call recorded since $sinceIndex (a value
+	// previously returned by topLevelRenderCount()).
+	static function topLevelRendersSince(int $sinceIndex): array {
+		return array_slice(self::$topLevelRenders, $sinceIndex);
 	}
 
 	

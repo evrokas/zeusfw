@@ -1,0 +1,68 @@
+/*
+ * Styles for the live_edit content-source overlay (core/modules/live_edit/).
+ * Own --zfl-* custom-property namespace, matching the --zfa-*/--zga-*
+ * convention accessibility.css/google-analytics.css already use -- a
+ * framework-level asset has no idea what design tokens the calling app
+ * has, or whether it has any at all. An app wanting its own colors
+ * overrides these from its own stylesheet rather than forking this file.
+ */
+#zfw-live-root {
+  --zfl-bg: rgba(22, 35, 58, 0.55);
+  --zfl-bg-hover: rgba(22, 35, 58, 0.92);
+  --zfl-fg: #f4f4f2;
+  --zfl-border: rgba(244, 244, 242, 0.18);
+  --zfl-accent: #2f6fed;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  position: fixed;
+  top: 0.6rem;
+  right: 0.6rem;
+  z-index: 2147483000;
+}
+#zfw-live-root * { box-sizing: border-box; }
+
+#zfw-live-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 60vw;
+  padding: 0.3rem 0.55rem;
+  background: var(--zfl-bg);
+  color: var(--zfl-fg);
+  border: 1px solid var(--zfl-border);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+#zfw-live-badge:hover,
+#zfw-live-badge:focus-visible {
+  opacity: 1;
+  background: var(--zfl-bg-hover);
+}
+#zfw-live-badge svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#zfw-live-badge .zfl-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#zfw-live-badge.zfl-copied {
+  background: var(--zfl-accent);
+  opacity: 1;
+}
+
+@media (max-width: 640px) {
+  #zfw-live-root { top: 0.4rem; right: 0.4rem; }
+  #zfw-live-badge { max-width: 48vw; font-size: 0.68rem; }
+}

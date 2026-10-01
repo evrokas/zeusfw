@@ -1,0 +1,11 @@
+# Off by default -- this module shows a relative server-side template
+# path to whoever's logged in and permitted to see it, which is still
+# real information disclosure (confirms app structure/tech, narrows an
+# attacker's guessing) if it were ever left on unintentionally on a
+# production deploy that merely lists "live_edit" under its own
+# settings.info.yaml modules: (e.g. inherited from a shared config layer).
+# An app turns this on deliberately, per call site, by passing
+# ['enabled' => true] to module('live_edit', [...]) -- see live_edit.php's
+# own run() -- not by editing this file; this default only covers a call
+# site that passes no 'enabled' param at all.
+live_edit_enabled: false
