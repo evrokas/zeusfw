@@ -1,0 +1,3 @@
+name=live_edit
+template=live_edit.zetem
+class=liveEditModule

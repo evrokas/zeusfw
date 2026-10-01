@@ -1,0 +1,14 @@
+{# Content-source overlay markup -- core/modules/live_edit/, Step 1 of a
+   planned live-editing feature. Shows only a relative template path --
+   never the template's own contents, never anything editable yet. #}
+<link rel="stylesheet" href="{{ $cssUrl | e }}">
+<div id="zfw-live-root"
+     data-zfw-live-file="{{ $templateName | e }}"
+     data-zfw-live-path="{{ $templatePath | e }}"
+     data-zfw-live-copied-label="{{ $copiedLabel | e }}">
+  <button type="button" id="zfw-live-badge" title="{{ $templatePath | e }}">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><path d="M14 3v6h6"></path></svg>
+    <span class="zfl-path">{{ $templatePath | e }}</span>
+  </button>
+</div>
+<script src="{{ $jsUrl | e }}"></script>

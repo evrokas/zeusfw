@@ -316,7 +316,15 @@ class RouterClass {
             }
 
             $params = $match_route['_params'];
-            return (self::call_module_func($fexe, $params) );
+
+            // Bounds Renderer::$lastContentRenders to exactly this call --
+            // see core/modules/live_edit/ and Renderer::$lastContentRenders's
+            // own docblock for why this has to happen here, not at the end
+            // of the request.
+            $mark = Renderer::topLevelRenderCount();
+            $result = self::call_module_func($fexe, $params);
+            Renderer::$lastContentRenders = Renderer::topLevelRendersSince($mark);
+            return ($result);
 
         }
 
@@ -337,7 +345,14 @@ class RouterClass {
             else $pane->update();
         }
         
-        return ( call_user_func($fexe, $params) );
+        // Bounds Renderer::$lastContentRenders to exactly this call -- see
+        // core/modules/live_edit/ and Renderer::$lastContentRenders's own
+        // docblock for why this has to happen here, not at the end of the
+        // request (chrome templates render later, inside renderPage()).
+        $mark = Renderer::topLevelRenderCount();
+        $result = call_user_func($fexe, $params);
+        Renderer::$lastContentRenders = Renderer::topLevelRendersSince($mark);
+        return ($result);
     }
 
     static function call_module_func($amodule, $params) {
