@@ -516,8 +516,58 @@ function syncTableWithYAML($yamlData, $pdo) {
             $hasUnique = in_array($existing['Key'] ?? '', ['UNI', 'PRI'], true);
             $columnDefinitionForCompare = trim(preg_replace('/\s*\bUNIQUE\b\s*/i', ' ', $columnDefinition));
 
+            // An integer type's display width (e.g. int(11)) is purely
+            // cosmetic in MySQL/MariaDB -- it affects neither storage nor
+            // range, and only ever does anything at all paired with
+            // ZEROFILL, which this codebase never uses (confirmed
+            // directly against a real MariaDB 10.11 server: MODIFYing a
+            // column to int(11) makes DESCRIBE faithfully report int(11)
+            // from then on -- this isn't a case of the server silently
+            // discarding the value, the two spellings really are just two
+            // ways of writing the identical column). Several yaml files
+            // declare an explicit width (e.g. pending_appointments.yaml's
+            // assigned_user_id/converted_patient_id/converted_appointment_id,
+            // mail_settings.yaml's smtp_port all say `type: int(11)`)
+            // while the live column on an existing install predates that
+            // and is still bare `int` -- comparing the two verbatim
+            // flagged a diff on every single diff:sql/update:bootstrap
+            // run, for every plain `int` column whose own yaml ever gets
+            // an explicit width added, not just a one-time migration.
+            // Strip the width from both sides before comparing -- same
+            // "normalize the comparison, not the generated SQL" approach
+            // as the UNIQUE handling just above -- so int and int(11) are
+            // finally treated as the same column; the /* old/new
+            // definition */ output and the ALTER TABLE statement (for a
+            // real, different diff) still show the real, literal types.
+            // tinyint(1) specifically is excluded from this -- it's
+            // already rewritten to the synthetic 'boolean' keyword a few
+            // lines above, before either definition string is built, so
+            // this codebase's real tinyint(1)-means-boolean convention is
+            // never touched by it.
+            $intWidthPattern = '/\b(tiny|small|medium|big)?int\s*\(\s*\d+\s*\)/i';
+            $existingDefinitionForCompare = preg_replace($intWidthPattern, '$1int', $existingDefinition);
+            $columnDefinitionForCompare = preg_replace($intWidthPattern, '$1int', $columnDefinitionForCompare);
+
+            // A second, independent cosmetic mismatch, found while
+            // verifying the fix above: createFieldDefinition() builds
+            // $required as " NOT NULL " (trailing space) and $default as
+            // " DEFAULT ... " (leading space), so a REQUIRED field that
+            // also carries an explicit yaml `default:` gets two spaces
+            // between them ("... NOT NULL  DEFAULT ...") -- but the
+            // DB-introspected side's own ' NOT NULL' (no trailing space)
+            // only ever produces one. trim() alone never catches this,
+            // since it only strips the ends, not a run of internal
+            // whitespace. Collapsing all whitespace runs to a single
+            // space before comparing (but, deliberately, not in the
+            // /* old/new definition */ output or the ALTER statement
+            // itself, which should still read naturally) fixes this the
+            // same "normalize the comparison only" way as both fixes
+            // above.
+            $existingDefinitionForCompare = preg_replace('/\s+/', ' ', $existingDefinitionForCompare);
+            $columnDefinitionForCompare = preg_replace('/\s+/', ' ', $columnDefinitionForCompare);
+
             if (($expectsUnique !== $hasUnique)
-                || (strtolower(trim($existingDefinition)) !== strtolower(trim($columnDefinitionForCompare)))) {
+                || (strtolower(trim($existingDefinitionForCompare)) !== strtolower(trim($columnDefinitionForCompare)))) {
                 // Alter column
                 // echo("existing `$name`: " . print_r($existing, 1));
 

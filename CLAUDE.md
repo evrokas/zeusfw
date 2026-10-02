@@ -2589,3 +2589,123 @@ intact); `feed:gen:yaml` and `feed:clean` with the same `--name=...` form both a
 ran successfully (`feed:clean` genuinely cleared the table, confirmed via a direct
 `SELECT COUNT(*)` before/after). `bash -n bin/update.sh` clean. **Files**: `bin/
 update.sh`, `docs/feeders-yaml.md`.
+
+## Three bugs behind one bug report: int(11) "false diffs" and stray whitespace noise on every maker.php command (2026-10-02)
+
+Reported directly, pasting a real `diff:sql:all` prompt showing the same four int
+columns (mail_settings.yaml's `smtp_port`, pending_appointments.yaml's
+`assigned_user_id`/`converted_patient_id`/`converted_appointment_id`) flagged for an
+`ALTER TABLE ... MODIFY ... int(11) ...` every time, plus a direct hunch: "it has to
+be a problem with the command line arguments (the =, or not)" -- a reasonable guess
+given the previous entry's `bin/update.sh` bug, but a different root cause this time,
+confirmed by actually reproducing rather than assuming. A second, separate ask came
+with it: trace and eliminate the stray blank/whitespace-only lines `feed:load`'s own
+output was full of.
+
+### Bug 1 -- `int` vs `int(11)` compared verbatim, a permanent false positive
+
+`syncTableWithYAML()` (`core/maker/functions.php`) already had one precedent for this
+exact failure mode -- see this file's own "`diff:sql`/`diff:sql:all` falsely flagging
+`UNIQUE` columns forever" entry -- but only for `UNIQUE`, not for an integer type's
+display width. Several yaml files declare an explicit width (`type: int(11)`) while
+the live column, however it was first created, reports back as bare `int` from
+`DESCRIBE` -- display width is purely cosmetic in MySQL/MariaDB (it affects neither
+storage nor range, and only ever does anything paired with `ZEROFILL`, which this
+codebase never uses), so the two spellings are the exact same column, but the
+line-for-line string comparison never knew that. Confirmed directly against a real
+MariaDB 10.11 server that this isn't a case of the server silently discarding the
+value either -- `MODIFY col int(11)` makes `DESCRIBE` faithfully report `int(11)`
+from then on -- so applying the suggested ALTER for *that one column* would have
+worked, but the exact same false difference would recur for every *other* plain
+`int` column the moment its own yaml is ever edited to add a width, forever, on every
+environment, not a one-time migration.
+
+Fixed the same "normalize the comparison, not the generated SQL" way as the UNIQUE
+case: strip `(\d+)` off `tiny/small/medium/big)?int` on both sides before comparing.
+`tinyint(1)` is untouched by this -- it's already rewritten to the synthetic
+`'boolean'` keyword a few lines above, before either comparison string is even built,
+so this codebase's real tinyint(1)-means-boolean convention never reaches the new
+regex at all.
+
+### Bug 2 -- a second, independent false positive found while verifying bug 1's fix
+
+Isolating a clean unit test for the int-width fix surfaced a second, unrelated
+cosmetic mismatch: `createFieldDefinition()` builds `$required` as `" NOT NULL "`
+(trailing space) and `$default` as `" DEFAULT ... "` (leading space) -- concatenated,
+a **required field that also carries an explicit yaml `default:`** gets a double
+space between them (`"... NOT NULL  DEFAULT ..."`), while the DB-introspected side's
+own `' NOT NULL'` (no trailing space) only ever produces one. `trim()` alone never
+catches this, since it only strips the ends, not an internal run of whitespace.
+Collapsing all whitespace runs to a single space before comparing (not in the
+generated `/* old/new definition */` output or the `ALTER TABLE` statement itself)
+closes this the same way.
+
+Both fixes verified together with 8 isolated comparison-logic test cases (not just
+read-through) covering: the reported bug, an already-matching int(11) pair (must stay
+equal), a genuine `NOT NULL` difference, a genuine `varchar` length difference, the
+`tinyint(1)`/boolean path (confirmed unaffected by the new regex), a bare `bigint`
+vs `bigint(20)` pair, the required+default double-space case, and a required+default
+pair with a genuinely different value (must still be caught) -- all 8 passed. Then
+confirmed against the real, live bug: `diff:sql mail_settings.yaml` on a database
+with the exact reported column shapes went from printing the false ALTER to printing
+nothing at all.
+
+### Bug 3 -- the stray whitespace, traced to the maker.php class-generation template itself
+
+Every single `maker.php` command (not just `feed:load`) was printing a handful of
+blank/whitespace-only lines before any real output, because `core/classes/
+feed_hashes.php` -- a maker-*generated* file, unconditionally `include()`d early in
+`maker.php`'s own startup (`if(file_exists(DIR::$fw . '/classes/feed_hashes.php'))
+include(...)`) -- itself began with literal bytes *before* its own `<?php` tag: any
+content before the opening tag in an included PHP file is plain text, echoed
+verbatim the instant the file is `include`d. Root-caused by `cat -A`'ing the
+generated file's own head (`\n\n \n     \n <?php`) and recognizing the exact same
+byte pattern in the command's observed stray-whitespace output -- then confirmed
+precisely byte-for-byte by rendering `core/maker/templates/class.zetem` (the ZETEM
+template every generated entity class, `feed_hashes.php` included, is built from) in
+isolation and inspecting the bytes before its own `<?php` emission, rather than
+guessing from the template source alone.
+
+The template's own header mixed `{# ... #}` comment blocks with literal,
+*uncommented* text sitting between and around them: a blank line between two
+separate comment blocks, a leading space before the second block's own opening `{#`,
+a stray 5-space line and a leading space on the real `{{ "<?php\n" }}` line after the
+second block closed -- all literal output, concatenating to exactly the byte pattern
+observed in every generated class file's own head. Fixed by merging the two comment
+blocks into one continuous span (removing the gap and its leading space) and joining
+the closing `#}` directly onto the same line as `{{ "<?php\n" }}` (no line break
+between them, which a separate, empirical check showed was needed too -- the ZETEM
+comment-closer apparently doesn't swallow its own trailing newline the way PHP's
+`?>` is documented elsewhere in this ecosystem to swallow its *one* following
+newline, so leaving them on separate lines left exactly one residual blank line).
+Confirmed via the same byte-inspection technique: zero bytes now precede `<?php` in
+the rendered output.
+
+**A fourth, unrelated single-byte leak found closing out the same trace**: even
+after the template fix, one stray `\n` still appeared once per `feed:load` run.
+Bisected by `ob_start()`/`ob_get_clean()`-wrapping `require('core/bootstrap.php')`
+in isolation (confirmed it leaked exactly 1 byte), then scanning every file that
+bootstrap's own require chain pulls in for leading/trailing bytes outside their
+`<?php`/`?>` boundaries -- `core/lib/Modules.php` (hand-written, not generated; the
+module-registration file this same file's own entries have touched several times
+before) had a single literal blank line before its `<?php` tag, almost certainly an
+editor/copy-paste artifact rather than anything deliberate. Removed.
+
+**Verified end-to-end against a real MariaDB-backed zpms checkout**: regenerated
+every entity class, both app-level (`web/classes/*.php`) and framework-level
+(`core/classes/*.php`, including `feed_hashes.php` itself) via `spill:class:all`
+with the fixed template, and confirmed every regenerated file now starts with literal
+`<?php` as its first four bytes (`head -c 10 | grep '^<?php'` on every file, zero
+failures). `require('core/bootstrap.php')` in isolation now leaks exactly 0 bytes
+(was 1). A real `feed:load` run against `locations.feeder.yaml` now produces
+completely clean output -- `Feed: \`location feeder\`` immediately followed by the
+first real `added`/`unchanged` line, no blank lines anywhere, confirmed via `cat -A`
+showing zero stray `$`-only or whitespace-only lines before the real content. zpms's
+own `bin/run_tests.sh` (100/100 static, 47/47 functional) stayed fully green
+throughout -- notable here specifically because its own `TestSchema::
+regenerateClasses()` drives `spill:class:all`/`update:bootstrap`/`spill:sql:all`
+through this exact, now-modified template and comparison logic on every run, so this
+wasn't verified in isolation from the rest of the framework's own tooling.
+
+**Files**: `core/maker/functions.php`, `core/maker/templates/class.zetem`,
+`core/lib/Modules.php`.

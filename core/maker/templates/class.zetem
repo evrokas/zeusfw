@@ -8,9 +8,6 @@
  # $templateName name of the template
  # $templatePath path of the template
  #
- #}
-
- {#
     /*
     <!-- 
     *  Class Template
@@ -34,9 +31,7 @@
     */ 
  <?php
      
-#}
-     
- {{ "<?php\n" }}
+#}{{ "<?php\n" }}
 
 class {{$className}} extends dbAbstractEntityClass {
 
