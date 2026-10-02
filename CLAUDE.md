@@ -2534,3 +2534,58 @@ zpms's own `bin/run_tests.sh` (101/101 static, 47/47 functional) stayed
 fully green throughout. **Files**: `core/modules/live_edit/css/live_edit.css`,
 `core/modules/live_edit/live_edit.php` (zeusfw only -- no zpms-side change
 needed for this fix).
+
+## `bin/update.sh` -- feed:gen:yaml/feed:load/feed:clean still used the pre-`zeusfw_maker_parse_argv()` "--name value" syntax (2026-10-02)
+
+Reported directly: `feed:load` (and `feed:gen:yaml`/`feed:clean`) kept printing
+`Unknown command` when run via `bin/update.sh`'s own "update content" step, with the
+reporter's own hunch that it was "a problem with the command line arguments (the =,
+or not)" -- exactly right, confirmed by reproducing the failure first rather than
+guessing at a fix.
+
+**Root cause**: this file's own `core/maker/maker.php` entry above
+("`--flag=value` options can now appear anywhere on the command line") replaced a
+plain `getopt()` call with a hand-written parser, `zeusfw_maker_parse_argv()` --
+and that function's own docblock is explicit that it's `=`-only by design: "Long
+options always take their value as `--name=value`, never a following bare token
+(`--name value`)", a deliberate narrowing (the two-token form becomes genuinely
+ambiguous once a flag can appear anywhere, not just before the command). That change
+updated every *documented* usage string in `maker.php` itself to the `=` form, but
+never touched the one real, executable *caller* still using the old space-separated
+style: `bin/update.sh`'s `feed:clean`/`feed:gen:yaml`/`feed:load` invocations all read
+`php $MAKER --name $temp feed:load` (four call sites total). Under the new parser,
+`--name` with no `=` parses as the long option present with an **empty string**
+value, and `$temp` (the feeder filename, e.g. `locations.feeder.yaml`) -- no longer
+consumed as that option's value -- falls through into `$optparams[0]`, the slot the
+`switch($optparams[0])` dispatcher reads as the command name. So the switch was
+comparing a feeder *filename* against the known command list, matching nothing, and
+falling through to `default: echo "Unknown command\n";` -- `feed:load` itself
+(now sitting, ignored, in `$optparams[1]`) was never actually reached.
+
+Every *other* `$MAKER` call in this same script (`spill:sql:all`, `update:bootstrap`,
+`diff:sql:all`, `tables:new:fw`/`:web`) already used `--app-dir=$BASEDIR` with the `=`
+form from the start, which is exactly why those kept working fine and only the
+`feed:*` family broke -- a real, narrow regression from the earlier change, not a
+pre-existing bug this just happened to surface.
+
+**Fixed** by changing all four call sites to `--name="$temp"` (quoted, so a feeder
+filename containing a space would still arrive as a single token to the PHP-side
+parser, which expects one `--name=value` argv element, not two). `docs/
+feeders-yaml.md`'s own one-line description of this command was separately wrong in
+an unrelated way (`-dir feeder-descriptor.yaml` -- single-dash `-dir`, which was never
+a real option under either the old or new parser; the long option is `name`, not
+`dir`) and was corrected to the real `--name=feeder-descriptor.yaml` form in the same
+pass, since it's the same topic a future reader would hit right after this fix.
+
+**Verified against a real MariaDB-backed zpms checkout, reproducing the failure
+first**: ran the exact pre-fix command shape from `zpms/web/content/` (zpms's own
+`locations.feeder.yaml`, the one real feeder in that checkout) --
+`php maker.php --name locations.feeder.yaml feed:load` printed exactly `Unknown
+command`, confirming the diagnosis byte-for-byte before touching anything. The fixed
+form, `--name=locations.feeder.yaml feed:load`, loaded all 10 rows into the real
+`locations` table (`Summary: 10 item(s) - 10 added, 0 updated, 0 unchanged.`, exit
+0); a second run correctly reported `0 added, 0 updated, 10 unchanged` (idempotency
+intact); `feed:gen:yaml` and `feed:clean` with the same `--name=...` form both also
+ran successfully (`feed:clean` genuinely cleared the table, confirmed via a direct
+`SELECT COUNT(*)` before/after). `bash -n bin/update.sh` clean. **Files**: `bin/
+update.sh`, `docs/feeders-yaml.md`.
