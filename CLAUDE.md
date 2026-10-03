@@ -2643,3 +2643,228 @@ zpms's own `bin/run_tests.sh` (101/101 static, 47/47 functional) stayed
 fully green throughout. **Files**: `core/modules/live_edit/css/live_edit.css`,
 `core/modules/live_edit/live_edit.php` (zeusfw only -- no zpms-side change
 needed for this fix).
+
+## `bin/update.sh` -- feed:gen:yaml/feed:load/feed:clean still used the pre-`zeusfw_maker_parse_argv()` "--name value" syntax (2026-10-02)
+
+Reported directly: `feed:load` (and `feed:gen:yaml`/`feed:clean`) kept printing
+`Unknown command` when run via `bin/update.sh`'s own "update content" step, with the
+reporter's own hunch that it was "a problem with the command line arguments (the =,
+or not)" -- exactly right, confirmed by reproducing the failure first rather than
+guessing at a fix.
+
+**Root cause**: this file's own `core/maker/maker.php` entry above
+("`--flag=value` options can now appear anywhere on the command line") replaced a
+plain `getopt()` call with a hand-written parser, `zeusfw_maker_parse_argv()` --
+and that function's own docblock is explicit that it's `=`-only by design: "Long
+options always take their value as `--name=value`, never a following bare token
+(`--name value`)", a deliberate narrowing (the two-token form becomes genuinely
+ambiguous once a flag can appear anywhere, not just before the command). That change
+updated every *documented* usage string in `maker.php` itself to the `=` form, but
+never touched the one real, executable *caller* still using the old space-separated
+style: `bin/update.sh`'s `feed:clean`/`feed:gen:yaml`/`feed:load` invocations all read
+`php $MAKER --name $temp feed:load` (four call sites total). Under the new parser,
+`--name` with no `=` parses as the long option present with an **empty string**
+value, and `$temp` (the feeder filename, e.g. `locations.feeder.yaml`) -- no longer
+consumed as that option's value -- falls through into `$optparams[0]`, the slot the
+`switch($optparams[0])` dispatcher reads as the command name. So the switch was
+comparing a feeder *filename* against the known command list, matching nothing, and
+falling through to `default: echo "Unknown command\n";` -- `feed:load` itself
+(now sitting, ignored, in `$optparams[1]`) was never actually reached.
+
+Every *other* `$MAKER` call in this same script (`spill:sql:all`, `update:bootstrap`,
+`diff:sql:all`, `tables:new:fw`/`:web`) already used `--app-dir=$BASEDIR` with the `=`
+form from the start, which is exactly why those kept working fine and only the
+`feed:*` family broke -- a real, narrow regression from the earlier change, not a
+pre-existing bug this just happened to surface.
+
+**Fixed** by changing all four call sites to `--name="$temp"` (quoted, so a feeder
+filename containing a space would still arrive as a single token to the PHP-side
+parser, which expects one `--name=value` argv element, not two). `docs/
+feeders-yaml.md`'s own one-line description of this command was separately wrong in
+an unrelated way (`-dir feeder-descriptor.yaml` -- single-dash `-dir`, which was never
+a real option under either the old or new parser; the long option is `name`, not
+`dir`) and was corrected to the real `--name=feeder-descriptor.yaml` form in the same
+pass, since it's the same topic a future reader would hit right after this fix.
+
+**Verified against a real MariaDB-backed zpms checkout, reproducing the failure
+first**: ran the exact pre-fix command shape from `zpms/web/content/` (zpms's own
+`locations.feeder.yaml`, the one real feeder in that checkout) --
+`php maker.php --name locations.feeder.yaml feed:load` printed exactly `Unknown
+command`, confirming the diagnosis byte-for-byte before touching anything. The fixed
+form, `--name=locations.feeder.yaml feed:load`, loaded all 10 rows into the real
+`locations` table (`Summary: 10 item(s) - 10 added, 0 updated, 0 unchanged.`, exit
+0); a second run correctly reported `0 added, 0 updated, 10 unchanged` (idempotency
+intact); `feed:gen:yaml` and `feed:clean` with the same `--name=...` form both also
+ran successfully (`feed:clean` genuinely cleared the table, confirmed via a direct
+`SELECT COUNT(*)` before/after). `bash -n bin/update.sh` clean. **Files**: `bin/
+update.sh`, `docs/feeders-yaml.md`.
+
+## Three bugs behind one bug report: int(11) "false diffs" and stray whitespace noise on every maker.php command (2026-10-02)
+
+Reported directly, pasting a real `diff:sql:all` prompt showing the same four int
+columns (mail_settings.yaml's `smtp_port`, pending_appointments.yaml's
+`assigned_user_id`/`converted_patient_id`/`converted_appointment_id`) flagged for an
+`ALTER TABLE ... MODIFY ... int(11) ...` every time, plus a direct hunch: "it has to
+be a problem with the command line arguments (the =, or not)" -- a reasonable guess
+given the previous entry's `bin/update.sh` bug, but a different root cause this time,
+confirmed by actually reproducing rather than assuming. A second, separate ask came
+with it: trace and eliminate the stray blank/whitespace-only lines `feed:load`'s own
+output was full of.
+
+### Bug 1 -- `int` vs `int(11)` compared verbatim, a permanent false positive
+
+`syncTableWithYAML()` (`core/maker/functions.php`) already had one precedent for this
+exact failure mode -- see this file's own "`diff:sql`/`diff:sql:all` falsely flagging
+`UNIQUE` columns forever" entry -- but only for `UNIQUE`, not for an integer type's
+display width. Several yaml files declare an explicit width (`type: int(11)`) while
+the live column, however it was first created, reports back as bare `int` from
+`DESCRIBE` -- display width is purely cosmetic in MySQL/MariaDB (it affects neither
+storage nor range, and only ever does anything paired with `ZEROFILL`, which this
+codebase never uses), so the two spellings are the exact same column, but the
+line-for-line string comparison never knew that. Confirmed directly against a real
+MariaDB 10.11 server that this isn't a case of the server silently discarding the
+value either -- `MODIFY col int(11)` makes `DESCRIBE` faithfully report `int(11)`
+from then on -- so applying the suggested ALTER for *that one column* would have
+worked, but the exact same false difference would recur for every *other* plain
+`int` column the moment its own yaml is ever edited to add a width, forever, on every
+environment, not a one-time migration.
+
+Fixed the same "normalize the comparison, not the generated SQL" way as the UNIQUE
+case: strip `(\d+)` off `tiny/small/medium/big)?int` on both sides before comparing.
+`tinyint(1)` is untouched by this -- it's already rewritten to the synthetic
+`'boolean'` keyword a few lines above, before either comparison string is even built,
+so this codebase's real tinyint(1)-means-boolean convention never reaches the new
+regex at all.
+
+### Bug 2 -- a second, independent false positive found while verifying bug 1's fix
+
+Isolating a clean unit test for the int-width fix surfaced a second, unrelated
+cosmetic mismatch: `createFieldDefinition()` builds `$required` as `" NOT NULL "`
+(trailing space) and `$default` as `" DEFAULT ... "` (leading space) -- concatenated,
+a **required field that also carries an explicit yaml `default:`** gets a double
+space between them (`"... NOT NULL  DEFAULT ..."`), while the DB-introspected side's
+own `' NOT NULL'` (no trailing space) only ever produces one. `trim()` alone never
+catches this, since it only strips the ends, not an internal run of whitespace.
+Collapsing all whitespace runs to a single space before comparing (not in the
+generated `/* old/new definition */` output or the `ALTER TABLE` statement itself)
+closes this the same way.
+
+Both fixes verified together with 8 isolated comparison-logic test cases (not just
+read-through) covering: the reported bug, an already-matching int(11) pair (must stay
+equal), a genuine `NOT NULL` difference, a genuine `varchar` length difference, the
+`tinyint(1)`/boolean path (confirmed unaffected by the new regex), a bare `bigint`
+vs `bigint(20)` pair, the required+default double-space case, and a required+default
+pair with a genuinely different value (must still be caught) -- all 8 passed. Then
+confirmed against the real, live bug: `diff:sql mail_settings.yaml` on a database
+with the exact reported column shapes went from printing the false ALTER to printing
+nothing at all.
+
+### Bug 3 -- the stray whitespace, traced to the maker.php class-generation template itself
+
+Every single `maker.php` command (not just `feed:load`) was printing a handful of
+blank/whitespace-only lines before any real output, because `core/classes/
+feed_hashes.php` -- a maker-*generated* file, unconditionally `include()`d early in
+`maker.php`'s own startup (`if(file_exists(DIR::$fw . '/classes/feed_hashes.php'))
+include(...)`) -- itself began with literal bytes *before* its own `<?php` tag: any
+content before the opening tag in an included PHP file is plain text, echoed
+verbatim the instant the file is `include`d. Root-caused by `cat -A`'ing the
+generated file's own head (`\n\n \n     \n <?php`) and recognizing the exact same
+byte pattern in the command's observed stray-whitespace output -- then confirmed
+precisely byte-for-byte by rendering `core/maker/templates/class.zetem` (the ZETEM
+template every generated entity class, `feed_hashes.php` included, is built from) in
+isolation and inspecting the bytes before its own `<?php` emission, rather than
+guessing from the template source alone.
+
+The template's own header mixed `{# ... #}` comment blocks with literal,
+*uncommented* text sitting between and around them: a blank line between two
+separate comment blocks, a leading space before the second block's own opening `{#`,
+a stray 5-space line and a leading space on the real `{{ "<?php\n" }}` line after the
+second block closed -- all literal output, concatenating to exactly the byte pattern
+observed in every generated class file's own head. Fixed by merging the two comment
+blocks into one continuous span (removing the gap and its leading space) and joining
+the closing `#}` directly onto the same line as `{{ "<?php\n" }}` (no line break
+between them, which a separate, empirical check showed was needed too -- the ZETEM
+comment-closer apparently doesn't swallow its own trailing newline the way PHP's
+`?>` is documented elsewhere in this ecosystem to swallow its *one* following
+newline, so leaving them on separate lines left exactly one residual blank line).
+Confirmed via the same byte-inspection technique: zero bytes now precede `<?php` in
+the rendered output.
+
+**A fourth, unrelated single-byte leak found closing out the same trace**: even
+after the template fix, one stray `\n` still appeared once per `feed:load` run.
+Bisected by `ob_start()`/`ob_get_clean()`-wrapping `require('core/bootstrap.php')`
+in isolation (confirmed it leaked exactly 1 byte), then scanning every file that
+bootstrap's own require chain pulls in for leading/trailing bytes outside their
+`<?php`/`?>` boundaries -- `core/lib/Modules.php` (hand-written, not generated; the
+module-registration file this same file's own entries have touched several times
+before) had a single literal blank line before its `<?php` tag, almost certainly an
+editor/copy-paste artifact rather than anything deliberate. Removed.
+
+**Verified end-to-end against a real MariaDB-backed zpms checkout**: regenerated
+every entity class, both app-level (`web/classes/*.php`) and framework-level
+(`core/classes/*.php`, including `feed_hashes.php` itself) via `spill:class:all`
+with the fixed template, and confirmed every regenerated file now starts with literal
+`<?php` as its first four bytes (`head -c 10 | grep '^<?php'` on every file, zero
+failures). `require('core/bootstrap.php')` in isolation now leaks exactly 0 bytes
+(was 1). A real `feed:load` run against `locations.feeder.yaml` now produces
+completely clean output -- `Feed: \`location feeder\`` immediately followed by the
+first real `added`/`unchanged` line, no blank lines anywhere, confirmed via `cat -A`
+showing zero stray `$`-only or whitespace-only lines before the real content. zpms's
+own `bin/run_tests.sh` (100/100 static, 47/47 functional) stayed fully green
+throughout -- notable here specifically because its own `TestSchema::
+regenerateClasses()` drives `spill:class:all`/`update:bootstrap`/`spill:sql:all`
+through this exact, now-modified template and comparison logic on every run, so this
+wasn't verified in isolation from the rest of the framework's own tooling.
+
+**Files**: `core/maker/functions.php`, `core/maker/templates/class.zetem`,
+`core/lib/Modules.php`.
+
+## Nav menu items gain an optional `permission:` key (2026-10-03)
+
+At zpms's request: a "User Management" item (`/admin/users`) under its
+Apps menu, visible only to users holding a specific permission. The nav's
+existing `access:` key can't express that: it is a list of *role names*
+(`SecurityClass::userIsPermitted()`), while every `/admin/*` handler checks
+the *permission* `users-manage` (`ZEUSFW_PERM_MANAGE_USERS`). Keeping a role
+list in the menu in step with a permission check in the handler is a manual
+sync that has already drifted twice in zpms (the Backups item, see the
+`zeusfw_app_backup_permission()` and is_superuser-bypass entries above):
+the link showed for roles that only got a 401, or hid from roles that could
+open the page.
+
+**`permission: <slug>` on any menu item** (`core/modules/mainnavigation/
+mainnavigation.php`, `setupMenuAttributes()`): the item renders only if the
+current user holds that RBAC permission, or has an is_superuser role. Point
+it at the same slug the target handler checks and the two can't disagree;
+granting the permission to another role (`/admin/role_permissions`) makes
+the link appear for that role with no config change. If an item has both
+`access:` and `permission:`, both must pass. It's additive and opt-in: no
+existing menu config uses the key, so nothing changes for any app until it
+does.
+
+**`rbacClass::currentUserHasPermission(string $permission): bool`** (new,
+`core/lib/Rbac.php`) is what it calls, not `isPermitted()`, for the same two
+reasons `currentUserIsSuperuser()` exists separately: it **never throws**
+(the nav renders on every page of every app, including apps with no RBAC
+tables or no app-level `usersClassEx::getUserAccount()`; any failure means
+"not permitted", so the item is hidden, never a fatal), and it **memoizes
+the user's resolved roles per request**, so N permission-gated menu items
+cost one role lookup, not N. Same answer as `isPermitted()` otherwise. It
+only decides what to *show*: a handler guarding an action must still call
+`rbacClass::require()` itself, since a hidden link protects nothing.
+
+Why not switch `access:` itself to permissions: see the is_superuser-bypass
+entry above. `access:` also gates routes and regions/modules and accepts
+multiple roles, and two apps on this framework (mweb, zweb) have no RBAC at
+all. A separate key keeps both vocabularies explicit, with no change to
+`access:` behavior anywhere.
+
+**Verified against zpms** with a new functional test (`tests/functional/
+auth_csrf.php`): administrator (is_superuser) sees the item and can open
+`/admin/users`; a doctor (no `users-manage`) doesn't see it and is refused
+the page; after `users-manage` is granted to the doctor role (rolled back in
+a `finally`), the same doctor sees it and can open the page, with no menu
+config change. Also confirmed in a browser (Playwright, hovering the Apps
+menu as each user). `php -l` clean; zpms's `bin/run_tests.sh` (100/100
+static, 48/48 functional) green. **Files**: `core/lib/Rbac.php`,
+`core/modules/mainnavigation/mainnavigation.php`.

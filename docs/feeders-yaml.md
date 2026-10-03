@@ -7,7 +7,7 @@ and populating these files with data.
 'feed' is the generated file
 
 
-'feed' files are generated once with 'maker.php feed:gen:yaml' command and argument '-dir feeder-descriptor.yaml'
+'feed' files are generated once with 'maker.php feed:gen:yaml' command and argument '--name=feeder-descriptor.yaml' (run from the app's web/content/ directory, see bin/update.sh) -- '--name', not '-dir', and always '=', never a space before the value (see zeusfw_maker_parse_argv()'s own docblock in core/maker/maker.php)
 
 'feeder' descriptor file structure is as follows:
 ---

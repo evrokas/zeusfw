@@ -77,6 +77,18 @@ class menuModule extends moduleClass {
                 if(!$permitted)$show = 0;
             }
 
+            // Optional `permission: <slug>` -- show the item only to a user
+            // holding that RBAC permission (or an is_superuser role). Use
+            // the same slug the target page's handler checks, so the menu
+            // can't show a link that only leads to a 401, or hide one the
+            // user can actually open. `access:` (role names) has to be kept
+            // in sync with the page by hand, and has drifted before. If
+            // both keys are set, both must pass.
+            if(key_exists('permission', $mdata)
+                && !rbacClass::currentUserHasPermission((string)$mdata['permission'])) {
+                $show = 0;
+            }
+
             if($show>0) {
 
                 // echopre("mitem: " . print_r($mdata, 1) . " ==> " . array_key_first($mdata));
