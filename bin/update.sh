@@ -207,17 +207,10 @@ if [[ $answer == [yY] ]]; then
             if [[ $confirm == [yY] ]]; then 
                 if [[ -f ../classes/yaml/$schema ]]; then 
                     echo "Creating feeder data $temp (app)"
-<<<<<<< HEAD
-                    php $MAKER --name=$temp feed:gen:yaml
-                elif [[ -f ../core/classes/yaml/$schema ]]; then
-                    echo "Creating feeder data $temp (core)"
-                    php $MAKER --name=$temp feed:gen:yaml
-=======
                     php $MAKER --name="$temp" feed:gen:yaml
                 elif [[ -f ../core/classes/yaml/$schema ]]; then
                     echo "Creating feeder data $temp (core)"
                     php $MAKER --name="$temp" feed:gen:yaml
->>>>>>> claude/zpms-patient-name-duplicate-check-7rcg9w
                 else
                     echo Could not locate schema file $schema. Aborting...
                     exit
@@ -293,5 +286,17 @@ if [[ ! -z $webforms ]]; then
         done
 
         popd
+    fi
+fi
+
+
+# App-specific steps that need the freshly loaded content (erweb: drawing the
+# static location maps from the clinic addresses). Opt-in: runs only if the
+# app ships an executable bin/post-update.sh, so other apps are unaffected.
+# Its failure is reported but doesn't undo or abort the update above.
+if [ -x "$BASEDIR/bin/post-update.sh" ]; then
+    echo 'Running application post-update steps (bin/post-update.sh)...'
+    if ! "$BASEDIR/bin/post-update.sh"; then
+        echo "Warning: bin/post-update.sh reported a problem (see above); the rest of the update is complete."
     fi
 fi
