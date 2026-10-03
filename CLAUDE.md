@@ -2448,3 +2448,16 @@ included; deleting them is a separate, deliberate step (see the zpms README/comm
 36/36, patients 6/6, appointments 9/9, uploads 5/5, auth+CSRF 16/16, admin CRUD 9/9), and the test
 database held zero `analytics`/`pageanalytics` rows afterwards. **Files**: `core/kernel/Kernel.php`,
 `core/kernel/maintenance.php`, `core/router/Router.php`.
+
+## `bin/update.sh` runs an app's optional `bin/post-update.sh` (2026-10-03)
+
+At direct request (erweb: draw static location maps from the clinic addresses on every update). `update.sh`
+had no way to run an app-specific step after its content load, and putting erweb's script in it would make
+a shared script app-specific. Added one generic block at the very end: if `$BASEDIR/bin/post-update.sh` exists
+and is executable, run it; a non-zero exit prints a warning and doesn't abort or undo anything (the schema
+and content steps above have already finished). Opt-in by construction — checked that no other app in this
+environment (docarc, zpms) has a `bin/post-update.sh`, so nothing changes for them. erweb's hook runs
+`php bin/generate_location_maps.php`; see erweb's own CLAUDE.md.
+
+**Verified**: `bash -n` clean; the full `update.sh`, run against erweb with every prompt answered "n", ran
+the hook after the webform step and drew all 6 maps. **Files**: `bin/update.sh`.
