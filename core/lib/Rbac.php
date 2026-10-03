@@ -128,6 +128,58 @@ class rbacClass {
 
         return self::$superuserCache[$uname] = $result;
     }
+
+    // Per-request cache of the current user's resolved roles, for
+    // currentUserHasPermission() below. null = no usable role data
+    // (anonymous, unknown account, or an app without RBAC).
+    private static array $roleCache = [];
+
+    // Same answer as isPermitted() (is_superuser passes everything,
+    // otherwise the permission must be granted to one of the user's
+    // roles), with the same two guarantees as currentUserIsSuperuser():
+    //
+    // - Never throws. It's called from the nav menu's `permission:` key
+    //   (core/modules/mainnavigation/mainnavigation.php) on every page
+    //   render, including on apps that never set up RBAC. A missing table
+    //   or app-level class means "not permitted", which hides the menu
+    //   item (fail closed), never a fatal error.
+    // - Memoized per username: the roles are resolved once per request,
+    //   however many permission-gated menu items the page has.
+    //
+    // Only for deciding what to *show*. A handler guarding an action must
+    // still call require()/isPermitted() itself; hiding a link protects
+    // nothing on its own.
+    static function currentUserHasPermission(string $permission): bool {
+        global $kernel;
+
+        $uname = $kernel->getUserName();
+        if (!$uname) {
+            return false;
+        }
+
+        if (!array_key_exists($uname, self::$roleCache)) {
+            $roles = null;
+            try {
+                $user = UsersClassEx::getUserAccount($uname);
+                if ($user) {
+                    $roles = user_rolesClassEx::getRolesForUser((int)$user->getid());
+                }
+            } catch (\Throwable $e) {
+                $roles = null;
+            }
+            self::$roleCache[$uname] = $roles;
+        }
+
+        foreach (self::$roleCache[$uname] ?? [] as $role) {
+            if (!empty($role['is_superuser'])) {
+                return true;
+            }
+            if (in_array($permission, $role['permissions'] ?? [], true)) {
+                return true;
+            }
+        }
+        return false;
+    }
 }
 
 // The framework's own canonical permission slug for "can manage users,

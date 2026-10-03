@@ -2709,3 +2709,53 @@ wasn't verified in isolation from the rest of the framework's own tooling.
 
 **Files**: `core/maker/functions.php`, `core/maker/templates/class.zetem`,
 `core/lib/Modules.php`.
+
+## Nav menu items gain an optional `permission:` key (2026-10-03)
+
+At zpms's request: a "User Management" item (`/admin/users`) under its
+Apps menu, visible only to users holding a specific permission. The nav's
+existing `access:` key can't express that: it is a list of *role names*
+(`SecurityClass::userIsPermitted()`), while every `/admin/*` handler checks
+the *permission* `users-manage` (`ZEUSFW_PERM_MANAGE_USERS`). Keeping a role
+list in the menu in step with a permission check in the handler is a manual
+sync that has already drifted twice in zpms (the Backups item, see the
+`zeusfw_app_backup_permission()` and is_superuser-bypass entries above):
+the link showed for roles that only got a 401, or hid from roles that could
+open the page.
+
+**`permission: <slug>` on any menu item** (`core/modules/mainnavigation/
+mainnavigation.php`, `setupMenuAttributes()`): the item renders only if the
+current user holds that RBAC permission, or has an is_superuser role. Point
+it at the same slug the target handler checks and the two can't disagree;
+granting the permission to another role (`/admin/role_permissions`) makes
+the link appear for that role with no config change. If an item has both
+`access:` and `permission:`, both must pass. It's additive and opt-in: no
+existing menu config uses the key, so nothing changes for any app until it
+does.
+
+**`rbacClass::currentUserHasPermission(string $permission): bool`** (new,
+`core/lib/Rbac.php`) is what it calls, not `isPermitted()`, for the same two
+reasons `currentUserIsSuperuser()` exists separately: it **never throws**
+(the nav renders on every page of every app, including apps with no RBAC
+tables or no app-level `usersClassEx::getUserAccount()`; any failure means
+"not permitted", so the item is hidden, never a fatal), and it **memoizes
+the user's resolved roles per request**, so N permission-gated menu items
+cost one role lookup, not N. Same answer as `isPermitted()` otherwise. It
+only decides what to *show*: a handler guarding an action must still call
+`rbacClass::require()` itself, since a hidden link protects nothing.
+
+Why not switch `access:` itself to permissions: see the is_superuser-bypass
+entry above. `access:` also gates routes and regions/modules and accepts
+multiple roles, and two apps on this framework (mweb, zweb) have no RBAC at
+all. A separate key keeps both vocabularies explicit, with no change to
+`access:` behavior anywhere.
+
+**Verified against zpms** with a new functional test (`tests/functional/
+auth_csrf.php`): administrator (is_superuser) sees the item and can open
+`/admin/users`; a doctor (no `users-manage`) doesn't see it and is refused
+the page; after `users-manage` is granted to the doctor role (rolled back in
+a `finally`), the same doctor sees it and can open the page, with no menu
+config change. Also confirmed in a browser (Playwright, hovering the Apps
+menu as each user). `php -l` clean; zpms's `bin/run_tests.sh` (100/100
+static, 48/48 functional) green. **Files**: `core/lib/Rbac.php`,
+`core/modules/mainnavigation/mainnavigation.php`.
