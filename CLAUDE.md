@@ -2759,3 +2759,44 @@ config change. Also confirmed in a browser (Playwright, hovering the Apps
 menu as each user). `php -l` clean; zpms's `bin/run_tests.sh` (100/100
 static, 48/48 functional) green. **Files**: `core/lib/Rbac.php`,
 `core/modules/mainnavigation/mainnavigation.php`.
+
+## `core/router/Request.php` -- query parameters (`?a=1&b=2`) and a `&`/`?` inside a path (2026-10-05)
+
+Needed by zpms's patient list (`/patients?per_page=50&page=2&sort=name`), the first page on this
+framework whose address carries real query parameters in normal use. Checked against the real class
+with Apache-shaped inputs before changing anything (a throwaway script feeding `RequestClass` the
+`QUERY_STRING`/`REQUEST_URI` pairs below), because the earlier `strtok($qs, '&')` fix
+(`Request.php`, 2026-09-18 "Three real bugs" entry above) already covered the plain case:
+
+| QUERY_STRING as Apache passes it | Before | After |
+|---|---|---|
+| `patients&per_page=25&page=2` (`/patients?per_page=25&page=2`) | route `patients`, params only via `$_GET` | route `patients`, `getParams()` clean |
+| `patients?per_page=25` (a server/proxy passing the `?` through) | route `patients?per_page=25` -> 404 | route `patients` |
+| `patients/search/Smith & Sons` (`%26` is decoded by mod_rewrite's `$1`) | route cut at the `&`: `patients/search/Smith ` | whole path kept |
+| `x=1` on `/?x=1` (home page, nothing rewritten in) | route `x=1` -> 404 | route `` (home), param `x=1` |
+
+**How the route is now worked out** (`RequestClass::__construct()`), most reliable source first:
+1. **The request line.** `REQUEST_URI` still holds the original address, while `QUERY_STRING` holds
+   the *decoded* path followed by `&` and the real query. When `QUERY_STRING` starts with the request's
+   own decoded path (and the next character is `&` or the end), that whole path is the route -- so a
+   `&` or `?` that was percent-encoded inside a segment survives -- and the real query is the rest.
+2. Otherwise the old rule: the route ends at the first `&`.
+3. And if that first piece still contains a literal `?`, it is cut there too.
+
+If a deployment rewrites `QUERY_STRING` itself (erweb's sub-path support), the two no longer line up
+and step 1 steps aside, so behaviour for such an app is unchanged. Routes with no query are unchanged.
+
+**New accessors:** `RequestClass::getParams(): array` and `getParam(string $name, $default = null)`
+return the query parameters the browser actually sent (parsed from the request line's query, else from
+what followed the route in `QUERY_STRING`). PHP's own `$_GET` still works but carries the route itself
+as a stray empty key (`['patients' => '']`) under the `.htaccess` rewrite, so handlers should prefer
+these. Reach the request object with `global $Request;` (set by `Kernel::boot()`).
+
+**Test servers must replicate `[QSA]`.** zpms's `tests/lib/router.php` (the `php -S` shim) used to set
+`QUERY_STRING` to the path only, hiding every real query parameter from the app, which is why nothing
+could test any of this; it now appends `&` and the real query like Apache does (see zpms's README).
+
+**Verified**: the table above, plus a request with no `REQUEST_URI` at all (old callers/CLI) and a
+sub-directory `REQUEST_URI` (`/sub/dir/patients` with `QUERY_STRING=patients`), all behave as before; the
+full zpms suite (102 static, 51 functional) is green, including functional tests that load
+`/patients?...` addresses and a search term containing `&`. **Files**: `core/router/Request.php`.
