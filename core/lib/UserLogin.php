@@ -148,6 +148,7 @@ function login_post($params) {
                 ? 'Ο λογαριασμός έχει κλειδωθεί λόγω πολλών αποτυχημένων προσπαθειών σύνδεσης. Επικοινωνήστε με τον διαχειριστή.'
                 : 'Ο λογαριασμός δεν είναι ενεργός.');
             error_log('login refused for ' . $us->getuname() . ($lockedOut ? ' (locked out)' : ' (inactive/expired)'));
+            zeusfw_audit_event('login_refused', ['username' => $us->getuname(), 'method' => 'password', 'reason' => $lockedOut ? 'locked_out' : 'inactive']);
             header('location: ' . rel_url('/login'));
             exit();
         }
@@ -172,6 +173,7 @@ function login_post($params) {
 
         // ask kernel to login user
         $kernel->loginUser($us->getuname(), $uroles);
+        zeusfw_audit_event('login_success', ['username' => $us->getuname(), 'method' => 'password']);
 
         if(isset($_POST['rememberme'])) {
             setup_rememberme($us->getuname());
@@ -197,6 +199,10 @@ function login_post($params) {
         if($us) {
             $us->setwrongpasscount( $us->getwrongpasscount() + 1);
             $us->update();
+        }
+        zeusfw_audit_event('login_failed', ['username' => (string)($_POST['username'] ?? ''), 'method' => 'password']);
+        if($us && LoginSecurityClass::$enforceLockout && (int)$us->getwrongpasscount() === LoginSecurityClass::$maxWrongPassCount) {
+            zeusfw_audit_event('account_locked', ['username' => $us->getuname(), 'method' => 'password']);
         }
 
         $kernel->addStatus('warning', 'Username and password does not match, or do not exist');
@@ -226,6 +232,7 @@ function logout($params) {
         }
         zeusfw_clear_rememberme_cookie();
 
+        zeusfw_audit_event('logout', ['username' => $us]);
         $kernel->logoutUser();
     }
     header('location: '.rel_url('/'));

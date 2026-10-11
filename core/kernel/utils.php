@@ -266,6 +266,38 @@ function kindex($token) {
 // main translation function, translates $token to current language
 // if $token is an array, then checks if the array has keys as the
 // current language, if yes, then emits the value of that key
+/**
+ * Tells the app about a security-relevant event (a login, a logout, a user
+ * account change) so it can keep its own audit trail. Core never stores
+ * anything itself: an app that wants a trail defines
+ *
+ *     function zeusfw_app_audit_event(string $event, array $context): void
+ *
+ * (checked with function_exists(), the same opt-in pattern as
+ * zeusfw_app_resolve_user_roles()). An app that defines nothing gets no
+ * change at all. Whatever the app's function does, a failure in it is
+ * logged and swallowed here -- recording an event must never break the
+ * login or save it describes.
+ *
+ * Events sent by core: login_success, login_failed, login_refused,
+ * account_locked, logout, login_remembered (session restored from the
+ * remember-me cookie), admin_created, admin_updated, admin_deleted,
+ * admin_user_roles_changed. $context keys used: username (the account the
+ * event is about; for login_failed it is whatever was typed), method
+ * ('password' / 'ernsauth' / 'remember_me'), reason, entity, entity_id,
+ * fields (names only, never values), added / removed (role ids).
+ */
+function zeusfw_audit_event(string $event, array $context = []): void {
+    if (!function_exists('zeusfw_app_audit_event')) {
+        return;
+    }
+    try {
+        zeusfw_app_audit_event($event, $context);
+    } catch (\Throwable $e) {
+        error_log('zeusfw_app_audit_event(' . $event . ') failed: ' . $e->getMessage());
+    }
+}
+
 function t($token, array $values = []) {
     if(is_array($token)) {
         // it is an array, check to see if it has translation array keys

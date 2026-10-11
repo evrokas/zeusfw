@@ -326,6 +326,7 @@ class ernsauthClass {
         }
 
         error_log('ernsauth sso ' . $outcome . ' for ' . $username);
+        zeusfw_audit_event('login_failed', ['username' => $username, 'method' => 'ernsauth', 'reason' => $outcome]);
         self::clearSession();
     }
 

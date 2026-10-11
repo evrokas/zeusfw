@@ -884,6 +884,7 @@ class Kernel {
                         ? (zeusfw_app_resolve_user_roles($us) ?? $us->getroles())
                         : $us->getroles();
                     $kernel->loginUser($us->getuname(), $uroles);
+                    zeusfw_audit_event('login_remembered', ['username' => $us->getuname(), 'method' => 'remember_me']);
                     return true;
                 }
 

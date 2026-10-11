@@ -110,6 +110,7 @@ function ernsauth_sso_exchange($params) {
         : $us->getroles();
 
     $kernel->loginUser($us->getuname(), $uroles);
+    zeusfw_audit_event('login_success', ['username' => $us->getuname(), 'method' => 'ernsauth']);
 
     echo json_encode(['success' => true, 'redirect' => rel_url('/profile')]);
     exit();

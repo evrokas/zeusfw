@@ -2800,3 +2800,17 @@ could test any of this; it now appends `&` and the real query like Apache does (
 sub-directory `REQUEST_URI` (`/sub/dir/patients` with `QUERY_STRING=patients`), all behave as before; the
 full zpms suite (102 static, 51 functional) is green, including functional tests that load
 `/patients?...` addresses and a search term containing `&`. **Files**: `core/router/Request.php`.
+
+## `zeusfw_audit_event()` -- an opt-in hook so an app can keep an audit trail of sign-ins and user management (2026-10-11)
+
+Requested by zpms, which now keeps a GDPR audit log (see its README, "GDPR audit log"). Sign-ins, sign-outs and the `/admin/*` user/role pages all live in core, so an app could not record them without core telling it. Core still stores nothing itself.
+
+`zeusfw_audit_event(string $event, array $context = [])` (`core/kernel/utils.php`) calls the app's `zeusfw_app_audit_event($event, $context)` if the app defines one -- the same `function_exists()` opt-in as `zeusfw_app_resolve_user_roles()`. An app that defines nothing sees no change. Any exception thrown by the app's function is caught and sent to `error_log()`, so recording an event can never break the sign-in or save it describes.
+
+Events core sends:
+- `login_success` (password form, `core/lib/UserLogin.php`; ErnsAuth, `core/modules/ernsauth_sso/ernsauth_sso.php`), `login_failed` (wrong password; ErnsAuth rejection in `ernsauthClass::rejectAttempt()`, with `reason`), `login_refused` (locked out or inactive, with `reason`), `account_locked` (the failed attempt that reaches `LoginSecurityClass::$maxWrongPassCount`), `logout`, `login_remembered` (a session restored from the remember-me cookie, `Kernel::isUserLoggedin()`).
+- `admin_created`, `admin_updated` (only when a field actually changed; `fields` lists the changed field names, `password` included when a new one was set, never values), `admin_deleted` (sent before the row and its cascades are removed), `admin_user_roles_changed` (the Roles checklist on `/admin/users/{id}/edit`, with `added` / `removed` role ids) -- all from `core/modules/admin/admin_crud.php`. New helper there: `zeusfw_admin_username(int $userId)`.
+
+`$context` keys: `username` (the account the event is about -- for `login_failed` it is whatever was typed, so an app must sanitize it before writing it anywhere), `method` (`password` / `ernsauth` / `remember_me`), `reason`, `entity`, `entity_id`, `fields`, `added`, `removed`.
+
+**Verified against zpms**: its new `tests/functional/audit_log.php` drives a failed sign-in (with a newline in the typed username), a sign-in, a sign-out, and create/edit/delete of a permission on `/admin/permissions`, and checks the rows zpms writes from these events; zpms's full suite (138 static, 72 functional) is green. mweb/zweb/erweb define no `zeusfw_app_audit_event()`, so for them every call is a `function_exists()` no-op. **Files**: `core/kernel/utils.php`, `core/kernel/Kernel.php`, `core/lib/UserLogin.php`, `core/lib/ErnsAuth.php`, `core/modules/ernsauth_sso/ernsauth_sso.php`, `core/modules/admin/admin_crud.php`.

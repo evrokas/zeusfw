@@ -242,12 +242,29 @@ function zeusfw_admin_sync_user_roles(int $userId, array $submittedRoleIds, stri
         $current[] = (int)$row['role_id'];
     }
 
-    foreach (array_diff($validIds, $current) as $roleId) {
+    $added = array_values(array_diff($validIds, $current));
+    $removed = array_values(array_diff($current, $validIds));
+    foreach ($added as $roleId) {
         user_rolesClassEx::assignRole($userId, $roleId, $cuser);
     }
-    foreach (array_diff($current, $validIds) as $roleId) {
+    foreach ($removed as $roleId) {
         user_rolesClassEx::removeRole($userId, $roleId);
     }
+    if ($added || $removed) {
+        zeusfw_audit_event('admin_user_roles_changed', [
+            'entity' => 'users', 'entity_id' => $userId, 'username' => zeusfw_admin_username($userId),
+            'added' => $added, 'removed' => $removed,
+        ]);
+    }
+}
+
+// The account name of a users row (for audit events about it), or null.
+function zeusfw_admin_username(int $userId): ?string {
+    $st = dbConnection::getConnection()->prepare('SELECT uname FROM users WHERE id = :id');
+    $st->bindValue(':id', $userId, PDO::PARAM_INT);
+    $st->execute();
+    $uname = $st->fetchColumn();
+    return $uname === false ? null : (string)$uname;
 }
 
 // [id => label, ...] for a 'select' field's <option> list.
@@ -397,6 +414,11 @@ function admin_new_post($params) {
         zeusfw_admin_apply_field($instance, $fieldDef, $_POST[$fieldDef['name']] ?? null, true);
     }
     $instance->insert();
+    zeusfw_audit_event('admin_created', [
+        'entity' => $entity,
+        'entity_id' => (int)dbConnection::getConnection()->lastInsertId(),
+        'username' => $entity === 'users' ? (string)($_POST['uname'] ?? '') : null,
+    ]);
 
     $kernel->addStatus('notice', $def['label'] . ' created.');
     header('location: ' . rel_url("/admin/$entity"));
@@ -449,10 +471,22 @@ function admin_edit_post($params) {
         return error_404("$entity #$id not found");
     }
 
+    // Which fields actually changed (names only) -- for the audit event.
+    $changed = [];
     foreach ($def['fields'] as $fieldDef) {
-        zeusfw_admin_apply_field($instance, $fieldDef, $_POST[$fieldDef['name']] ?? null, false);
+        $before = zeusfw_admin_field_value($instance, $fieldDef['name']);
+        if (zeusfw_admin_apply_field($instance, $fieldDef, $_POST[$fieldDef['name']] ?? null, false)
+            && ($fieldDef['name'] === 'password' || (string)$before !== (string)zeusfw_admin_field_value($instance, $fieldDef['name']))) {
+            $changed[] = $fieldDef['name'];
+        }
     }
     $instance->update();
+    if ($changed) {
+        zeusfw_audit_event('admin_updated', [
+            'entity' => $entity, 'entity_id' => $id, 'fields' => $changed,
+            'username' => $entity === 'users' ? zeusfw_admin_username($id) : null,
+        ]);
+    }
 
     // Same virtual-section treatment as the checklist itself (see
     // zeusfw_admin_user_role_checklist()'s own docblock) -- role
@@ -488,6 +522,10 @@ function admin_delete($params) {
         // (e.g. every role_permissions/user_roles row for a deleted
         // role) BEFORE the row itself, per each entity's own
         // cascade_delete list above.
+        zeusfw_audit_event('admin_deleted', [
+            'entity' => $entity, 'entity_id' => $id,
+            'username' => $entity === 'users' ? zeusfw_admin_username($id) : null,
+        ]);
         foreach ($def['cascade_delete'] ?? [] as [$depTable, $depColumn]) {
             $st = dbConnection::getConnection()->prepare("DELETE FROM `$depTable` WHERE `$depColumn` = :id");
             $st->bindValue(':id', $id, PDO::PARAM_INT);
