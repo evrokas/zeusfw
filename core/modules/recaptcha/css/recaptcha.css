@@ -1,0 +1,16 @@
+/*
+ * Only used when render()'s hideBadge is true. Google allows hiding the
+ * floating reCAPTCHA v3 badge provided the page shows its attribution
+ * text instead (.zfw-recaptcha-notice, rendered next to the form) - see
+ * https://developers.google.com/recaptcha/docs/faq#id-like-to-hide-the-recaptcha-badge.-what-is-allowed
+ * visibility (not display: none) is what Google's own FAQ uses; display:
+ * none can stop the widget from running at all.
+ */
+.grecaptcha-badge {
+  visibility: hidden;
+}
+.zfw-recaptcha-notice {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  opacity: 0.75;
+}

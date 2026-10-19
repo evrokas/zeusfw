@@ -228,9 +228,15 @@ if [[ $answer == [yY] ]]; then
         echo "Loading feeder data $temp"
 
         # cannot call feed:clean because it cleans all entries from the table
+<<<<<<< HEAD
+	    # php $MAKER --name=$temp  feed:clean
+        
+	    php $MAKER --name=$temp  feed:load
+=======
 	    # php $MAKER --name="$temp" feed:clean
 
 	    php $MAKER --name="$temp" feed:load
+>>>>>>> claude/zpms-patient-name-duplicate-check-7rcg9w
         if [ $? -eq 0 ]; then
             echo "Feed loading succesfull"
         else
@@ -280,5 +286,17 @@ if [[ ! -z $webforms ]]; then
         done
 
         popd
+    fi
+fi
+
+
+# App-specific steps that need the freshly loaded content (erweb: drawing the
+# static location maps from the clinic addresses). Opt-in: runs only if the
+# app ships an executable bin/post-update.sh, so other apps are unaffected.
+# Its failure is reported but doesn't undo or abort the update above.
+if [ -x "$BASEDIR/bin/post-update.sh" ]; then
+    echo 'Running application post-update steps (bin/post-update.sh)...'
+    if ! "$BASEDIR/bin/post-update.sh"; then
+        echo "Warning: bin/post-update.sh reported a problem (see above); the rest of the update is complete."
     fi
 fi

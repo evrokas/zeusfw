@@ -14,11 +14,13 @@ class Maintenance {
     static private $has_analytics = false;
     static private $has_pageanalytics = false;
 
-    static function init() {
+    // $analyticsEnabled: Kernel::analyticsEnabled() -- passed in because
+    // this runs inside Kernel's constructor, before the global $kernel exists.
+    static function init(bool $analyticsEnabled = false) {
         self::update_time();
 
-        self::$has_analytics = class_exists("analyticsClass");
-        self::$has_pageanalytics = class_exists("pageAnalyticsClass");
+        self::$has_analytics = $analyticsEnabled && class_exists("analyticsClass");
+        self::$has_pageanalytics = $analyticsEnabled && class_exists("pageAnalyticsClass");
     }
 
     static function update_time() {

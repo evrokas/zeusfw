@@ -1,0 +1,12 @@
+# Same shape-consistency note as google_analytics.yaml/accessibility.yaml:
+# this is NOT the asset-delivery mechanism - render() emits its own
+# <link>/<script src> tags directly (see recaptcha.php's docblock). Kept
+# for shape parity with every other module's .yaml.
+libraries:
+  recaptcha-library:
+    css:
+      - recaptcha:
+        src: '@core/css/recaptcha.css'
+    foot_script:
+      - recaptcha:
+        src: '@core/js/recaptcha.js'

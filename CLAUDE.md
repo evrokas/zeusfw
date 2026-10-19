@@ -2340,6 +2340,115 @@ one fixture setup, one assertion) stayed fully green. **Files**:
 `core/lib/Rbac.php`, `core/lib/Security.php` (zeusfw); `tests/lib/
 TestFixtures.php`, `tests/functional/auth_csrf.php` (zpms).
 
+### `core/modules/recaptcha/` -- reCAPTCHA v3 client module; GA banner fixes; crash handler logs (2026-09-26)
+
+At erweb's request ("add recaptcha support (there is a module in Zeusfw framework)"). The framework had
+only the **server** half of reCAPTCHA (`core/lib/Recaptcha.php`, `recaptchaClass`, above); every app still
+hand-wired Google's `api.js` tag and its own token-filling JS (erweb's `web/js/recaptcha-widget.js`). The
+**client** half is now a module, same `moduleClass`/`render($params)`/opt-in-via-`modules:` shape as
+`google_analytics` (and for the same `attach_library()` timing reason, it emits its own `<link>`/`<script>`
+tags). An app lists `recaptcha` under `modules:`, then in the one template with a protected form:
+`{{ module('recaptcha', ['siteKey' => ..., 'lang' => $lang, 'hideBadge' => false]) }}`, gives the form
+`data-recaptcha-action="<action>"` and a hidden `recaptcha_token` input, and verifies server-side with
+`recaptchaClass::isHuman(...)` (or `verify()` when it wants to log the reason). Page-scoped by design:
+Google's script loads only where the module renders. An empty/`TODO` site key renders **nothing** -- no
+request to Google, forms submit with an empty token, the server half rejects `not_configured` (same
+fail-closed contract as `recaptchaClass`). `hideBadge` hides Google's floating badge (via `visibility`, per
+Google's FAQ) and prints Google's required attribution line, bilingual `LABELS` el/en overridable via
+`labels`; the notice HTML is built in `render()` because ZETEM parses any `|` inside `{{ }}` as a filter
+separator (`ENT_QUOTES | ENT_HTML5` broke template compilation). `js/recaptcha.js` fails open on purpose
+(no `grecaptcha` -> submit with empty token, server rejects), and resubmits with `form.submit()`:
+`requestSubmit()` is a silent no-op when called synchronously inside the same submit event, which is
+exactly the grecaptcha-missing path -- found with a real browser, not by reading the code.
+
+**`google_analytics` module fixes**, all found driving erweb in Chromium: (1) at <=480px the banner's
+column layout kept the text's `flex: 1 1 20rem`, which in a column is a 20rem *height* -- a ~400px banner
+with an empty gap; the text is `flex: 0 0 auto` there now. (2) `.zfw-ga-banner__accept` (0,1,0) lost to
+`.zfw-ga-banner button` (0,1,1), so Accept never got its accent colour; now `.zfw-ga-banner
+.zfw-ga-banner__accept`. (3) No way to change a stored choice: any `[data-zfw-ga-reopen]` element (delegated
+from `document`) now reopens the banner and focuses Accept -- GDPR Art. 7(3) wants withdrawal as easy as
+consent -- and Reject after an earlier Accept also sets Google's documented `ga-disable-<id>` flag so an
+already-running gtag stops sending for the rest of that page. All additive; an app that never renders a
+reopen element sees no behaviour change beyond the two CSS fixes.
+
+**`zeusfw_register_error_handlers()` now logs.** The exception handler and the fatal-error shutdown handler
+rendered the crash page but never recorded *what* crashed -- a `set_exception_handler()` callback takes the
+exception away from PHP's own logging, so the cause was simply lost (hit while building the module above:
+a 500 with nothing in any log). Both now `error_log()` the class/message/file/line (plus trace for
+exceptions) before rendering. Visitors still see nothing technical.
+
+**Verified against erweb**: `php -l`/`node --check`/ZETEM compile check clean; module markup and both asset
+URLs (200) on the contact pages with a fake key, nothing rendered with a TODO key; Chromium submit with
+Google blocked -> server logs `missing_token`, with a stubbed `grecaptcha` -> token delivered, server logs
+`not_configured`; GA banner reject/reload/reopen/accept cycle, Accept highlighted, banner compact at 390px;
+all 220 erweb routes 200. **Files**: `core/modules/recaptcha/{recaptcha.info.yaml,recaptcha.yaml,
+recaptcha.php,css/recaptcha.css,js/recaptcha.js}`, `core/templates/modules/recaptcha/recaptcha.zetem`
+(new); `core/modules/google_analytics/{css/google-analytics.css,js/google-analytics.js}`;
+`core/router/ErrorHandlers.php`.
+
+
+### `maker.php` accepts `--name value` again -- `bin/update.sh`'s content step failed with "Unknown command" (2026-09-26)
+
+Reported from a real server: `bin/update.sh`, answering yes to "update content", printed `Unknown
+command` for every feeder. Cause: the 2026-09-20 parser change above (`zeusfw_maker_parse_argv()`)
+accepted long options **only** as `--name=value`, but `update.sh` has always called
+`php $MAKER --name $temp feed:clean|feed:gen:yaml|feed:load` with a space. The new parser set `name`
+to an empty value and left `$temp` (e.g. `erweb_tags.feeder.yaml`) as `$optparams[0]`, so the feeder
+file name was treated as the command. Reproduced by running prod's `maker.php` that way against
+erweb's feeders.
+
+Fixed on both ends. `zeusfw_maker_parse_argv()` again accepts `--name value` (and `-f value`) for
+options declared as value-taking (`'name:'`, `'f:'`): the next token is the value. That is the same
+rule `getopt()` applied, so it isn't the ambiguity the original docblock worried about, and flags
+without a value (`yes`, `add-id`) still never consume a following token. `bin/update.sh` now also
+writes `--name=$temp`, so it works with either parser. Verified: `--name x feed:load`,
+`--name=x feed:load`, `feed:load --name=x` and `feed:load --name x` all load erweb's tags feeder
+identically ("10 unchanged"), `feed:gen:yaml` in the space form works, and `bash -n bin/update.sh`
+is clean. **Files**: `core/maker/maker.php`, `bin/update.sh`.
+
+
+## Built-in request analytics off by default -- `analytics: enabled: true` to opt in (2026-09-27)
+
+At direct request, after reviewing how the `analytics`/`pageanalytics` tables work: turn them off.
+Until now they ran on every request of every app, with no switch. `RouterClass::routerCallFunction()`
+inserted one `analytics` row per request (raw URL, IP, user agent) and bumped a `pageanalytics`
+counter row keyed by the raw URL; `Maintenance` loaded the whole `pageanalytics` table on every
+request to roll the weekly/monthly counters over. Nothing in zeusfw, zpms or erweb ever read either
+table. Problems found (all measured on a real MariaDB stack, not inferred):
+- **Personal data in URLs.** zpms's `/patients/search/{term}`, `/patients/searchajax/{term}` and
+  `/api/v1/patients/search/{term}` (DocArc's typeahead) put patient-name fragments in the path, so
+  every term was stored in `analytics.url` with the staff IP and got its own permanent
+  `pageanalytics` row. Under Apache `[QSA]`, `QUERY_STRING` also carries real query parameters, so
+  API keys in URLs (zgeotrack's `?key=`) were logged too. No retention anywhere.
+- **Wrong counts.** Read-increment-write in PHP: 40 parallel requests to one URL raised the counter
+  by 23. `served=1`/the counter bump happen before the handler runs, so 404s from catch-all routes,
+  401s and crashes count; so do POSTs, AJAX polls and bots. `ignore_ips` skipped the log but not the
+  counters. The stats row stores week/month *numbers* in `last_week_count`/`last_month_count`.
+- **Cost.** 7 of a plain erweb page's 20 queries, including an unused full-table `SELECT` and an
+  unindexed `TEXT` URL lookup, on tables that only grow.
+
+**Change**: new `Kernel::analyticsEnabled(): bool`, reading `analytics: enabled` (default off). The
+router's log/counter writes, `pageAnalyticsClassEx::initializePageAnalyticsRecord()` in the
+constructor, and `Maintenance`'s rollover all check it; `Maintenance::init()` now takes the flag as a
+parameter because it runs inside the Kernel constructor, before the global `$kernel` exists.
+`remove_expired_user_tokens()` still runs as before. No default is written in
+`core/config/zeusfw.info.yaml` on purpose: `addConfig()` merges with `array_merge_recursive()`, which
+turns a scalar set in two layers into an array (see the `disabled_packages` entry above) --
+`analyticsEnabled()` takes the last value if that happens anyway. Also fixed while there: `ignore_ips`
+now skips the counters as well as the log, and a missing `User-Agent`/`ignore_ips` no longer warns.
+The tables, classes and schema are untouched, so an app can opt back in with one config line.
+
+**Existing data is not touched.** Live zpms databases still hold the old rows, patient search terms
+included; deleting them is a separate, deliberate step (see the zpms README/commit for the SQL).
+
+**Verified**: erweb on a real MariaDB stack -- with analytics off, requests to `/el`, `/en`,
+`/el/tags`, a 404 and a request with no `User-Agent` wrote nothing to either table; adding
+`analytics: enabled: true` to `site.info.yaml` wrote rows again, removing it stopped them. zpms's
+`bin/run_tests.sh` against this checkout: all suites pass (PHP 43/43, JS 8/8, CSS 14/14, templates
+36/36, patients 6/6, appointments 9/9, uploads 5/5, auth+CSRF 16/16, admin CRUD 9/9), and the test
+database held zero `analytics`/`pageanalytics` rows afterwards. **Files**: `core/kernel/Kernel.php`,
+`core/kernel/maintenance.php`, `core/router/Router.php`.
+
 ## `core/modules/live_edit/` -- Step 1 of a planned live-editing feature: a content-source overlay (2026-10-01)
 
 At direct request, framed explicitly as "step 1": a small, transparent, opt-in overlay
@@ -2760,6 +2869,19 @@ menu as each user). `php -l` clean; zpms's `bin/run_tests.sh` (100/100
 static, 48/48 functional) green. **Files**: `core/lib/Rbac.php`,
 `core/modules/mainnavigation/mainnavigation.php`.
 
+## `bin/update.sh` runs an app's optional `bin/post-update.sh` (2026-10-03)
+
+At direct request (erweb: draw static location maps from the clinic addresses on every update). `update.sh`
+had no way to run an app-specific step after its content load, and putting erweb's script in it would make
+a shared script app-specific. Added one generic block at the very end: if `$BASEDIR/bin/post-update.sh` exists
+and is executable, run it; a non-zero exit prints a warning and doesn't abort or undo anything (the schema
+and content steps above have already finished). Opt-in by construction — checked that no other app in this
+environment (docarc, zpms) has a `bin/post-update.sh`, so nothing changes for them. erweb's hook runs
+`php bin/generate_location_maps.php`; see erweb's own CLAUDE.md.
+
+**Verified**: `bash -n` clean; the full `update.sh`, run against erweb with every prompt answered "n", ran
+the hook after the webform step and drew all 6 maps. **Files**: `bin/update.sh`.
+
 ## `core/router/Request.php` -- query parameters (`?a=1&b=2`) and a `&`/`?` inside a path (2026-10-05)
 
 Needed by zpms's patient list (`/patients?per_page=50&page=2&sort=name`), the first page on this
@@ -2814,3 +2936,35 @@ Events core sends:
 `$context` keys: `username` (the account the event is about -- for `login_failed` it is whatever was typed, so an app must sanitize it before writing it anywhere), `method` (`password` / `ernsauth` / `remember_me`), `reason`, `entity`, `entity_id`, `fields`, `added`, `removed`.
 
 **Verified against zpms**: its new `tests/functional/audit_log.php` drives a failed sign-in (with a newline in the typed username), a sign-in, a sign-out, and create/edit/delete of a permission on `/admin/permissions`, and checks the rows zpms writes from these events; zpms's full suite (138 static, 72 functional) is green. mweb/zweb/erweb define no `zeusfw_app_audit_event()`, so for them every call is a `function_exists()` no-op. **Files**: `core/kernel/utils.php`, `core/kernel/Kernel.php`, `core/lib/UserLogin.php`, `core/lib/ErnsAuth.php`, `core/modules/ernsauth_sso/ernsauth_sso.php`, `core/modules/admin/admin_crud.php`.
+
+## `core/lib/UserLogin.php` -- "remember me" lifetime is configurable: `remember_me_days:` (2026-10-19)
+
+At zprime's request (a phone home-screen dashboard that should stay signed in for 30 days).
+`setup_rememberme()` hard-coded `$days = 10`. It now reads `remember_me_days` from the Kernel config
+and falls back to 10 when it is missing, not numeric, or outside 1-365, so every app that does not
+set it behaves exactly as before. The value sets both the `user_tokens.expiry` row and the cookie's
+`expires`/`Max-Age`; validator rotation in `Kernel::isUserLoggedin()` is unchanged.
+
+Set it in **one** config layer only (zprime uses `config/site.info.yaml`): `addConfig()` merges with
+`array_merge_recursive()`, which turns a scalar set in two layers into an array. The code takes the
+last element if that happens anyway. (Same caveat as `analytics: enabled` and `disabled_packages`
+above.) The function also gained `global $kernel;` to read the config; nothing else in it changed.
+
+**Verified** against zprime on a real MariaDB: no key -> `Max-Age=864000` (10 days, unchanged);
+`remember_me_days: 7` -> `604800`; `30` -> `2592000`. zprime's suite also covers the cookie's flags,
+restoring a session from the cookie alone with a different User-Agent, validator rotation and
+revocation on sign-out. `php -l` clean. ZPMS's own suite was not run (no ZPMS test database in this
+environment); ZPMS does not set the key, so its lifetime stays 10 days. **Files**: `core/lib/UserLogin.php`.
+
+### Notes from building zprime (no framework change)
+
+- `setup_rememberme()` stores `$_SERVER['HTTP_USER_AGENT']` in a `NOT NULL` column. A client that
+  sends no User-Agent (a bare `curl`, some scripts) logs in fine but gets **no remember-me cookie**,
+  silently, because the insert fails. Browsers always send one, so this was left alone; zprime's test
+  client sends a User-Agent for this reason.
+- `php -S -d auto_prepend_file=...` is not applied to the router script on PHP 8.3.6 (confirmed with a
+  trivial prepend that defined a constant: still undefined in the request). A test harness that relies on
+  it to switch databases (zpms's `tests/lib/prepend_test_db.php`) may silently run against the real
+  `config/db.php`. zprime's harness defines the test database in its router instead, and its
+  `web/index.php` only includes `config/db.php` when `DB_NAME` is not already defined. Worth checking
+  zpms's suite in an environment where the PHP version differs from the one it was written against.
