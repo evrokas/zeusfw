@@ -76,6 +76,7 @@ function password_matches_stored_hash(string $rawPassword, ?string $storedHash):
 
 
  function setup_rememberme(string $uname) {
+    global $kernel;
     prelog("Setup selector:validator");
     [$selector, $validator, $token] = userTokensClassEx::generate_tokens();
     prelog("Tokens: $selector:$validator");
@@ -93,7 +94,17 @@ function password_matches_stored_hash(string $rawPassword, ?string $storedHash):
     // userTokensClassEx::remove_expired_user_tokens() (Maintenance, runs on
     // every request), so this doesn't accumulate indefinitely.
 
+    // Lifetime is configurable per app via `remember_me_days:` (any
+    // config layer; default 10, the value every app used before this was
+    // configurable). Set in one layer only -- addConfig()'s
+    // array_merge_recursive() turns a scalar set in two layers into an
+    // array, so the last value wins if that happens anyway.
     $days = 10;
+    if(isset($kernel)) {
+        $cfg = $kernel->getConfig()['remember_me_days'] ?? null;
+        if(is_array($cfg)) $cfg = end($cfg);
+        if(is_numeric($cfg) && (int)$cfg >= 1 && (int)$cfg <= 365) $days = (int)$cfg;
+    }
     $expired_seconds = time() + 60 * 60 * 24 * $days;
     $hash_validator = password_hash($validator, PASSWORD_DEFAULT);
     $expiry = date('Y-m-d H:i:s', $expired_seconds);

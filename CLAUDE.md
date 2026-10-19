@@ -2922,3 +2922,35 @@ could test any of this; it now appends `&` and the real query like Apache does (
 sub-directory `REQUEST_URI` (`/sub/dir/patients` with `QUERY_STRING=patients`), all behave as before; the
 full zpms suite (102 static, 51 functional) is green, including functional tests that load
 `/patients?...` addresses and a search term containing `&`. **Files**: `core/router/Request.php`.
+
+## `core/lib/UserLogin.php` -- "remember me" lifetime is configurable: `remember_me_days:` (2026-10-19)
+
+At zprime's request (a phone home-screen dashboard that should stay signed in for 30 days).
+`setup_rememberme()` hard-coded `$days = 10`. It now reads `remember_me_days` from the Kernel config
+and falls back to 10 when it is missing, not numeric, or outside 1-365, so every app that does not
+set it behaves exactly as before. The value sets both the `user_tokens.expiry` row and the cookie's
+`expires`/`Max-Age`; validator rotation in `Kernel::isUserLoggedin()` is unchanged.
+
+Set it in **one** config layer only (zprime uses `config/site.info.yaml`): `addConfig()` merges with
+`array_merge_recursive()`, which turns a scalar set in two layers into an array. The code takes the
+last element if that happens anyway. (Same caveat as `analytics: enabled` and `disabled_packages`
+above.) The function also gained `global $kernel;` to read the config; nothing else in it changed.
+
+**Verified** against zprime on a real MariaDB: no key -> `Max-Age=864000` (10 days, unchanged);
+`remember_me_days: 7` -> `604800`; `30` -> `2592000`. zprime's suite also covers the cookie's flags,
+restoring a session from the cookie alone with a different User-Agent, validator rotation and
+revocation on sign-out. `php -l` clean. ZPMS's own suite was not run (no ZPMS test database in this
+environment); ZPMS does not set the key, so its lifetime stays 10 days. **Files**: `core/lib/UserLogin.php`.
+
+### Notes from building zprime (no framework change)
+
+- `setup_rememberme()` stores `$_SERVER['HTTP_USER_AGENT']` in a `NOT NULL` column. A client that
+  sends no User-Agent (a bare `curl`, some scripts) logs in fine but gets **no remember-me cookie**,
+  silently, because the insert fails. Browsers always send one, so this was left alone; zprime's test
+  client sends a User-Agent for this reason.
+- `php -S -d auto_prepend_file=...` is not applied to the router script on PHP 8.3.6 (confirmed with a
+  trivial prepend that defined a constant: still undefined in the request). A test harness that relies on
+  it to switch databases (zpms's `tests/lib/prepend_test_db.php`) may silently run against the real
+  `config/db.php`. zprime's harness defines the test database in its router instead, and its
+  `web/index.php` only includes `config/db.php` when `DB_NAME` is not already defined. Worth checking
+  zpms's suite in an environment where the PHP version differs from the one it was written against.
