@@ -228,15 +228,8 @@ if [[ $answer == [yY] ]]; then
         echo "Loading feeder data $temp"
 
         # cannot call feed:clean because it cleans all entries from the table
-<<<<<<< HEAD
-	    # php $MAKER --name=$temp  feed:clean
-        
-	    php $MAKER --name=$temp  feed:load
-=======
-	    # php $MAKER --name="$temp" feed:clean
 
 	    php $MAKER --name="$temp" feed:load
->>>>>>> claude/zpms-patient-name-duplicate-check-7rcg9w
         if [ $? -eq 0 ]; then
             echo "Feed loading succesfull"
         else
