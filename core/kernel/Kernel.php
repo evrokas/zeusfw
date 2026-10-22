@@ -158,6 +158,62 @@ class Kernel {
         return $roots[0] . '/' . $rest;     // not found anywhere: reported as missing by the caller
     }
 
+    /**
+     * Root-folder macros in configured paths (templates:, modules: path:, css:/head_script:/
+     * foot_script: src:, config_files:): a path may start with
+     *   @app/   the application root (__APPDIR__)
+     *   @core/  the framework core (__FWDIR__)
+     *   @mod/   a module folder -- the app's web/modules/ and core/modules/
+     * Returns the file-system candidates, in priority order (@mod has two, the others one).
+     * A path without a macro is returned unchanged as the only candidate.
+     */
+    static function expandRootMacro(string $path): array {
+        if(!preg_match('#^@(app|core|mod)(?:/(.*))?$#', $path, $m)) return array($path);
+        $rest = $m[2] ?? '';
+        switch($m[1]) {
+            case 'app':  $roots = array(__APPDIR__); break;
+            case 'core': $roots = array(__FWDIR__); break;
+            default:     $roots = array(__APPDIR__ . '/web/modules', __FWDIR__ . '/modules');
+        }
+        $out = array();
+        foreach($roots as $root) $out[] = $rest === '' ? $root : $root . '/' . $rest;
+        return $out;
+    }
+
+    /** The first candidate of expandRootMacro() that exists (else the first one). */
+    static function macroToFsPath(string $path): string {
+        $c = self::expandRootMacro($path);
+        foreach($c as $f) if(file_exists($f)) return $f;
+        return $c[0];
+    }
+
+    /**
+     * The site URL path of a css/js `src:`. A macro path is resolved to the file
+     * and made relative to the web folder (__APPDIR__/web), so `@core/css/x.css`
+     * becomes `/core/css/x.css` and `@mod/backup/css/backup.css` becomes
+     * `/core/modules/backup/css/backup.css`. Anything else is returned as it is.
+     */
+    static function assetUrl(string $src): string {
+        if(!preg_match('#^@(app|core|mod)(/|$)#', $src)) return $src;
+        $fs = self::macroToFsPath($src);
+        $web = __APPDIR__ . '/web';
+        return strpos($fs, $web . '/') === 0 ? substr($fs, strlen($web)) : $fs;
+    }
+
+    /** The `templates:` list with macros expanded; a @mod entry keeps only folders that exist. */
+    static function expandTemplatePaths($paths) {
+        if(!is_array($paths)) return $paths;
+        $out = array();
+        foreach($paths as $p) {
+            if(!is_string($p) || !preg_match('#^@(app|core|mod)(/|$)#', $p)) { $out[] = $p; continue; }
+            foreach(self::expandRootMacro($p) as $f) {
+                if(strpos($p, '@mod') === 0 && !is_dir($f)) continue;
+                $out[] = rtrim($f, '/') . '/';
+            }
+        }
+        return $out;
+    }
+
     /** A config file name that stays inside the config directory or one of the @app/@core/@mod roots. */
     static function validConfigFileName(string $name): bool {
         if(preg_match('#^@(app|core|mod)/(.+)$#', $name, $m)) $name = $m[2];
@@ -629,7 +685,7 @@ class Kernel {
         foreach($clean_css as $css) {
             $links[] = new Attributes([
                 "rel" => "stylesheet",
-                "href" => rel_url($css['src']. "?".time())
+                "href" => rel_url(self::assetUrl($css['src']). "?".time())
             ]);
         }
 
@@ -669,7 +725,7 @@ class Kernel {
                     // desktop testing but could leave an iPhone running
                     // JS from several deploys ago.
                     if( strtolower($skey) === 'src' ) {
-                            $attr->addAttribute(['src' => rel_url( $sval . '?' . time() ) ]);
+                            $attr->addAttribute(['src' => rel_url( self::assetUrl($sval) . '?' . time() ) ]);
                     } else $attr->addAttribute([$skey => $sval]);
                 }
                 $head_scripts[] = $attr;
@@ -686,7 +742,7 @@ class Kernel {
                 foreach($script as $skey => $sval) {
                     // See the identical comment on head_scripts above.
                     if( strtolower($skey) === 'src' ) {
-                            $attr->addAttribute(['src' => rel_url( $sval . '?' . time() ) ]);
+                            $attr->addAttribute(['src' => rel_url( self::assetUrl($sval) . '?' . time() ) ]);
                     } else $attr->addAttribute([$skey => $sval]);
                 }
                 $foot_links[] = $attr;
@@ -752,7 +808,7 @@ class Kernel {
         $router = $this->router;
 
         SecurityClass::init($this->getConfig('roles'));
-        Renderer::init($this->getConfig('templates'), false, $this->safeGetConfig('template_cache_path'), $this->getConfig('enable_comments'));
+        Renderer::init(self::expandTemplatePaths($this->getConfig('templates')), false, $this->safeGetConfig('template_cache_path'), $this->getConfig('enable_comments'));
 
         zeusfw_session_start();
 

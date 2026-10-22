@@ -165,6 +165,13 @@ class liveEditModule extends moduleClass {
             return $absolute;
         }
 
+        // Template paths configured with @core/@app macros are absolute; show them
+        // relative to the web folder, as the old "./templates/" style paths were.
+        $web = __APPDIR__ . '/web/';
+        if (strpos($absolute, $web) === 0) {
+            return substr($absolute, strlen($web));
+        }
+
         $fs = explode('/', $absolute);
         $ap = explode('/', __APPDIR__);
         while (isset($fs[0]) && isset($ap[0]) && ($fs[0] === $ap[0])) {

@@ -3028,3 +3028,15 @@ Same macro names the module and `schemadir:` configs already use, now also at th
 A plain name is still relative to the app's `config/` directory. Names are checked after the macro is split off (same rules
 as before: `.yaml`/`.yml`, no `..`, no leading `/`), so a macro cannot escape its root. Each file is still loaded once,
 keyed by its resolved path; a missing file is skipped unless `required: true`. Tested by zpms's `tests/functional/config_files.php`.
+
+### Root macros in `templates:`, `modules: path:` and css/js `src:` (2026-10-23)
+
+Same `@app/` (application root), `@core/` (framework core) and `@mod/` (module folders: the app's `web/modules/`, then
+`core/modules/`) as `config_files:`, now also accepted by `templates:` (`Kernel::expandTemplatePaths()`; a `@mod` entry
+keeps only folders that exist), `modules: path:` (`registerModules()`; a macro can expand to several folders, tried in
+order) and the `src:` of `css:`, `head_script:` and `foot_script:` (`Kernel::assetUrl()`: the file is resolved and made
+relative to `<app>/web`, so `@core/css/x.css` is `/core/css/x.css`). Helpers: `Kernel::expandRootMacro()`,
+`macroToFsPath()`. Plain paths behave exactly as before. Note the meaning differs from the *module* yaml files, where
+`@core`/`@app` are the module's own folders (resolved by `resolveModuleDir()` before they reach the global config).
+Macro template paths are absolute, so `live_edit` now shows them relative to `<app>/web/` (same text as before).
+zpms uses them for `templates:` and `modules: path:`.

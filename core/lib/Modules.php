@@ -57,9 +57,17 @@ function registerModules() {
     // every $mods['path'] entry -- see the skip check below for why.
     $loaded = array();
 
+    // `path:` entries are relative to the web folder's parent ("/web/modules/") or start
+    // with a root macro (@app/web/modules/, @core/modules/, @mod/ = both); a macro
+    // can expand to several folders, tried in order.
+    $modpaths = array();
     foreach($mods['path'] as $mpath) {
-        $modpath = $kernel->getbasepath() . '..' . $mpath;
-        // $modpath = $mpath;
+        if(is_string($mpath) && preg_match('#^@(app|core|mod)(/|$)#', $mpath)) {
+            foreach(Kernel::expandRootMacro($mpath) as $f) $modpaths[] = rtrim($f, '/') . '/';
+        } else $modpaths[] = $kernel->getbasepath() . '..' . $mpath;
+    }
+
+    foreach($modpaths as $modpath) {
 
         foreach($mods['modules'] as $mod) {
             if(isset($loaded[$mod])) {
