@@ -291,7 +291,9 @@ class Renderer {
 		if (!file_exists(self::$cache_path)) {
 		  	mkdir(self::$cache_path, 0744);
 		}
-	    $cached_file = self::$cache_path . str_replace(array('/', '.zetem'), array('_', ''), $file . '.php');
+	    // comments are compiled into the cached file, so the two modes use different files
+	    // (switching the setting must not keep serving the other mode's cache)
+	    $cached_file = self::$cache_path . str_replace(array('/', '.zetem'), array('_', ''), $file . (self::$enable_comments ? '.c' : '') . '.php');
 
 		// echopre(print_r(self::$template_files, 1));
 		// echo "Searching for cached file : $cached_file\n";

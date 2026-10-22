@@ -248,6 +248,22 @@ class Kernel {
             return ($this->config);
     }
 
+    /**
+     * Whether compiled templates carry their debug comments (`enable_template_comments:` in
+     * the config; the older key `enable_comments:` still works). getConfig() answers an empty
+     * array for a key that is not set, and an array when two config files both set it, so the
+     * value is reduced to a scalar first; 0/false/"off"/unset mean off.
+     */
+    function templateCommentsEnabled(): bool {
+        foreach(array('enable_template_comments', 'enable_comments') as $key) {
+            if(!isset($this->config[$key])) continue;
+            $v = $this->config[$key];
+            if(is_array($v)) $v = end($v);
+            return filter_var($v, FILTER_VALIDATE_BOOLEAN);
+        }
+        return false;
+    }
+
     function safeGetConfig($section) {
         if(isset($this->config[ $section ]))return $this->config[ $section ];
         else return '';
@@ -808,7 +824,7 @@ class Kernel {
         $router = $this->router;
 
         SecurityClass::init($this->getConfig('roles'));
-        Renderer::init(self::expandTemplatePaths($this->getConfig('templates')), false, $this->safeGetConfig('template_cache_path'), $this->getConfig('enable_comments'));
+        Renderer::init(self::expandTemplatePaths($this->getConfig('templates')), false, $this->safeGetConfig('template_cache_path'), $this->templateCommentsEnabled());
 
         zeusfw_session_start();
 
