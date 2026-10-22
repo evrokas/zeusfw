@@ -1,3 +1,15 @@
+# The configuration files of an app, loaded after this one and merged in this
+# order (see Kernel::loadConfigFiles()). A plain entry is a file name relative to
+# the app's config/ directory and is skipped when missing; `required: true` stops
+# the request when it is missing. A loaded file can add more of its own:
+#   config_files:
+#     - more.info.yaml
+# (they are loaded after the ones already listed). Names never contain `..`.
+config_files:
+  - site.info.yaml
+  - file: settings.info.yaml
+    required: true
+
 libraries:
   webform:
     css:

@@ -38,37 +38,10 @@ class Kernel {
 
         $this->addConfig( $conf );
 
-        // read site-wide configuration
-        if(file_exists($configdir . '/site.info.yaml')) {
-            $conf = yaml_parse_file($configdir . '/site.info.yaml');
-        } else {
-            $conf = array();
-        }
+        // read the app's configuration files, in the order the framework's own
+        // config/zeusfw.info.yaml lists them under `config_files:`
+        $this->loadConfigFiles($configdir);
 
-        // merge site-wide configuration
-        $this->addConfig( $conf );
-
-
-        // setup error displaying for site
-        if($t=$this->getConfig('php_display_errors'))
-            ini_set('display_errors', $t);
-
-        if($t=$this->getConfig('php_display_startup_errors'))
-            ini_set('display_startup_errors', $t);
-
-        error_reporting(E_ALL);
-        
-
-        if(!file_exists($configdir . '/settings.info.yaml')) {
-            echopre("Configuration file does not exist. Please contact administrator.");
-            ob_flush();
-            exit();
-        }
-        $conf = yaml_parse_file($configdir . '/settings.info.yaml');
-        
-        // merge project configuration
-        $this->addConfig( $conf );
-        
         // echo "<pre>";
         // print_r( $this->config );
         // echo "</pre>";
@@ -93,6 +66,80 @@ class Kernel {
         // set maintenance class
         Maintenance::init($this->analyticsEnabled());
         Maintenance::maintenance();
+    }
+
+    /**
+     * The files that make up an app's configuration, loaded after the framework's
+     * own config/zeusfw.info.yaml and merged in this order (a later file adds to or
+     * overrides an earlier one, by addConfig()'s rules). zeusfw.info.yaml names them:
+     *
+     *   config_files:
+     *     - site.info.yaml
+     *     - file: settings.info.yaml
+     *       required: true
+     *
+     * An entry is a file name relative to the app's config directory (a plain string,
+     * or a map with `file:` and optionally `required: true`; a missing optional file
+     * is skipped, a missing required one stops the request). Names may include
+     * sub-directories but never `..` or an absolute path, and must end in .yaml/.yml.
+     *
+     * Any loaded file may itself list more under `config_files:`; they are appended
+     * to the list (array_merge_recursive concatenates lists) and loaded after the
+     * files already queued, each file at most once -- so a site can split its
+     * configuration over as many files as it likes. If the framework file lists none
+     * (an older checkout), site.info.yaml then settings.info.yaml are loaded, as
+     * before this key existed.
+     */
+    function loadConfigFiles(string $configdir): void {
+        $configdir = rtrim($configdir, '/');
+        if(empty($this->config['config_files']) || !is_array($this->config['config_files'])) {
+            $this->config['config_files'] = array(
+                'site.info.yaml',
+                array('file' => 'settings.info.yaml', 'required' => true),
+            );
+        }
+        $loaded = array();
+        for($i = 0; $i < count($this->config['config_files']); $i++) {
+            $entry = $this->config['config_files'][$i];
+            $required = false;
+            if(is_array($entry)) {
+                $required = !empty($entry['required']);
+                $entry = $entry['file'] ?? '';
+            }
+            if(!is_string($entry) || !self::validConfigFileName($entry)) {
+                echopre("Invalid configuration file name in config_files. Please contact administrator.");
+                ob_flush();
+                exit();
+            }
+            if(isset($loaded[$entry])) continue;
+            $loaded[$entry] = true;
+
+            $path = $configdir . '/' . $entry;
+            if(!file_exists($path)) {
+                if($required) {
+                    echopre("Configuration file does not exist. Please contact administrator.");
+                    ob_flush();
+                    exit();
+                }
+                continue;
+            }
+            $conf = yaml_parse_file($path);
+            $this->addConfig(is_array($conf) ? $conf : array());
+
+            // error display is configured as soon as the first files that may set it are in,
+            // so a parse problem in a later file is already visible
+            if($t = $this->getConfig('php_display_errors'))
+                ini_set('display_errors', is_array($t) ? end($t) : $t);
+            if($t = $this->getConfig('php_display_startup_errors'))
+                ini_set('display_startup_errors', is_array($t) ? end($t) : $t);
+            error_reporting(E_ALL);
+        }
+    }
+
+    /** A config file name that stays inside the config directory. */
+    static function validConfigFileName(string $name): bool {
+        if($name === '' || $name[0] === '/' || strpos($name, '..') !== false || strpos($name, "\0") !== false) return false;
+        return (bool)preg_match('#^[A-Za-z0-9_./-]+\.ya?ml$#', $name);
     }
 
     /**

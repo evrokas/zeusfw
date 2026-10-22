@@ -2988,3 +2988,34 @@ questions on the terminal, so nothing could run it without a person. Every quest
 
 Tested by zpms's `tests/shell/update_sh_flags.sh`, which drives the script against a fake application whose
 `maker.php` and `msql.sh` record every call (finds the script through `fw/` or `web/core`).
+
+## An app's configuration files are listed in `zeusfw.info.yaml`: `config_files:` (2026-10-23)
+
+At direct request ("load the first settings file, then a setting specifies other settings files, so we can add more").
+`Kernel::__construct()` used to hard-code the two app files: `site.info.yaml`, then `settings.info.yaml` (the second one
+fatal when missing). It now loads `config/zeusfw.info.yaml` as before, then calls the new
+`Kernel::loadConfigFiles($configdir)`, which loads whatever `config_files:` in the **merged config** lists, in order:
+
+```yaml
+config_files:
+  - site.info.yaml            # plain string: relative to the app's config/ directory, skipped when missing
+  - file: settings.info.yaml  # map form: `required: true` stops the request when it is missing
+    required: true
+```
+
+- **A loaded file may list more.** `addConfig()` merges with `array_merge_recursive()`, which *concatenates* lists, so a
+  `config_files:` in `site.info.yaml` appends to the queue; the loop re-reads the list after every file, loads each name
+  at most once, and so processes them after the ones already queued (site, settings, then the new ones).
+  An app can therefore split its configuration over as many files as it likes by listing them in its `site.info.yaml`.
+- **Names stay inside `config/`**: `Kernel::validConfigFileName()` accepts only `[A-Za-z0-9_./-]+` ending in `.yaml`/`.yml`,
+  never `..`, a leading `/` or a NUL byte (a bad name stops the request: the list comes from config, not from a user).
+- **Backward compatible.** The default list in `zeusfw.info.yaml` is exactly the old behaviour; if an older framework
+  file has no `config_files:`, the Kernel falls back to the same two files. Every app on the framework (zpms, erweb,
+  mweb, zweb, zprime) boots unchanged. `php_display_errors`/`php_display_startup_errors` are applied after each file
+  (previously once after site.info.yaml), so an error in a later file is already displayed.
+- The old caveat stands: a *scalar* key set in two files becomes an array (`array_merge_recursive()`); keep each
+  setting in one file.
+
+Tested by zpms's `tests/functional/config_files.php` (a Kernel built without its constructor reading throw-away files:
+order, a missing optional file, files naming further files and loading once, the fallback, name validation) and by the
+whole zpms suite booting the real Kernel. **Files**: `core/kernel/Kernel.php`, `core/config/zeusfw.info.yaml`.
