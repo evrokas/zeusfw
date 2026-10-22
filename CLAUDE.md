@@ -3019,3 +3019,12 @@ config_files:
 Tested by zpms's `tests/functional/config_files.php` (a Kernel built without its constructor reading throw-away files:
 order, a missing optional file, files naming further files and loading once, the fallback, name validation) and by the
 whole zpms suite booting the real Kernel. **Files**: `core/kernel/Kernel.php`, `core/config/zeusfw.info.yaml`.
+
+### `config_files:` entries accept `@app/`, `@core/` and `@mod/` root macros (2026-10-23)
+
+Same macro names the module and `schemadir:` configs already use, now also at the start of a `config_files:` entry
+(`Kernel::resolveConfigFilePath()`): `@app/...` is the application root (`__APPDIR__`), `@core/...` the framework core
+(`__FWDIR__`), `@mod/...` a module folder -- the app's `web/modules/`, else `core/modules/`, whichever holds the file first.
+A plain name is still relative to the app's `config/` directory. Names are checked after the macro is split off (same rules
+as before: `.yaml`/`.yml`, no `..`, no leading `/`), so a macro cannot escape its root. Each file is still loaded once,
+keyed by its resolved path; a missing file is skipped unless `required: true`. Tested by zpms's `tests/functional/config_files.php`.

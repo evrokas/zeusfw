@@ -83,6 +83,9 @@ class Kernel {
      * is skipped, a missing required one stops the request). Names may include
      * sub-directories but never `..` or an absolute path, and must end in .yaml/.yml.
      *
+     * An entry may start with @app/, @core/ or @mod/ to name another root folder
+     * (see resolveConfigFilePath()).
+     *
      * Any loaded file may itself list more under `config_files:`; they are appended
      * to the list (array_merge_recursive concatenates lists) and loaded after the
      * files already queued, each file at most once -- so a site can split its
@@ -111,10 +114,10 @@ class Kernel {
                 ob_flush();
                 exit();
             }
-            if(isset($loaded[$entry])) continue;
-            $loaded[$entry] = true;
+            $path = self::resolveConfigFilePath($entry, $configdir);
+            if(isset($loaded[$path])) continue;
+            $loaded[$path] = true;
 
-            $path = $configdir . '/' . $entry;
             if(!file_exists($path)) {
                 if($required) {
                     echopre("Configuration file does not exist. Please contact administrator.");
@@ -136,8 +139,28 @@ class Kernel {
         }
     }
 
-    /** A config file name that stays inside the config directory. */
+    /**
+     * The file a `config_files:` entry names. A plain name is relative to the app's
+     * config directory; a leading root macro picks another root folder:
+     *   @app/...  the application root (__APPDIR__)
+     *   @core/... the framework core (__FWDIR__)
+     *   @mod/...  a module folder: the app's web/modules/, else core/modules/
+     *             (the first one holding the file)
+     * The caller has already checked the name with validConfigFileName().
+     */
+    static function resolveConfigFilePath(string $name, string $configdir): string {
+        if(!preg_match('#^@(app|core|mod)/(.*)$#', $name, $m)) return rtrim($configdir, '/') . '/' . $name;
+        $rest = $m[2];
+        if($m[1] === 'app') return __APPDIR__ . '/' . $rest;
+        if($m[1] === 'core') return __FWDIR__ . '/' . $rest;
+        $roots = array(__APPDIR__ . '/web/modules', __FWDIR__ . '/modules');
+        foreach($roots as $root) if(file_exists($root . '/' . $rest)) return $root . '/' . $rest;
+        return $roots[0] . '/' . $rest;     // not found anywhere: reported as missing by the caller
+    }
+
+    /** A config file name that stays inside the config directory or one of the @app/@core/@mod roots. */
     static function validConfigFileName(string $name): bool {
+        if(preg_match('#^@(app|core|mod)/(.+)$#', $name, $m)) $name = $m[2];
         if($name === '' || $name[0] === '/' || strpos($name, '..') !== false || strpos($name, "\0") !== false) return false;
         return (bool)preg_match('#^[A-Za-z0-9_./-]+\.ya?ml$#', $name);
     }
