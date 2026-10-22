@@ -2968,3 +2968,23 @@ environment); ZPMS does not set the key, so its lifetime stays 10 days. **Files*
   `config/db.php`. zprime's harness defines the test database in its router instead, and its
   `web/index.php` only includes `config/db.php` when `DB_NAME` is not already defined. Worth checking
   zpms's suite in an environment where the PHP version differs from the one it was written against.
+
+## `bin/update.sh` -- an option for every question, unattended mode (2026-10-22)
+
+Requested for zpms's "Update from git" page (see zpms's README, "Updating from git"): `bin/update.sh` asked ~10
+questions on the terminal, so nothing could run it without a person. Every question now has an option --
+`--core-tables=`, `--web-tables=`, `--core-diff=`, `--web-diff=`, `--content=`, `--generate-feeders=`,
+`--clean-feeds=`, `--forms=` (values `ask|yes|all|no`; invalid values and unknown options exit 2) -- plus
+`--yes`, `--non-interactive`, `--dry-run` and `--help`. With no options and a terminal it asks exactly as before.
+
+- `--yes` answers yes to everything **except** the two `*-diff` questions and `--clean-feeds`: applying
+  `diff:sql` changes the live database and `feed:clean` empties tables, so those must be asked for explicitly.
+- `--non-interactive` never reads stdin; a question not answered by an option is answered "no".
+- `--dry-run` skips every step that writes (class/SQL regeneration, table import, diff apply, feeders, forms,
+  `bin/post-update.sh`) and prints the missing tables and the database diffs; it implies `--non-interactive`.
+- A failing step now makes the script exit 1 (the old bare `exit` returned 0, and `read` failures were ignored).
+- `gawk` was replaced by `awk` (the one-line schema lookup needs nothing gawk-specific).
+- The opt-in `bin/post-update.sh` hook added upstream the same day is kept (skipped in a dry run).
+
+Tested by zpms's `tests/shell/update_sh_flags.sh`, which drives the script against a fake application whose
+`maker.php` and `msql.sh` record every call (finds the script through `fw/` or `web/core`).
