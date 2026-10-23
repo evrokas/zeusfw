@@ -1,0 +1,3 @@
+# Nothing to configure here: the policy itself (session_idle_minutes, session_max_hours,
+# remember_me_days, session_warn_seconds) is read from the app's config by
+# core/lib/SessionPolicy.php. The module renders nothing unless that policy is on.

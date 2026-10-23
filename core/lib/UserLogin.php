@@ -183,11 +183,21 @@ function login_post($params) {
         echopre("try to login user ". $us->getuname() . " with rules: " . print_r($uroles, true));
 
         // ask kernel to login user
-        $kernel->loginUser($us->getuname(), $uroles);
+        $remember = isset($_POST['rememberme']);
+        $kernel->loginUser($us->getuname(), $uroles, $remember);
         zeusfw_audit_event('login_success', ['username' => $us->getuname(), 'method' => 'password']);
 
-        if(isset($_POST['rememberme'])) {
+        if($remember) {
             setup_rememberme($us->getuname());
+        } elseif(zeusfw_session_policy()) {
+            // Signing in WITHOUT "remember me" on a device that still holds an older
+            // remember-me cookie: drop it, or the idle logout would just log this
+            // device straight back in.
+            $old = filter_input(INPUT_COOKIE, 'zeusfwrememberme');
+            if($old && ($parsed = userTokensClassEx::parse_token($old))) {
+                userTokensClassEx::delete_by_selector($parsed[0]);
+            }
+            zeusfw_clear_rememberme_cookie();
         }
 
         // Transparent upgrade: an account still on the legacy unsalted

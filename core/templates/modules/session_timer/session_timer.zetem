@@ -1,0 +1,15 @@
+{# Session end warning -- core/modules/session_timer/. Fixed-position, so it never moves the page. #}
+<link rel="stylesheet" href="{{ $cssUrl | e }}">
+<div id="zfw-session" hidden role="alert" aria-live="assertive"
+     data-left="{{ $left | e }}" data-limit="{{ $limit | e }}" data-warn="{{ $warn | e }}"
+     data-status-url="{{ $statusUrl | e }}" data-ping-url="{{ $pingUrl | e }}" data-login-url="{{ $loginUrl | e }}"
+     data-t-expires-in="{{ $labels['expiresIn'] | e }}" data-t-stay="{{ $labels['stay'] | e }}"
+     data-t-cannot-extend="{{ $labels['cannotExtend'] | e }}" data-t-expired="{{ $labels['expired'] | e }}"
+     data-t-sign-in="{{ $labels['signIn'] | e }}" data-t-failed="{{ $labels['failed'] | e }}">
+  <div class="zfs-text"><span class="zfs-msg"></span> <strong class="zfs-clock"></strong></div>
+  <div class="zfs-actions">
+    <button type="button" class="zfs-stay"></button>
+    <a class="zfs-login" target="_blank" rel="noopener"></a>
+  </div>
+</div>
+<script src="{{ $jsUrl | e }}"></script>

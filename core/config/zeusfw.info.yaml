@@ -77,6 +77,19 @@ routes:
   # settings.info.yaml, not this file, since login/login_post are generic
   # core handlers every app already gets) -- these only ever handle the
   # number-matching challenge lifecycle, never the password form itself.
+  # Session lifetime (core/lib/SessionPolicy.php): inert unless the app sets
+  # session_idle_minutes. status is read-only; ping is the only call that
+  # restarts the idle clock.
+  session_status:
+    title: "Session: time left"
+    url: "/session/status"
+    handler: zeusfw_session_status
+    method: get
+  session_ping:
+    title: "Session: keep alive"
+    url: "/session/ping"
+    handler: zeusfw_session_ping
+    method: post
   ernsauth_sso_start:
     title: "ErnsAuth SSO: start"
     url: "/login/ernsauth/start"

@@ -3040,3 +3040,25 @@ relative to `<app>/web`, so `@core/css/x.css` is `/core/css/x.css`). Helpers: `K
 `@core`/`@app` are the module's own folders (resolved by `resolveModuleDir()` before they reach the global config).
 Macro template paths are absolute, so `live_edit` now shows them relative to `<app>/web/` (same text as before).
 zpms uses them for `templates:` and `modules: path:`.
+
+## Session lifetime: sliding idle logout, hard cap, "remember me" (`core/lib/SessionPolicy.php`, `core/modules/session_timer/`) (2026-10-23)
+
+Opt-in: nothing changes for an app until it sets `session_idle_minutes:` (zpms: 60). Rule: an ordinary session ends after
+`session_idle_minutes` without a **real** request (sliding) or `session_max_hours` (12) after sign-in; a "remember me" session has
+no idle limit and lasts `remember_me_days`. A warning banner appears `session_warn_seconds` (120) before the end.
+
+- Server-side session fields (`zfw_login_at`, `zfw_ttl`, `zfw_last_seen`, `zfw_remember`) are written by `Kernel::loginUser($u, $roles, $remember)`;
+  the "remember" flag comes from the login form's checkbox (password login) or is true for a session restored from the remember-me cookie.
+  Nothing is read from a request. A missing/oversized/non-int `zfw_ttl` falls back to the short cap. A session that predates the policy is stamped on its next request (counts from then).
+- `Kernel::boot()`: `zeusfw_session_enforce()` right after the session starts (before the remember-me cookie is looked at) ends an expired session, audits `session_expired`
+  (`reason=idle|cap`), keeps the PHP session only to carry the "session has ended" flash; `zeusfw_session_touch_for_route()` after the route is matched restarts the idle clock.
+  Routes in `session_passive_routes:` (and `session_status`, `session_ping`) are polling and never count as activity.
+- Signing in **without** "remember me" on a device that still holds a remember-me cookie deletes that cookie/token, otherwise the idle logout would just log the device back in.
+- Endpoints (in `core/config/zeusfw.info.yaml`): `GET /session/status` read-only (never touches the session); `POST /session/ping` needs the CSRF header and is the only call that renews.
+  (The handlers are `zeusfw_session_status/_ping`: `session_status()` is a PHP built-in.)
+- `session_timer` module (opt-in via `modules:`; `{{ module('session_timer', []) }}` once in the page template): fixed-position banner; re-checks `/session/status`
+  before warning (another tab may have renewed), shows "can't be extended" when the hard cap is the limit, re-checks when the tab becomes visible, and at the end offers "sign in" in a **new tab** (no redirect, so typed data is kept).
+- Storage: `session_name:` (own cookie name) and `session_save_path:` (macro-aware, e.g. `@app/var/sessions`, mode 0700, created on first use; falls back to PHP's default with an `error_log` line if not writable) with `gc_maxlifetime` = longest allowed session + 1 day and PHP's own cleanup on —
+  Debian/Ubuntu otherwise delete files in the shared folder after the php.ini `gc_maxlifetime` (~24 min). Changing the path/name signs everybody out once.
+- Gotcha found while testing: compiled templates are cached per top-level file (`web/cache/main.php` includes `page.zetem`), so editing an *included* template does not recompile it — clear `web/cache/` after pulling such a change.
+- Not limited: concurrent sessions on several machines. Tested by zpms's `tests/functional/session_policy.php`.

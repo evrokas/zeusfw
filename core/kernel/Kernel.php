@@ -846,6 +846,9 @@ class Kernel {
         // loginUser()) -- the return value is intentionally unused, exactly
         // as every existing caller of this already discards it; only the
         // side effect matters here.
+        // Ends a session that ran out (idle / hard cap) before anything restores a login
+        // from the remember-me cookie; a no-op unless session_idle_minutes is set.
+        zeusfw_session_enforce();
         $this->isUserLoggedin();
 
         if(isset($_SESSION) && isset($_SESSION['CURRENT_LANGUAGE']))
@@ -870,6 +873,7 @@ class Kernel {
         $match = $this->router->matchRoute($this->request);
         $_SESSION['route_match'] = $match;
         $_SESSION['request'] = $this->request->getQueryRoute();
+        zeusfw_session_touch_for_route($match);   // a real request restarts the idle clock
 
         $content_response = $this->router->routerCallFunction($match);
         $this->renderPage();
@@ -946,7 +950,7 @@ class Kernel {
         } else return null;
     }
 
-    function loginUser($uname, $uroles) {
+    function loginUser($uname, $uroles, bool $remember = false) {
         session_destroy();
         zeusfw_session_start();
         // Regenerate the session id before adopting the identity, for both
@@ -963,6 +967,8 @@ class Kernel {
         }
         $urolelist[] = 'authenticated';
         $_SESSION['user_roles'] = $urolelist;
+        // lifetime fields (no-op unless the app turned the session policy on)
+        zeusfw_session_stamp($remember);
     }
     
     function logoutUser() {
@@ -1043,7 +1049,7 @@ class Kernel {
                     $uroles = function_exists('zeusfw_app_resolve_user_roles')
                         ? (zeusfw_app_resolve_user_roles($us) ?? $us->getroles())
                         : $us->getroles();
-                    $kernel->loginUser($us->getuname(), $uroles);
+                    $kernel->loginUser($us->getuname(), $uroles, true);
                     zeusfw_audit_event('login_remembered', ['username' => $us->getuname(), 'method' => 'remember_me']);
                     return true;
                 }

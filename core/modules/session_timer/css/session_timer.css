@@ -1,0 +1,18 @@
+/* Session end warning (core/modules/session_timer/). Own --zfs-* namespace, fixed position:
+   it must never change the page layout. */
+#zfw-session {
+  --zfs-bg: #1f2937; --zfs-fg: #fff; --zfs-accent: #f59e0b; --zfs-accent-fg: #111827;
+  position: fixed; left: 50%; bottom: 1.25rem; transform: translateX(-50%);
+  z-index: 2147483000; display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1rem;
+  max-width: min(36rem, calc(100vw - 2rem)); padding: .75rem 1rem;
+  background: var(--zfs-bg); color: var(--zfs-fg); border-radius: .5rem;
+  box-shadow: 0 .25rem 1rem rgba(0, 0, 0, .35); font: 0.95rem/1.35 system-ui, sans-serif;
+}
+#zfw-session[hidden] { display: none; }
+#zfw-session .zfs-clock { font-variant-numeric: tabular-nums; }
+#zfw-session .zfs-actions { display: flex; gap: .5rem; margin-left: auto; }
+#zfw-session .zfs-stay, #zfw-session .zfs-login {
+  border: 0; border-radius: .35rem; padding: .4rem .9rem; cursor: pointer; text-decoration: none;
+  background: var(--zfs-accent); color: var(--zfs-accent-fg); font: inherit; font-weight: 600;
+}
+#zfw-session .zfs-stay[hidden], #zfw-session .zfs-login[hidden] { display: none; }

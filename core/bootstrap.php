@@ -58,6 +58,7 @@ require_once(__DIR__ . "/lib/Packages.php");
 require_once(__DIR__ . "/modules/admin/admin_crud.php");
 require_once(__DIR__ . "/lib/Csrf.php");
 require_once(__DIR__ . "/lib/CookieSecurity.php");
+require_once(__DIR__ . "/lib/SessionPolicy.php");
 require_once(__DIR__ . "/lib/UserLogin.php");
 // Depends on LoginSecurityClass (just above) and ernsauthSsoAttemptsClassEx
 // (core/ernsauthSsoAttemptsClassEx.php, already loaded via
