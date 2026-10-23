@@ -903,11 +903,11 @@ function generateClassCode0($yamlData) {
 
 function form_load($yData) {
     echo("loading form `{$yData['form']['name']}`\n");
-	print_r("yData: " . print_r($yData['form'], 1));
+	//print_r("yData: " . print_r($yData['form'], 1));
 
     $formArray = generateHTMLFormArray($yData);
 
-    print_r($formArray);
+    //print_r($formArray);
     // $serializedArray = serialize( $formArray );
 
     // print_r($serializedArray);
@@ -966,7 +966,7 @@ function form_load($yData) {
 
             $formClass->insert();
 
-            print_r($formClass);
+            //print_r($formClass);
             echo("Form added to database\n");
 
         } else {
@@ -976,7 +976,7 @@ function form_load($yData) {
             }
 
             echo("Found form in database\n");
-            print_r($dbForm);
+            //print_r($dbForm);
 
             // $formClass = new webFormsClass( $dbForm[0]->getAllFields() );
             $formClass = $dbForm[0];
@@ -988,7 +988,7 @@ function form_load($yData) {
             $formClass->setform_class( $className );
             $formClass->setdata( $jsonArray );
 
-            print_r($formClass);
+            //print_r($formClass);
 
             $formClass->update();
 
@@ -1042,7 +1042,7 @@ function form_view($yData) {
         $dbForm = webFormsClass::sgetAllFilter('webforms', ['form_name' => $formName]);
 
         echo("Found forms with name `$formName`\n");
-        print_r($dbForm);
+        //print_r($dbForm);
 
         if(!empty($dbForm)) {
             $arr = json_decode( $dbForm[0]->getdata(), true );
