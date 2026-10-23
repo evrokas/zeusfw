@@ -3071,3 +3071,7 @@ the tab is visible and on tab focus (the label counts down locally in between). 
 renewal could reach); the banner drops its button when `cap_left` <= the warning window. Labels `endsIn`/`endedShort`/`daysShort`/`labelTitle` are in the module's `LABELS` (el/en). No label
 element on a page = no label, banner unchanged.
 
+
+## `bin/update.sh` clears `web/cache/` at the end and announces the app-hook scan (2026-10-23)
+
+After the optional `bin/post-update.sh` hook, `update.sh` now empties `web/cache/*` (compiled templates are cached per top-level file, so an edited *included* template otherwise stays stale). Dry run only prints it. The hook step first echoes "Scanning for an application-specific update script..." and "none found" when the app has none.
