@@ -3062,3 +3062,12 @@ no idle limit and lasts `remember_me_days`. A warning banner appears `session_wa
   Debian/Ubuntu otherwise delete files in the shared folder after the php.ini `gc_maxlifetime` (~24 min). Changing the path/name signs everybody out once.
 - Gotcha found while testing: compiled templates are cached per top-level file (`web/cache/main.php` includes `page.zetem`), so editing an *included* template does not recompile it — clear `web/cache/` after pulling such a change.
 - Not limited: concurrent sessions on several machines. Tested by zpms's `tests/functional/session_policy.php`.
+
+### `session_timer`: a quiet countdown label beside the user name (2026-10-23)
+
+Same idea as apyweb's «Λήξη σε 47΄» under the user link: any element with the attribute `data-zfw-session-label` (zpms: inside `userblock.zetem`, after the user name) is
+filled by `js/session_timer.js` with «Ends in …» -- coarse (`3 d`, `2h 05'`, `47'`; `m:ss` and orange for the last 10 minutes), re-synced from `/session/status` once a minute while
+the tab is visible and on tab focus (the label counts down locally in between). `/session/status` and `/session/ping` now also answer `cap_left` (seconds to the hard cap = how far a
+renewal could reach); the banner drops its button when `cap_left` <= the warning window. Labels `endsIn`/`endedShort`/`daysShort`/`labelTitle` are in the module's `LABELS` (el/en). No label
+element on a page = no label, banner unchanged.
+

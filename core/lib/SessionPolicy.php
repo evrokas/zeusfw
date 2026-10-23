@@ -97,6 +97,12 @@ function zeusfw_session_seconds_left(array $p, int $now): array {
         : ['left' => max(0, $leftCap), 'limit' => 'cap'];
 }
 
+/** Seconds until the hard cap, i.e. the most a renewal could ever leave. */
+function zeusfw_session_cap_left(array $p, int $now): int {
+    $at = $_SESSION['zfw_login_at'] ?? $now;
+    return max(0, zeusfw_session_ttl($p) - ($now - (is_int($at) ? $at : $now)));
+}
+
 /** Marks a real request. Never called for polling. */
 function zeusfw_session_touch(): void {
     if (isset($_SESSION['user']) && zeusfw_session_policy()) {
@@ -169,7 +175,7 @@ function zeusfw_session_status($params = null) {
         zeusfw_session_json(['ok' => false, 'signed_in' => false, 'enabled' => (bool)$p], $p ? 401 : 200);
     }
     $s = zeusfw_session_seconds_left($p, time());
-    zeusfw_session_json(['ok' => true, 'signed_in' => true, 'enabled' => true, 'left' => $s['left'], 'limit' => $s['limit'], 'remember' => !empty($_SESSION['zfw_remember'])]);
+    zeusfw_session_json(['ok' => true, 'signed_in' => true, 'enabled' => true, 'left' => $s['left'], 'limit' => $s['limit'], 'cap_left' => zeusfw_session_cap_left($p, time()), 'remember' => !empty($_SESSION['zfw_remember'])]);
 }
 
 /** POST /session/ping -- the only call that restarts the idle clock (CSRF header required). */
@@ -183,5 +189,5 @@ function zeusfw_session_ping($params = null) {
     }
     zeusfw_session_touch();
     $s = zeusfw_session_seconds_left($p, time());
-    zeusfw_session_json(['ok' => true, 'signed_in' => true, 'left' => $s['left'], 'limit' => $s['limit'], 'remember' => !empty($_SESSION['zfw_remember'])]);
+    zeusfw_session_json(['ok' => true, 'signed_in' => true, 'left' => $s['left'], 'limit' => $s['limit'], 'cap_left' => zeusfw_session_cap_left($p, time()), 'remember' => !empty($_SESSION['zfw_remember'])]);
 }

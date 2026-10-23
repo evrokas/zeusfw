@@ -16,3 +16,9 @@
   background: var(--zfs-accent); color: var(--zfs-accent-fg); font: inherit; font-weight: 600;
 }
 #zfw-session .zfs-stay[hidden], #zfw-session .zfs-login[hidden] { display: none; }
+
+/* The quiet countdown label: any element with data-zfw-session-label. Inherits the host's font;
+   muted, orange for the last 10 minutes. */
+[data-zfw-session-label] { display: block; font-size: .72rem; line-height: 1.2; opacity: .7; white-space: nowrap; font-variant-numeric: tabular-nums; }
+[data-zfw-session-label][hidden] { display: none; }
+[data-zfw-session-label].soon { color: #c2410c; opacity: 1; font-weight: 600; }

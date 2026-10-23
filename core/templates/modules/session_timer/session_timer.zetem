@@ -5,7 +5,9 @@
      data-status-url="{{ $statusUrl | e }}" data-ping-url="{{ $pingUrl | e }}" data-login-url="{{ $loginUrl | e }}"
      data-t-expires-in="{{ $labels['expiresIn'] | e }}" data-t-stay="{{ $labels['stay'] | e }}"
      data-t-cannot-extend="{{ $labels['cannotExtend'] | e }}" data-t-expired="{{ $labels['expired'] | e }}"
-     data-t-sign-in="{{ $labels['signIn'] | e }}" data-t-failed="{{ $labels['failed'] | e }}">
+     data-t-sign-in="{{ $labels['signIn'] | e }}" data-t-failed="{{ $labels['failed'] | e }}"
+     data-t-ends-in="{{ $labels['endsIn'] | e }}" data-t-ended-short="{{ $labels['endedShort'] | e }}"
+     data-t-days-short="{{ $labels['daysShort'] | e }}" data-t-label-title="{{ $labels['labelTitle'] | e }}">
   <div class="zfs-text"><span class="zfs-msg"></span> <strong class="zfs-clock"></strong></div>
   <div class="zfs-actions">
     <button type="button" class="zfs-stay"></button>

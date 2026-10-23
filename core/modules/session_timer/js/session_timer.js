@@ -1,7 +1,13 @@
-/* Session end warning (core/modules/session_timer/). The server decides when the session
- * ends; this only warns. It polls GET /session/status (read-only: never counts as activity)
- * and renews only through POST /session/ping, when the user presses the button. When time
- * runs out it offers "sign in" in a NEW tab; it never redirects, so a half-filled form is kept. */
+/* Session countdown (core/modules/session_timer/): a quiet «ends in …» label (in any element
+ * with the attribute data-zfw-session-label, e.g. beside the user name) and a warning banner with
+ * a «stay signed in» button when only a couple of minutes are left.
+ *
+ * The server decides when the session ends; this only shows it. Nothing here restarts the idle
+ * clock except the explicit button: GET /session/status is read-only, POST /session/ping is the
+ * click. So a forgotten tab is not kept alive by its own timer. Activity in another tab extends
+ * the real session, so the local countdown is re-synced from the server once a minute (while the
+ * tab is visible) and always before the banner first appears. When time runs out it offers
+ * «sign in» in a NEW tab; it never redirects, so a half-filled form is kept. */
 (function () {
     'use strict';
     var root = document.getElementById('zfw-session');
@@ -9,22 +15,37 @@
     var d = root.dataset;
     var msg = root.querySelector('.zfs-msg'), clock = root.querySelector('.zfs-clock');
     var stay = root.querySelector('.zfs-stay'), login = root.querySelector('.zfs-login');
+    var labels = document.querySelectorAll('[data-zfw-session-label]');
     var warn = +d.warn || 120;
     var deadline = Date.now() + (+d.left) * 1000;
-    var limit = d.limit;
+    var canExtend = d.limit !== 'cap';
     var checking = false, ended = false, lastCheck = 0;
 
     stay.textContent = d.tStay;
     login.textContent = d.tSignIn;
     login.href = d.loginUrl;
+    labels.forEach(function (l) { l.title = d.tLabelTitle || ''; });
 
     function csrf() { var m = document.querySelector('meta[name="csrf-token"]'); return m ? m.content : ''; }
-    function fmt(s) { var m = Math.floor(s / 60), r = s % 60; return (m < 10 ? '0' : '') + m + ':' + (r < 10 ? '0' : '') + r; }
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    function mmss(s) { return Math.floor(s / 60) + ':' + pad(s % 60); }
     function leftSec() { return Math.max(0, Math.round((deadline - Date.now()) / 1000)); }
+    // coarse on purpose: «3 d», «2h 05'», «47'»; the last 10 minutes show m:ss
+    function human(s) {
+        if (s >= 2 * 86400) return Math.floor(s / 86400) + ' ' + d.tDaysShort;
+        if (s >= 3600) return Math.floor(s / 3600) + 'h ' + pad(Math.floor((s % 3600) / 60)) + "'";
+        if (s >= 600) return Math.ceil(s / 60) + "'";
+        return mmss(s);
+    }
 
     function apply(res) {
-        if (res && res.ok) { deadline = Date.now() + res.left * 1000; limit = res.limit; ended = false; return; }
-        if (res && res.signed_in === false) { deadline = Date.now(); }
+        if (res && res.ok) {
+            deadline = Date.now() + res.left * 1000;
+            canExtend = typeof res.cap_left === 'number' ? res.cap_left > warn : res.limit !== 'cap';
+            ended = false;
+        } else if (res && res.signed_in === false) {
+            deadline = Date.now();
+        }
     }
     function call(url, post) {
         var init = { method: post ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'Accept': 'application/json' } };
@@ -38,8 +59,18 @@
         call(d.statusUrl, false).then(function (res) { checking = false; if (res) apply(res); render(); });
     }
 
+    function paintLabels(left) {
+        var txt = left > 0 ? d.tEndsIn + ' ' + human(left) : d.tEndedShort;
+        labels.forEach(function (l) {
+            l.hidden = false;
+            if (l.textContent !== txt) l.textContent = txt;
+            l.classList.toggle('soon', left > 0 && left < 600);
+        });
+    }
+
     function render() {
         var left = leftSec();
+        paintLabels(left);
         if (left <= 0) {
             ended = true;
             root.hidden = false;
@@ -50,8 +81,8 @@
         if (left > warn) { root.hidden = true; return; }
         root.hidden = false;
         login.hidden = true;
-        clock.textContent = fmt(left);
-        if (limit === 'cap') { msg.textContent = d.tCannotExtend + ' ' + d.tExpiresIn; stay.hidden = true; }
+        clock.textContent = mmss(left);
+        if (!canExtend) { msg.textContent = d.tCannotExtend + ' ' + d.tExpiresIn; stay.hidden = true; }
         else { msg.textContent = d.tExpiresIn; stay.hidden = false; }
     }
 
@@ -70,7 +101,9 @@
         // re-verify with the server when the warning is due (at most every 15 s while it is)
         if (left <= warn && Date.now() - lastCheck > 15000) check(); else render();
     }, 1000);
-    // a sleeping laptop misses its timers: look again as soon as the tab is back
+    // keep the countdown honest: a minute-by-minute re-sync while the tab is visible, and as soon
+    // as it is back (a sleeping laptop misses its timers)
+    setInterval(function () { if (!document.hidden && !ended) check(); }, 60000);
     document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
     render();
 })();

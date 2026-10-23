@@ -21,6 +21,10 @@ class sessionTimerModule extends moduleClass {
             'expired' => 'Η σύνδεσή σας έληξε. Συνδεθείτε ξανά σε νέα καρτέλα, ώστε να μη χαθούν όσα έχετε πληκτρολογήσει εδώ.',
             'signIn' => 'Σύνδεση',
             'failed' => 'Δεν ήταν δυνατή η παράταση. Δοκιμάστε ξανά.',
+            'endsIn' => 'Λήξη σε',
+            'endedShort' => 'Η συνεδρία έληξε',
+            'daysShort' => 'ημ.',
+            'labelTitle' => 'Χρόνος μέχρι τη λήξη της συνεδρίας',
         ],
         'en' => [
             'expiresIn' => 'Your session ends in',
@@ -29,6 +33,10 @@ class sessionTimerModule extends moduleClass {
             'expired' => 'Your session has ended. Sign in again in a new tab so nothing you typed here is lost.',
             'signIn' => 'Sign in',
             'failed' => 'Could not extend the session. Try again.',
+            'endsIn' => 'Ends in',
+            'endedShort' => 'Session ended',
+            'daysShort' => 'd',
+            'labelTitle' => 'Time until the session ends',
         ],
     ];
 
