@@ -348,13 +348,29 @@ fi
 # static location maps from the clinic addresses). Opt-in: runs only if the
 # app ships an executable bin/post-update.sh, so other apps are unaffected.
 # Its failure is reported but doesn't undo or abort the update above.
+echo 'Scanning for an application-specific update script (bin/post-update.sh)...'
 if [[ $DRYRUN == 1 ]]; then
-    [ -x "$BASEDIR/bin/post-update.sh" ] && echo "[dry-run] would run bin/post-update.sh"
+    if [ -x "$BASEDIR/bin/post-update.sh" ]; then
+        echo "[dry-run] would run bin/post-update.sh"
+    else
+        echo "  none found"
+    fi
 elif [ -x "$BASEDIR/bin/post-update.sh" ]; then
     echo 'Running application post-update steps (bin/post-update.sh)...'
     if ! "$BASEDIR/bin/post-update.sh"; then
         echo "Warning: bin/post-update.sh reported a problem (see above); the rest of the update is complete."
     fi
+else
+    echo "  none found"
+fi
+
+# Compiled templates are cached per top-level file, so an edited included
+# template is not picked up until the cache is emptied.
+if [[ $DRYRUN == 1 ]]; then
+    echo "[dry-run] would remove web/cache/*"
+else
+    echo 'Clearing the template cache (web/cache/)...'
+    rm -rf "$BASEDIR"/web/cache/* 2>/dev/null || true
 fi
 
 if [[ $FAILED == 1 ]]; then
