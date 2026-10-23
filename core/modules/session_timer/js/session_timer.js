@@ -15,7 +15,8 @@
     var d = root.dataset;
     var msg = root.querySelector('.zfs-msg'), clock = root.querySelector('.zfs-clock');
     var stay = root.querySelector('.zfs-stay'), login = root.querySelector('.zfs-login');
-    var labels = document.querySelectorAll('[data-zfw-session-label]');
+    // looked up on every paint: the script may run before the page's header (and its label) exists
+    function labelEls() { return document.querySelectorAll('[data-zfw-session-label]'); }
     var warn = +d.warn || 120;
     var deadline = Date.now() + (+d.left) * 1000;
     var canExtend = d.limit !== 'cap';
@@ -24,7 +25,6 @@
     stay.textContent = d.tStay;
     login.textContent = d.tSignIn;
     login.href = d.loginUrl;
-    labels.forEach(function (l) { l.title = d.tLabelTitle || ''; });
 
     function csrf() { var m = document.querySelector('meta[name="csrf-token"]'); return m ? m.content : ''; }
     function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -61,8 +61,9 @@
 
     function paintLabels(left) {
         var txt = left > 0 ? d.tEndsIn + ' ' + human(left) : d.tEndedShort;
-        labels.forEach(function (l) {
+        labelEls().forEach(function (l) {
             l.hidden = false;
+            if (!l.title) l.title = d.tLabelTitle || '';
             if (l.textContent !== txt) l.textContent = txt;
             l.classList.toggle('soon', left > 0 && left < 600);
         });
