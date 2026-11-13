@@ -544,6 +544,14 @@ function syncTableWithYAML($yamlData, $pdo) {
             // lines above, before either definition string is built, so
             // this codebase's real tinyint(1)-means-boolean convention is
             // never touched by it.
+            // The same tinyint(1)-means-boolean rule on the yaml side: a
+            // yaml `type: tinyint(1)` (or `bool`) is compared as 'boolean',
+            // as the live column already is above. Without this a
+            // tinyint(1) column was reported as "boolean -> tinyint(1)"
+            // on every run, even right after its ALTER was applied.
+            // Only the comparison changes; the ALTER keeps the yaml type.
+            $columnDefinitionForCompare = preg_replace('/^(?:tinyint\s*\(\s*1\s*\)|bool)(?=\s|$)/i', 'boolean', trim($columnDefinitionForCompare));
+
             $intWidthPattern = '/\b(tiny|small|medium|big)?int\s*\(\s*\d+\s*\)/i';
             $existingDefinitionForCompare = preg_replace($intWidthPattern, '$1int', $existingDefinition);
             $columnDefinitionForCompare = preg_replace($intWidthPattern, '$1int', $columnDefinitionForCompare);
