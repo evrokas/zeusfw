@@ -3079,3 +3079,24 @@ element on a page = no label, banner unchanged.
 ## `bin/update.sh` clears `web/cache/` at the end and announces the app-hook scan (2026-10-23)
 
 After the optional `bin/post-update.sh` hook, `update.sh` now empties `web/cache/*` (compiled templates are cached per top-level file, so an edited *included* template otherwise stays stale). Dry run only prints it. The hook step first echoes "Scanning for an application-specific update script..." and "none found" when the app has none.
+
+### `formBuildWhereClause()` quotes values and checks names and operators (2026-11-20)
+
+**What:** `core/lib/FormElement.php`'s `formBuildWhereClause()` (the WHERE builder behind a select's
+`static_options: params: filter:`) pasted values into the SQL as `'$v'` with no escaping, and took column
+names and operators as given. A quote in a value broke the query; a value from user input could inject SQL.
+Now string values go through `PDO::quote()` (an optional second argument takes another quoter, for tests),
+ints/floats/booleans go in as numbers and `null` as `IS [NOT] NULL`; columns must be `col` or `table.col`;
+operators come from `FORM_WHERE_OPERATORS` (`= != <> < <= > >= LIKE, NOT LIKE, IN, NOT IN, IS, IS NOT`);
+`IN []` becomes `1 = 0`. Anything else throws `InvalidArgumentException`, which `SelectElement` shows as
+"Invalid filter: …" like its other config errors. The documented example's `buildWhereClause` name fixed.
+
+**Why:** found while weighing webforms for neurolog. No app used `static_options` filters yet (checked all
+apps), so nothing was exploitable, but the function is what a later form would use.
+
+**Verified:** an ad-hoc test of 24 cases (quoting, the documented and/or/not example, refused columns,
+operators and values) including real MySQL queries through `PDO::quote` (a quote, `' OR '1'='1`, a
+backslash trick match nothing). neurolog's suite 160/160. zpms's suite not run (no `config/db.test.php` here);
+zpms uses no `static_options`.
+
+**Files:** `core/lib/FormElement.php`.

@@ -136,47 +136,78 @@ function sanitize(string $str): string {
 }
 
 
-function formBuildWhereClause(array $filters): string {
+// Builds a WHERE clause (without the word WHERE) from a filter tree, e.g. a
+// select's `static_options: params: filter:` in a form yaml (example below).
+// Values used to be pasted in as '$v' with no escaping: a quote in a value
+// broke the query, and a value taken from user input could inject SQL. Now
+// string values are quoted by the database connection (PDO::quote), numbers
+// and booleans go in as numbers, null as NULL; column names must be plain
+// identifiers (col or table.col) and operators come from a fixed list.
+// Anything else throws InvalidArgumentException instead of reaching the DB.
+// $quote: optional string quoter (for tests); default the app's connection.
+const FORM_WHERE_OPERATORS = ['=', '!=', '<>', '<', '<=', '>', '>=', 'LIKE', 'NOT LIKE', 'IN', 'NOT IN', 'IS', 'IS NOT'];
+
+function formBuildWhereClause(array $filters, ?callable $quote = null): string {
+    $quote ??= fn(string $s): string => dbConnection::getConnection()->quote($s);
     $conditions = [];
-    
+
     foreach ($filters as $key => $value) {
-        // Handle logical operators (AND/OR/NOT)
-        if (in_array(strtolower($key), ['and', 'or', 'not'])) {
+        // Logical groups (and/or/not): a list of filter maps
+        if (is_string($key) && in_array(strtolower($key), ['and', 'or', 'not'], true)) {
+            if (!is_array($value)) throw new InvalidArgumentException("filter '$key' needs a list of filters");
             $operator = strtoupper($key);
             $subConditions = [];
-            
             foreach ($value as $subFilter) {
-                $subConditions[] = formBuildWhereClause($subFilter);
+                if (!is_array($subFilter)) throw new InvalidArgumentException("filter '$key' needs a list of filters");
+                $sub = formBuildWhereClause($subFilter, $quote);
+                if ($sub !== '') $subConditions[] = "($sub)";
             }
-            
-            if ($operator === 'NOT') {
-                $conditions[] = "NOT (" . implode(' AND ', $subConditions) . ")";
-            } else {
-                $conditions[] = "(" . implode(" $operator ", $subConditions) . ")";
-            }
+            if (!$subConditions) continue;
+            $conditions[] = $operator === 'NOT'
+                ? 'NOT (' . implode(' AND ', $subConditions) . ')'
+                : '(' . implode(" $operator ", $subConditions) . ')';
+            continue;
         }
-        // Handle field conditions
-        else {
-            // Check for operator syntax (e.g., {operator: ">", value: 10})
-            if (is_array($value) && isset($value['operator']) && isset($value['value'])) {
-                $operator = strtoupper($value['operator']);
-                $val = $value['value'];
-            } else {
-                $operator = '=';
-                $val = $value;
-            }
 
-            // Format value based on type
-            if (is_array($val)) {
-                $formattedVal = "(" . implode(', ', array_map(fn($v) => is_string($v) ? "'$v'" : $v, $val)) . ")";
-            } else {
-                $formattedVal = is_string($val) ? "'$val'" : $val;
-            }
+        // Field conditions: `col: value` or `col: {operator: ">", value: 10}`
+        if (!is_string($key) || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$/', $key)) {
+            throw new InvalidArgumentException('filter column is not a plain name: ' . var_export($key, true));
+        }
+        if (is_array($value) && array_key_exists('operator', $value) && array_key_exists('value', $value)) {
+            $operator = strtoupper(trim(preg_replace('/\s+/', ' ', (string)$value['operator'])));
+            $val = $value['value'];
+        } else {
+            $operator = '=';
+            $val = $value;
+        }
+        if (!in_array($operator, FORM_WHERE_OPERATORS, true)) {
+            throw new InvalidArgumentException("filter operator not allowed: $operator");
+        }
 
-            $conditions[] = "$key $operator $formattedVal";
+        $literal = function ($v) use ($quote, $key): string {
+            if (is_bool($v)) return $v ? '1' : '0';
+            if (is_int($v) || (is_float($v) && is_finite($v))) return (string)$v;
+            if (is_string($v)) return $quote($v);
+            throw new InvalidArgumentException("filter value for '$key' is not a string or number");
+        };
+
+        if ($operator === 'IN' || $operator === 'NOT IN') {
+            if (!is_array($val)) throw new InvalidArgumentException("filter '$key' $operator needs a list");
+            if (!$val) { $conditions[] = $operator === 'IN' ? '1 = 0' : '1 = 1'; continue; }
+            $conditions[] = "$key $operator (" . implode(', ', array_map($literal, array_values($val))) . ')';
+        } elseif ($val === null) {
+            // `col: null` and IS / IS NOT / = / != with null: the SQL null test
+            if ($operator === 'IS' || $operator === '=') $conditions[] = "$key IS NULL";
+            elseif (in_array($operator, ['IS NOT', '!=', '<>'], true)) $conditions[] = "$key IS NOT NULL";
+            else throw new InvalidArgumentException("filter '$key' $operator cannot compare with null");
+        } elseif ($operator === 'IS' || $operator === 'IS NOT') {
+            throw new InvalidArgumentException("filter '$key' $operator takes only null");
+        } else {
+            if (is_array($val)) throw new InvalidArgumentException("filter '$key' $operator takes one value");
+            $conditions[] = "$key $operator " . $literal($val);
         }
     }
-    
+
     return implode(' AND ', $conditions);
 }
 
@@ -197,7 +228,7 @@ query:
       - hospital_id: { operator: "IN", value: [123, 456] }
 
 // Build WHERE clause
-$where = !empty($query['filters']) ? buildWhereClause($query['filters']) : '';
+$where = !empty($query['filters']) ? formBuildWhereClause($query['filters']) : '';
  */
 class SelectElement extends FormElement {
     public function generateHTML() {
@@ -230,7 +261,9 @@ class SelectElement extends FormElement {
             $tableClass = new ($tableNameClass)();
 
             if($filters) {
-                $filterClause = formBuildWhereClause($filters);
+                // a filter the builder refuses (bad column, operator or value) shows like the other config errors here
+                try { $filterClause = formBuildWhereClause($filters); }
+                catch(InvalidArgumentException $e) { return 'Invalid filter: ' . htmlspecialchars($e->getMessage()); }
                 // echopre("filters: " . print_r($filterClause, 1));
             }
 

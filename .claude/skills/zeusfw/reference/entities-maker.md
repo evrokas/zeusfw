@@ -71,6 +71,10 @@ Forms are stored in the DB: after changing `form:`/`form_view:` run `maker.php f
 table: `formsClass::renderFormResults('clinics', $filter, $view)`; POST handling: `formsClass::processform($params)`
 / `storeFormResults($form, $results)`. Checkboxes submit `1`; an unchecked box submits nothing (update leaves the
 column alone).
+A select can list rows of a table: `type: select`, `static_options: {params: {tableclass, value, label, filter}}`;
+`filter` is a tree (`col: v`, `col: {operator: ">=", value: 10}`, `and:`/`or:`/`not:` lists) built by
+`formBuildWhereClause()`: values are quoted, columns must be plain names, operators from `FORM_WHERE_OPERATORS`;
+anything else shows "Invalid filter".
 
 ## Generated class API (`web/classes/<table>.php`)
 
